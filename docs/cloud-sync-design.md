@@ -90,11 +90,12 @@ use the persisted queue schedule plus bounded coordinator backoff. Offline
 failures wait for connectivity or lifecycle recovery instead of retrying in a
 tight loop.
 
-Each eligible owner-private or participant-shared zone has one deterministic
-`CKRecordZoneSubscription`. Its notification contains no household content and
-is only a hint to fetch changes with the saved token. Missing subscriptions are
-repaired safely. Subscription failure does not disable local use or the
-foreground catch-up path.
+Each eligible owner-private zone has one deterministic
+`CKRecordZoneSubscription`. The participant shared database uses one
+`CKDatabaseSubscription`, following CloudKit’s shared-database requirement.
+Notifications contain no household content and are only hints to fetch changes
+with saved tokens. Missing subscriptions are repaired safely. Subscription
+failure does not disable local use or the foreground catch-up path.
 
 iOS may delay or omit silent notifications and background refresh. kyndyn does
 not promise real-time delivery or keep itself alive with timers. Foregrounding

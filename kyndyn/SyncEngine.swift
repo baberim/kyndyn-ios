@@ -1082,7 +1082,10 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
     func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
                                   scope: CloudDatabaseScope) async throws {
         try consumeFailure()
-        subscriptions.insert("\(scope.rawValue):\(zoneOwnerName ?? ""):\(zoneName)")
+        let key = scope == .sharedDatabase
+            ? scope.rawValue
+            : "\(scope.rawValue):\(zoneOwnerName ?? ""):\(zoneName)"
+        subscriptions.insert(key)
     }
 
     func subscriptionCount() -> Int { subscriptions.count }
@@ -1295,8 +1298,10 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
     func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
                                   scope: CloudDatabaseScope) async throws {
         let zone = zoneID(name: zoneName, ownerName: zoneOwnerName)
-        let digest = SHA256.hash(data: Data(
-            "\(scope.rawValue):\(zone.ownerName):\(zone.zoneName)".utf8))
+        let identity = scope == .sharedDatabase
+            ? scope.rawValue
+            : "\(scope.rawValue):\(zone.ownerName):\(zone.zoneName)"
+        let digest = SHA256.hash(data: Data(identity.utf8))
         let identifier = "kyndyn-zone-" + digest.prefix(12).map {
             String(format: "%02x", $0)
         }.joined()
@@ -1304,8 +1309,10 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         do {
             _ = try await database.subscription(for: identifier)
         } catch let error as CKError where error.code == .unknownItem {
-            let subscription = CKRecordZoneSubscription(
-                zoneID: zone, subscriptionID: identifier)
+            let subscription: CKSubscription = scope == .sharedDatabase
+                ? CKDatabaseSubscription(subscriptionID: identifier)
+                : CKRecordZoneSubscription(
+                    zoneID: zone, subscriptionID: identifier)
             let info = CKSubscription.NotificationInfo()
             info.shouldSendContentAvailable = true
             subscription.notificationInfo = info

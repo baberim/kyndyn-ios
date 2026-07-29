@@ -270,6 +270,19 @@ final class AutomaticSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(subscriptionCount, 1)
     }
 
+    func testSharedDatabaseUsesOneSubscriptionAcrossKnownZones() async throws {
+        let transport = InMemoryCloudTransport()
+        try await transport.ensureChangeSubscription(
+            zoneName: "first-shared-zone", zoneOwnerName: "fictional-owner",
+            scope: .sharedDatabase)
+        try await transport.ensureChangeSubscription(
+            zoneName: "second-shared-zone", zoneOwnerName: "fictional-owner",
+            scope: .sharedDatabase)
+
+        let subscriptionCount = await transport.subscriptionCount()
+        XCTAssertEqual(subscriptionCount, 1)
+    }
+
     func testSubscriptionFailureDoesNotDisableLocalQueue() async throws {
         let transport = InMemoryCloudTransport()
         await transport.failNext(.transient)

@@ -27,10 +27,11 @@ the household’s persisted database scope and shared-zone owner.
 
 ## CloudKit notification strategy
 
-Every eligible household repairs one deterministic
-`CKRecordZoneSubscription` in its private or shared database. Creating the same
-subscription repeatedly is harmless. The subscription requests content-
-available delivery and includes no names, quest titles, record fields, or
+Every eligible owner household repairs one deterministic
+`CKRecordZoneSubscription` in its private database. Participants repair one
+`CKDatabaseSubscription` for the shared database, as required by CloudKit.
+Creating the same subscription repeatedly is harmless. Both request content-
+available delivery and include no names, quest titles, record fields, or
 invitation data. Notifications are hints only; kyndyn always fetches changes
 using its persisted zone token.
 
