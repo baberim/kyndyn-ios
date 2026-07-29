@@ -168,6 +168,97 @@ final class SyncMetadataAndQueueTests: XCTestCase {
     }
 }
 
+@MainActor
+final class AutomaticSyncCoordinatorTests: XCTestCase {
+    func testRapidMutationTriggersAreDebouncedAndCoalesced() async {
+        let coordinator = AutomaticSyncCoordinator(
+            debounceNanoseconds: 20_000_000)
+        var runs = 0
+        coordinator.configure { runs += 1 }
+
+        coordinator.request(.localMutation)
+        coordinator.request(.localMutation)
+        coordinator.request(.localMutation)
+        await coordinator.waitUntilIdle()
+
+        XCTAssertEqual(runs, 1)
+        XCTAssertEqual(coordinator.completedRunCount, 1)
+        XCTAssertEqual(coordinator.lastTriggers, [.localMutation])
+    }
+
+    func testTriggerDuringRunDoesNotOverlapAndRunsOnceMore() async {
+        let coordinator = AutomaticSyncCoordinator(debounceNanoseconds: 0)
+        var active = 0
+        var maximumActive = 0
+        var runs = 0
+        coordinator.configure {
+            active += 1
+            maximumActive = max(maximumActive, active)
+            runs += 1
+            if runs == 1 {
+                coordinator.request(.remoteNotification)
+                coordinator.request(.becameActive)
+            }
+            await Task.yield()
+            active -= 1
+        }
+
+        coordinator.request(.launch)
+        await coordinator.waitUntilIdle()
+
+        XCTAssertEqual(maximumActive, 1)
+        XCTAssertEqual(runs, 2)
+        XCTAssertEqual(coordinator.lastTriggers,
+                       [.remoteNotification, .becameActive])
+    }
+
+    func testImmediateTriggerPreemptsMutationDebounce() async {
+        let coordinator = AutomaticSyncCoordinator(
+            debounceNanoseconds: 1_000_000_000)
+        var runs = 0
+        coordinator.configure { runs += 1 }
+
+        coordinator.request(.localMutation)
+        coordinator.request(.remoteNotification)
+        await coordinator.waitUntilIdle()
+
+        XCTAssertEqual(runs, 1)
+        XCTAssertEqual(coordinator.lastTriggers,
+                       [.localMutation, .remoteNotification])
+    }
+
+    func testSubscriptionCreationIsIdempotentAcrossRepairCalls() async throws {
+        let transport = InMemoryCloudTransport()
+        try await transport.ensureChangeSubscription(
+            zoneName: "fictional-zone", zoneOwnerName: nil,
+            scope: .privateDatabase)
+        try await transport.ensureChangeSubscription(
+            zoneName: "fictional-zone", zoneOwnerName: nil,
+            scope: .privateDatabase)
+
+        let subscriptionCount = await transport.subscriptionCount()
+        XCTAssertEqual(subscriptionCount, 1)
+    }
+
+    func testSubscriptionFailureDoesNotDisableLocalQueue() async throws {
+        let transport = InMemoryCloudTransport()
+        await transport.failNext(.transient)
+        do {
+            try await transport.ensureChangeSubscription(
+                zoneName: "fictional-zone", zoneOwnerName: nil,
+                scope: .privateDatabase)
+            XCTFail("Expected injected subscription failure")
+        } catch {
+            XCTAssertEqual(error as? CloudGatewayError, .transient)
+        }
+
+        try await transport.prepareZone(
+            named: "fictional-zone", scope: .privateDatabase)
+        let subscriptionCount = await transport.subscriptionCount()
+        XCTAssertEqual(subscriptionCount, 0)
+    }
+}
+
 final class SyncMergeTests: XCTestCase {
     private let householdID = UUID(uuidString:
         "11111111-1111-1111-1111-111111111111")!
