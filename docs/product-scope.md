@@ -10,7 +10,7 @@ The first release focuses on the reliable daily loop: household setup, profile c
 
 ## Current vertical slice
 
-This milestone runs fully on-device. It creates fictional sample data on request, persists it with SwiftData, and derives progress from active completion events. Parent access is visibly separated, but production-grade parent authentication is not yet implemented.
+This milestone runs fully on-device. It creates fictional sample data on request, persists it with SwiftData, derives progress from active completion events, protects parent tools with Apple device-owner authentication or a local PIN, and schedules local reminders without a server.
 
 ## Product decisions
 
@@ -20,4 +20,3 @@ This milestone runs fully on-device. It creates fictional sample data on request
 - Household calendar calculations use the household time zone.
 - Cosmetic unlocks, once granted, should be durable even if a completion is undone.
 - No ads, trading, random rewards, gacha, or child-directed behavioral profiling.
-

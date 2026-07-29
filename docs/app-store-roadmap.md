@@ -2,9 +2,9 @@
 
 ## Before beta
 
-- Add parent authentication and recovery.
+- Complete independent security review of local parent authentication and recovery limitations.
 - Implement CloudKit private/shared zones, invitations, conflict tests, and deletion.
-- Add local notification permission education and scheduling.
+- Validate notification scheduling and privacy on physical devices.
 - Finish badges, collections, backgrounds, and robust parent editors.
 - Complete migration importer and sanitized fixture tests.
 - Add accessibility identifiers and broaden UI coverage.
@@ -18,4 +18,3 @@ None of those credentials or portal changes are required for this local mileston
 ## Release gates
 
 Privacy/security review, VoiceOver and Dynamic Type audit, reduced-motion and contrast review, localization readiness, real-device offline/relaunch testing, CloudKit sharing failure tests, StoreKit sandbox tests, deletion/export flows, support URL, privacy policy, and TestFlight family testing.
-

@@ -4,7 +4,7 @@ Rowan is a calm, local-first family app for turning everyday responsibilities in
 
 This repository is a new native SwiftUI implementation. It is independent from the Rowan PWA and contains no household runtime data.
 
-## Current milestone
+## Current milestone — Local Core 0.2
 
 The app provides a locally usable vertical slice:
 
@@ -13,7 +13,10 @@ The app provides a locally usable vertical slice:
 - today's individual and shared quests;
 - completion and undo backed by append-friendly completion records;
 - derived XP, levels, streaks, and family-goal progress;
-- a parent area for adding people and basic quests;
+- LocalAuthentication-protected parent tools with an optional device-only Rowan PIN;
+- complete create/edit/archive/restore flows for people and quests;
+- one-time, daily, and selected-weekday schedules with household-local deadlines;
+- private, device-local quest reminders with quiet hours and profile targeting;
 - local SwiftData persistence and offline operation;
 - protocol boundaries for sync, notifications, entitlements, and import.
 
@@ -32,8 +35,9 @@ No Apple Developer account, CloudKit container, server, or secret is needed for 
 Run the `RowanTests` and `RowanUITests` targets with Product → Test, or:
 
 ```sh
-xcodebuild test -project Rowan.xcodeproj -scheme Rowan -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+xcodebuild test -project Rowan.xcodeproj -scheme Rowan -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-See `docs/` for product scope, architecture, parity, migration, privacy, asset provenance, and App Store work.
+The simulator can approve or reject notification permission. For LocalAuthentication, use **Features → Face ID** in Simulator to toggle enrollment and matching. A device passcode prompt may appear instead depending on simulator state.
 
+See `docs/` for architecture, lifecycle and schedule semantics, privacy, migration, accessibility, asset provenance, and App Store work.
