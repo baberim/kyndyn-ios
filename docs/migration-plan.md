@@ -2,7 +2,7 @@
 
 ## Format
 
-`rowan-export-v1.json` is a user-initiated, UTF-8 JSON document with `formatVersion`, `exportedAt`, `source`, `household`, `people`, `quests`, and `completionEvents`. It must exclude secrets, calendar feed URLs, push subscriptions, weather caches, backups, PIN hashes, and device identifiers.
+`kyndyn-export-v1.json` is a user-initiated, UTF-8 JSON document with `formatVersion`, `exportedAt`, `source`, `household`, `people`, `quests`, and `completionEvents`. It must exclude secrets, calendar feed URLs, push subscriptions, weather caches, backups, PIN hashes, and device identifiers.
 
 ## Workflow
 

@@ -16,11 +16,11 @@ Swift 6, SwiftUI, Swift concurrency, SwiftData, iOS/iPadOS 18+. The app is iPhon
 
 Every entity uses a UUID. Household-owned entities retain their household UUID. Deletable records use `deletedAt` rather than immediate destruction. A completion is an append-friendly event whose `reversedAt` records undo. Derived XP, levels, streaks, and family progress are recalculated from active events.
 
-The schema version is currently `3`. Household time zones are stored as IANA identifiers. Version 2 added defaulted device-local reminder settings. Version 3 adds separate cloud-state, record-metadata, mutation-queue, conflict, and invitation-routing models so SwiftData can migrate additively without contaminating progression entities. Rowan never silently deletes a store after initialization or migration failure; it shows a recovery screen that asks the family to preserve the installation and seek help.
+The schema version is currently `3`. Household time zones are stored as IANA identifiers. Version 2 added defaulted device-local reminder settings. Version 3 adds separate cloud-state, record-metadata, mutation-queue, conflict, and invitation-routing models so SwiftData can migrate additively without contaminating progression entities. kyndyn never silently deletes a store after initialization or migration failure; it shows a recovery screen that asks the family to preserve the installation and seek help.
 
 ## CloudKit direction
 
-SwiftData remains the immediate local source. `HouseholdCloudTransport` isolates CloudKit account, zone, record, change-token, share, invitation, and participant operations. `CloudSyncController` owns resumable provisioning and incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own deterministic merge/application. Production uses an owner private custom zone shared through `CKShare`; tests use an actor-backed in-memory transport. No generic Rowan-hosted family database is introduced.
+SwiftData remains the immediate local source. `HouseholdCloudTransport` isolates CloudKit account, zone, record, change-token, share, invitation, and participant operations. `CloudSyncController` owns resumable provisioning and incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own deterministic merge/application. Production uses an owner private custom zone shared through `CKShare`; tests use an actor-backed in-memory transport. No generic kyndyn-hosted family database is introduced.
 
 ## Entitlements and notifications
 
@@ -28,7 +28,7 @@ SwiftData remains the immediate local source. `HouseholdCloudTransport` isolates
 
 ## Authentication
 
-Every Parent tab entry is gated by `ParentAccessController`. LocalAuthentication uses device-owner authentication, allowing Face ID, Touch ID, or the device passcode. The optional Rowan PIN is salted with 128 random bits, iteratively SHA-256 hashed, and stored as a `WhenUnlockedThisDeviceOnly` Keychain item. Secrets and unlock state never enter SwiftData and never sync.
+Every Parent tab entry is gated by `ParentAccessController`. LocalAuthentication uses device-owner authentication, allowing Face ID, Touch ID, or the device passcode. The optional kyndyn PIN is salted with 128 random bits, iteratively SHA-256 hashed, and stored as a `WhenUnlockedThisDeviceOnly` Keychain item. Secrets and unlock state never enter SwiftData and never sync.
 
 ## Lifecycle and schedules
 

@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor
-final class RowanUITests: XCTestCase {
+final class KyndynUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     private func launch(parentUnlocked: Bool = false) -> XCUIApplication {

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-enum RowanSchema {
+enum KyndynSchema {
     static let version = 3
 }
 
@@ -32,7 +32,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
 
     init(id: UUID = UUID(), name: String, timeZoneIdentifier: String, rewardTitle: String = "Family Adventure", rewardGoalXP: Int = 300) {
         self.id = id
-        self.schemaVersion = RowanSchema.version
+        self.schemaVersion = KyndynSchema.version
         self.name = name
         self.timeZoneIdentifier = timeZoneIdentifier
         self.createdAt = .now

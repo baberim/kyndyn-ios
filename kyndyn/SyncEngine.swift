@@ -10,7 +10,7 @@ enum SyncIdentity {
     }
 
     static func zoneName(householdID: UUID) -> String {
-        "rowan-household-\(householdID.uuidString.lowercased())"
+        "kyndyn-household-\(householdID.uuidString.lowercased())"
     }
 }
 
@@ -163,7 +163,7 @@ struct UnconfiguredCloudTransport: HouseholdCloudTransport {
 enum CloudTransportFactory {
     static func make() -> any HouseholdCloudTransport {
         guard Bundle.main.object(
-            forInfoDictionaryKey: "RowanCloudSyncConfigured"
+            forInfoDictionaryKey: "kyndynCloudSyncConfigured"
         ) as? Bool == true else {
             return UnconfiguredCloudTransport()
         }
@@ -191,7 +191,7 @@ enum InvitationRoutingState: Equatable {
             state = .malformed
             return
         }
-        guard invitation.schemaVersion <= RowanSchema.version else {
+        guard invitation.schemaVersion <= KyndynSchema.version else {
             state = .incompatible
             return
         }
@@ -462,7 +462,7 @@ struct ProvisioningPreview: Equatable {
 
             let share = try await transport.createShare(
                 rootRecordName: state.rootRecordName!, zoneName: zone,
-                title: "Rowan family")
+                title: "kyndyn family")
             state.shareRecordName = share.shareRecordName
             state.provisioningStage = .shareReady
             try context.save()
@@ -569,10 +569,10 @@ struct ProvisioningPreview: Equatable {
     func acceptInvitation(_ invitation: ShareInvitation,
                           context: ModelContext) async -> HouseholdCloudState? {
         guard !invitation.zoneName.isEmpty,
-              invitation.schemaVersion <= RowanSchema.version else {
+              invitation.schemaVersion <= KyndynSchema.version else {
             statusMessage = invitation.zoneName.isEmpty
-                ? "This invitation isn’t a valid Rowan family."
-                : "Update Rowan to join this family."
+                ? "This invitation isn’t a valid kyndyn family."
+                : "Update kyndyn to join this family."
             return nil
         }
         isWorking = true
@@ -607,11 +607,11 @@ struct ProvisioningPreview: Equatable {
             lastErrorCategory = error.category
             statusMessage = error == .accessRevoked
                 ? "This invitation is no longer available."
-                : "Rowan couldn’t join this family yet."
+                : "kyndyn couldn’t join this family yet."
             return nil
         } catch {
             lastErrorCategory = .unknown
-            statusMessage = "Rowan couldn’t join this family yet."
+            statusMessage = "kyndyn couldn’t join this family yet."
             return nil
         }
     }
@@ -629,7 +629,7 @@ struct ProvisioningPreview: Equatable {
         let candidates = ReminderRules.candidates(
             quests: quests, people: people, settings: settings,
             household: household, now: .now)
-        try? await notificationScheduler.replaceRowanReminders(with: candidates)
+        try? await notificationScheduler.replaceKyndynReminders(with: candidates)
     }
 
     private func apply(error: CloudGatewayError, state: HouseholdCloudState) {
@@ -641,7 +641,7 @@ struct ProvisioningPreview: Equatable {
         case .notSignedIn: statusMessage = "Sign in to iCloud to continue family sync."
         case .restricted: statusMessage = "iCloud access is restricted on this device."
         case .accessRevoked: statusMessage = "Access to this shared family was removed."
-        case .incompatibleSchema: statusMessage = "Update Rowan to open this family."
+        case .incompatibleSchema: statusMessage = "Update kyndyn to open this family."
         default: statusMessage = error.retryable
             ? "Sync paused temporarily. Your changes are safe on this device."
             : "Family sync needs your attention."
@@ -671,7 +671,7 @@ enum SyncRemoteApplier {
                     timeZoneIdentifier: record.fields["timeZoneIdentifier"] ?? "UTC")
                 if existing == nil { context.insert(household) }
                 household.schemaVersion = Int(record.fields["schemaVersion"] ?? "")
-                    ?? RowanSchema.version
+                    ?? KyndynSchema.version
                 household.name = record.fields["name"] ?? household.name
                 household.timeZoneIdentifier =
                     record.fields["timeZoneIdentifier"] ?? household.timeZoneIdentifier
@@ -915,7 +915,7 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
 
     func accept(invitation: ShareInvitation) async throws {
         try consumeFailure()
-        guard invitation.schemaVersion <= RowanSchema.version else {
+        guard invitation.schemaVersion <= KyndynSchema.version else {
             throw CloudGatewayError.incompatibleSchema
         }
         guard !invitation.shareIdentifier.isEmpty,
@@ -1013,9 +1013,9 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
                     recordID: CKRecord.ID(recordName: envelope.recordName,
                                           zoneID: zoneID))
             }
-            record["rowanPayload"] = try SyncPayloadCodec.encode(envelope) as NSData
+            record["kyndynPayload"] = try SyncPayloadCodec.encode(envelope) as NSData
             record["householdID"] = envelope.householdID.uuidString as NSString
-            record["schemaVersion"] = RowanSchema.version as NSNumber
+            record["schemaVersion"] = KyndynSchema.version as NSNumber
             record["mutationID"] = envelope.mutationID.uuidString as NSString
             record["tombstone"] = envelope.tombstone as NSNumber
             return record
@@ -1110,18 +1110,18 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
 
     private func cloudRecordType(_ type: SyncEntityType) -> String {
         switch type {
-        case .household: return "RowanHousehold"
-        case .person: return "RowanPerson"
-        case .quest: return "RowanQuest"
-        case .questSchedule: return "RowanQuestSchedule"
-        case .questCompletion: return "RowanQuestCompletion"
-        case .rewardGoal: return "RowanRewardGoal"
-        case .householdSettings: return "RowanHouseholdSettings"
+        case .household: return "kyndynHousehold"
+        case .person: return "kyndynPerson"
+        case .quest: return "kyndynQuest"
+        case .questSchedule: return "kyndynQuestSchedule"
+        case .questCompletion: return "kyndynQuestCompletion"
+        case .rewardGoal: return "kyndynRewardGoal"
+        case .householdSettings: return "kyndynHouseholdSettings"
         }
     }
 
     private func envelope(from record: CKRecord) throws -> CloudRecordEnvelope {
-        guard let data = record["rowanPayload"] as? Data else {
+        guard let data = record["kyndynPayload"] as? Data else {
             throw CloudGatewayError.serverRejected
         }
         var value = try SyncPayloadCodec.decode(data)

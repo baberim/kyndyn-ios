@@ -16,7 +16,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Rowan" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="title">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="kyndyn" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="title">
                                 <rect key="frame" x="126.66666666666667" y="402.66666666666669" width="139.66666666666663" height="47.666666666666686"/>
                                 <fontDescription key="fontDescription" type="system" weight="bold" pointSize="40"/>
                                 <color key="textColor" systemColor="systemPurpleColor"/>

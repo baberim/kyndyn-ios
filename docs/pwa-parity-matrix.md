@@ -20,7 +20,7 @@
 | PWA JSON migration | Native v1.1 | Versioned dry-run design and fixtures |
 | Calendar read-only feeds | Later | Prefer EventKit/approved import |
 | Weather | Later | Derived cache, never shared source truth |
-| Rowan assistant | Later | Privacy and parent-control review required |
+| kyndyn assistant | Later | Privacy and parent-control review required |
 | Web push/VAPID | Intentionally replaced | Native local/remote notification stack |
 | Flask/Jinja JSON datastore | Intentionally replaced | SwiftUI + SwiftData + CloudKit |
 | Family access password | Intentionally replaced | Native household invitation/account model |

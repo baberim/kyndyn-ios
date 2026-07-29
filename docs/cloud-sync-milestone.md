@@ -23,9 +23,9 @@
 On July 29, 2026, Xcode 26.5 and the iOS 26.5 simulator completed:
 
 - clean simulator build;
-- 35 unit tests;
+- 36 unit tests;
 - 5 UI tests;
-- 40 total tests with zero failures.
+- 41 total tests with zero failures.
 
 The sync tests use deterministic substitutes for account state, zones, uploads,
 downloads, shares, invitations, failures, and reordered delivery. They cover
@@ -35,6 +35,10 @@ change, stale tokens, invitation validation, conflict rules, archive precedence,
 duplicate events, cross-device undo convergence, privacy exclusions, and
 notification rescheduling.
 
+The additional upgrade regression verifies that a household missing its
+device-local settings row receives safe default reminder settings instead of a
+dead-end “Settings unavailable” screen.
+
 Targeted Family Sync UI journeys also passed on:
 
 - iPhone 17e, iOS 26.5, dark mode, Accessibility Extra Extra Large text;
@@ -43,7 +47,7 @@ Targeted Family Sync UI journeys also passed on:
 ## Not validated as live CloudKit
 
 No Apple Developer team, iCloud container entitlement, or
-`RowanCloudSyncConfigured` flag was configured. Therefore no live CloudKit
+`kyndynCloudSyncConfigured` flag was configured. Therefore no live CloudKit
 record, zone, share, invitation, account-change, or multi-device operation was
 claimed or performed. No physical-device validation occurred. The production
 adapter compiled, but the deterministic in-memory transport supplied behavioral

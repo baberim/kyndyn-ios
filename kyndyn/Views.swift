@@ -31,14 +31,17 @@ struct RootView: View {
             if app.isPreparing {
                 VStack(spacing: 14) {
                     Image(systemName: "leaf.fill").font(.system(size: 52)).foregroundStyle(.purple)
-                    Text("Rowan").font(.largeTitle.bold())
-                    ProgressView().accessibilityLabel("Opening Rowan")
+                    Text("kyndyn").font(.largeTitle.bold())
+                    ProgressView().accessibilityLabel("Opening kyndyn")
                 }
                 .transition(.opacity)
             }
         }
         .tint(.purple)
         .task {
+            if deviceSettings.isEmpty, !households.isEmpty {
+                _ = try? app.ensureLocalDeviceSettings(in: context)
+            }
             if let invitation = shareInbox.pending,
                !pendingInvitations.contains(where: {
                    $0.shareIdentifier == invitation.shareIdentifier
@@ -70,7 +73,7 @@ struct InvitationLandingView: View {
             ContentUnavailableView {
                 Label("Family invitation", systemImage: "person.2.badge.plus")
             } description: {
-                Text("Someone invited this device to a Rowan family. Rowan will verify it before creating any sample household.")
+                Text("Someone invited this device to a kyndyn family. kyndyn will verify it before creating any sample household.")
             } actions: {
                 Button("Review invitation") {
                     guard let invitation = inbox.pending else { return }
@@ -87,13 +90,13 @@ struct InvitationLandingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(sync.isWorking)
-                .accessibilityHint("Validates the shared Rowan household")
+                .accessibilityHint("Validates the shared kyndyn household")
                 Text(sync.statusMessage)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("Invitation status, \(sync.statusMessage)")
             }
-            .navigationTitle("Join Rowan family")
+            .navigationTitle("Join kyndyn family")
         }
     }
 }
@@ -107,9 +110,9 @@ struct OnboardingView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Image(systemName: "leaf.fill").font(.system(size: 58)).foregroundStyle(.purple)
-                Text("Welcome to Rowan").font(.largeTitle.bold()).multilineTextAlignment(.center)
+                Text("Welcome to kyndyn").font(.largeTitle.bold()).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("A calm home base for quests, progress, and family wins. Rowan works offline and keeps this starter household on this device.")
+                Text("A calm home base for quests, progress, and family wins. kyndyn works offline and keeps this starter household on this device.")
                     .font(.title3).multilineTextAlignment(.center).foregroundStyle(.secondary)
                 Button {
                     isWorking = true
@@ -124,7 +127,7 @@ struct OnboardingView: View {
             }
             .padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
         }
-        .background(RowanLaunchBackground())
+        .background(KyndynLaunchBackground())
         .accessibilityIdentifier("onboarding")
         .errorAlert(app: app)
     }
@@ -141,7 +144,7 @@ struct ProfilePickerView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 8) {
-                    Text("Who’s using Rowan?").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                    Text("Who’s using kyndyn?").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                     Text("Choose your profile to see the right quests.").foregroundStyle(.secondary)
                 }.padding(.vertical, 28)
                 LazyVGrid(columns: columns, spacing: 18) {
@@ -161,12 +164,12 @@ struct ProfilePickerView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                        .accessibilityHint("Shows this person’s Rowan dashboard")
+                        .accessibilityHint("Shows this person’s kyndyn dashboard")
                         .accessibilityIdentifier("profile-\(person.name)")
                     }
                 }.padding()
             }
-            .navigationTitle("Rowan")
+            .navigationTitle("kyndyn")
         }
     }
 }
@@ -223,18 +226,18 @@ struct ParentAuthenticationView: View {
                     .buttonStyle(.borderedProminent).controlSize(.large).disabled(isWorking)
                     if access.hasPIN {
                         Divider().padding(.vertical, 4)
-                        SecureField("Rowan PIN", text: $pin).keyboardType(.numberPad)
+                        SecureField("kyndyn PIN", text: $pin).keyboardType(.numberPad)
                             .textContentType(.password).padding()
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                            .accessibilityLabel("Rowan parent PIN")
-                        Button("Unlock with Rowan PIN") {
+                            .accessibilityLabel("kyndyn parent PIN")
+                        Button("Unlock with kyndyn PIN") {
                             if access.unlock(pin: pin) { pin = "" }
                         }.buttonStyle(.bordered).controlSize(.large).disabled(pin.isEmpty)
                     }
                     if let message = access.message {
                         Text(message).font(.callout).foregroundStyle(.secondary)
                     }
-                    Text("Canceling leaves Rowan unlocked for everyday child use; only parent tools stay locked.")
+                    Text("Canceling leaves kyndyn unlocked for everyday child use; only parent tools stay locked.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.padding(28).frame(maxWidth: 560).frame(maxWidth: .infinity)
             }.navigationTitle("Protected")
@@ -731,7 +734,7 @@ struct CloudSyncSettingsView: View {
             }
             Section("What family sync does") {
                 Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
-                Text("Your Rowan PIN, authentication, notification permission, quiet hours, and device preferences stay only on this device.")
+                Text("Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences stay only on this device.")
                     .foregroundStyle(.secondary)
             }
             if let household {
@@ -758,7 +761,7 @@ struct CloudSyncSettingsView: View {
                         .disabled(sync.isWorking)
                     }
                 } footer: {
-                    Text("Live family sync requires the authorized Apple Developer team and iCloud container. Until configured, Rowan stays safely local-only.")
+                    Text("Live family sync requires the authorized Apple Developer team and iCloud container. Until configured, kyndyn stays safely local-only.")
                 }
             }
         }
@@ -772,7 +775,7 @@ struct CloudSyncSettingsView: View {
             Button("Enable and upload") { enable() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Rowan will prepare this household in the owner’s iCloud and create an Apple sharing invitation. Local data remains available if setup is interrupted.")
+            Text("kyndyn will prepare this household in the owner’s iCloud and create an Apple sharing invitation. Local data remains available if setup is interrupted.")
         }
         .task { ensureState() }
     }
@@ -828,32 +831,32 @@ struct ParentSecurityView: View {
     var body: some View {
         Form {
             Section {
-                Text("Face ID, Touch ID, or the device passcode is Rowan’s primary parent check. A Rowan PIN is an optional fallback stored only in this device’s Keychain.")
+                Text("Face ID, Touch ID, or the device passcode is kyndyn’s primary parent check. A kyndyn PIN is an optional fallback stored only in this device’s Keychain.")
             }
-            Section(access.hasPIN ? "Change Rowan PIN" : "Add Rowan PIN") {
+            Section(access.hasPIN ? "Change kyndyn PIN" : "Add kyndyn PIN") {
                 SecureField("New 6–12 digit PIN", text: $pin).keyboardType(.numberPad)
                 SecureField("Confirm PIN", text: $confirmation).keyboardType(.numberPad)
                 Button(access.hasPIN ? "Change PIN" : "Save PIN") {
                     guard pin == confirmation else { message = "The PIN entries don’t match."; return }
                     if let validation = PINValidation.message(for: pin) { message = validation; return }
-                    do { try access.configurePIN(pin); pin = ""; confirmation = ""; message = "Rowan PIN saved securely on this device." }
+                    do { try access.configurePIN(pin); pin = ""; confirmation = ""; message = "kyndyn PIN saved securely on this device." }
                     catch { message = error.localizedDescription }
                 }.disabled(pin.isEmpty || confirmation.isEmpty)
             }
             if access.hasPIN {
                 Section {
-                    Button("Disable Rowan PIN", role: .destructive) { confirmDisable = true }
+                    Button("Disable kyndyn PIN", role: .destructive) { confirmDisable = true }
                 }
             }
             if let message { Section { Text(message).foregroundStyle(.secondary) } }
             Section("Recovery limitation") {
-                Text("Rowan has no server account or email recovery. If you forget the Rowan PIN, use the device owner authentication to enter this screen and replace it. If device authentication is also unavailable, Rowan cannot safely prove parental identity.")
+                Text("kyndyn has no server account or email recovery. If you forget the kyndyn PIN, use the device owner authentication to enter this screen and replace it. If device authentication is also unavailable, kyndyn cannot safely prove parental identity.")
             }
         }
         .navigationTitle("Parent security")
-        .confirmationDialog("Disable the Rowan PIN?", isPresented: $confirmDisable, titleVisibility: .visible) {
+        .confirmationDialog("Disable the kyndyn PIN?", isPresented: $confirmDisable, titleVisibility: .visible) {
             Button("Disable PIN", role: .destructive) {
-                do { try access.disablePIN(); message = "Rowan PIN disabled." }
+                do { try access.disablePIN(); message = "kyndyn PIN disabled." }
                 catch { message = error.localizedDescription }
             }
             Button("Cancel", role: .cancel) {}
@@ -880,7 +883,7 @@ struct NotificationSettingsView: View {
                     if permission == .notDetermined {
                         Button("Turn on reminders") { explanation = true }
                     } else if permission == .denied {
-                        Text("Notifications are off in iOS Settings. Rowan still works normally.")
+                        Text("Notifications are off in iOS Settings. kyndyn still works normally.")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -900,11 +903,11 @@ struct NotificationSettingsView: View {
                 }
                 Section("Lock screen privacy") {
                     Toggle("Show quest titles", isOn: binding(setting, \.showQuestDetailsOnLockScreen))
-                    Text(setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until Rowan is opened.")
+                    Text(setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             } else {
-                ContentUnavailableView("Settings unavailable", systemImage: "gear.badge.questionmark", description: Text("Reopen Rowan and try again."))
+                ContentUnavailableView("Settings unavailable", systemImage: "gear.badge.questionmark", description: Text("Reopen kyndyn and try again."))
             }
         }
         .navigationTitle("Reminders")
@@ -917,7 +920,7 @@ struct NotificationSettingsView: View {
                 Task { permission = await scheduler.requestPermission(); await reschedule() }
             }
         } message: {
-            Text("Rowan can remind this device about locally stored quests. You choose the profile, timing, and whether quest names appear.")
+            Text("kyndyn can remind this device about locally stored quests. You choose the profile, timing, and whether quest names appear.")
         }
     }
 
@@ -940,8 +943,8 @@ struct NotificationSettingsView: View {
         guard let setting = settings.first, let household = households.first else { return }
         if people.first(where: { $0.id == setting.devicePersonID })?.role != .parent { setting.parentSummaryEligible = false }
         let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting, household: household, now: .now)
-        do { try await scheduler.replaceRowanReminders(with: candidates) }
-        catch { app.errorMessage = "Rowan couldn’t update reminders. Your quests are unchanged." }
+        do { try await scheduler.replaceKyndynReminders(with: candidates) }
+        catch { app.errorMessage = "kyndyn couldn’t update reminders. Your quests are unchanged." }
     }
 }
 
@@ -958,7 +961,7 @@ struct CompanionArt: View {
                 Image(systemName: "sparkles").resizable().scaledToFit().foregroundStyle(.purple)
             }
         }
-            .accessibilityLabel("\(id.capitalized), Rowan companion")
+            .accessibilityLabel("\(id.capitalized), kyndyn companion")
     }
 }
 
@@ -981,7 +984,7 @@ extension View {
             .overlay { RoundedRectangle(cornerRadius: 18).stroke(.primary.opacity(0.08)) }
     }
     func errorAlert(app: AppModel) -> some View {
-        alert("Rowan couldn’t save that", isPresented: Binding(get: { app.errorMessage != nil }, set: { if !$0 { app.errorMessage = nil } })) {
+        alert("kyndyn couldn’t save that", isPresented: Binding(get: { app.errorMessage != nil }, set: { if !$0 { app.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(app.errorMessage ?? "") }
     }
