@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Development CloudKit Validation 0.5
+## Current milestone — Automatic Sync and Resilience 0.6
 
 The app provides a locally usable vertical slice:
 
@@ -33,6 +33,10 @@ The app provides a locally usable vertical slice:
 - responsive profile, dashboard, quest, and Parent-area presentation across
   compact and regular widths;
 - visible, named profile-color accents that supplement names and companions.
+- single-flight automatic synchronization after launch, foregrounding, local
+  changes, connectivity recovery, CloudKit hints, and share acceptance;
+- idempotent private/shared zone subscriptions and best-effort background
+  refresh, with manual refresh retained as a recovery control.
 
 ## Open and run
 
@@ -62,6 +66,5 @@ xcodebuild test -project kyndyn.xcodeproj -scheme kyndyn -destination 'platform=
 
 The simulator can approve or reject notification permission. For LocalAuthentication, use **Features → Face ID** in Simulator to toggle enrollment and matching. A device passcode prompt may appear instead depending on simulator state.
 
-See [`docs/development-cloudkit-validation-0.5.md`](docs/development-cloudkit-validation-0.5.md)
-for exact live and automated results. Automatic refresh is intentionally
-deferred; 0.5 requires manual **Refresh now** on each device.
+See [`docs/automatic-sync-resilience-0.6.md`](docs/automatic-sync-resilience-0.6.md)
+for synchronization behavior, Apple background limitations, and validation.

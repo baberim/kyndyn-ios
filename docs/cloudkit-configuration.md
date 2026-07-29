@@ -28,22 +28,26 @@ failure.
    development team. Do not change the bundle identifier unless that is the
    project's intended App ID.
 2. Confirm **Signing & Capabilities → iCloud → CloudKit** selects the documented
-   container. Remote notification delivery is not configured in 0.5 because
-   synchronization is manually triggered.
-3. Confirm the generated entitlements contain the same container identifier.
+   container.
+3. Confirm **Push Notifications** and **Background Modes → Background fetch /
+   Remote notifications** are enabled for the app identifier and local target.
+   The repository contains the project-safe Development APNs entitlement and
+   background declarations, but Xcode must refresh the signed development
+   profile for the locally selected team.
+4. Confirm the generated entitlements contain the same container identifier.
    Development builds must use Apple’s Development environment. Do not manually
    enable a production environment or deploy a production schema.
-4. Build to two physical devices signed into different permitted iCloud test
+5. Build to two physical devices signed into different permitted iCloud test
    accounts. Use the CloudKit **Development** environment.
-5. On device A, authenticate as a kyndyn parent, open **Parent → Family sync**,
+6. On device A, authenticate as a kyndyn parent, open **Parent → Family sync**,
    review the counts, and enable sync. Confirm the round-trip status before
    opening the system share sheet.
-6. Invite device B through the system CloudKit sharing interface. Test
+7. Invite device B through the system CloudKit sharing interface. Test
    acceptance while kyndyn is running, backgrounded, and terminated, and on a
    fresh install before creating a sample household.
-7. Exercise offline edits, concurrent completion/undo, archive/edit conflicts,
+8. Exercise offline edits, concurrent completion/undo, archive/edit conflicts,
    participant removal, owner stop-sharing, and Apple-account changes.
-8. Inspect Development records in CloudKit Dashboard for the documented types
+9. Inspect Development records in CloudKit Dashboard for the documented types
    and verify that no device settings, PIN material, notification configuration,
    invitation URLs, or derived counters were uploaded.
 
