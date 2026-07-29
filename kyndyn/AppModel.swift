@@ -44,6 +44,12 @@ struct QuestDraft {
     var dueTime = Date()
 }
 
+struct HouseholdSetupDraft {
+    var householdName = ""
+    var timeZoneIdentifier = TimeZone.current.identifier
+    var parent = PersonDraft(name: "", role: .parent)
+}
+
 enum LifecycleRules {
     static func validate(person draft: PersonDraft) throws -> String {
         let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -101,6 +107,7 @@ enum LifecycleRules {
 
     func seedSample(into context: ModelContext) throws {
         let household = Household(name: "kyndyn Family", timeZoneIdentifier: TimeZone.current.identifier, rewardTitle: "Family Movie Night", rewardGoalXP: 300)
+        household.isSample = true
         context.insert(household)
         context.insert(HouseholdSettings(householdID: household.id))
         let device = LocalDeviceSettings()
@@ -116,6 +123,77 @@ enum LifecycleRules {
         device.devicePersonID = leo.id
         try context.save()
         selectedPersonID = leo.id
+    }
+
+    @discardableResult
+    func createHousehold(_ draft: HouseholdSetupDraft,
+                         context: ModelContext) throws -> Household {
+        let name = draft.householdName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw KyndynValidationError.emptyName }
+        guard name.count <= 80 else { throw KyndynValidationError.nameTooLong }
+        guard TimeZone(identifier: draft.timeZoneIdentifier) != nil else {
+            throw HouseholdTransferError.malformed(
+                "Choose a recognized household time zone.")
+        }
+        var parentDraft = draft.parent
+        parentDraft.role = .parent
+        let parentName = try LifecycleRules.validate(person: parentDraft)
+        let household = Household(
+            name: name, timeZoneIdentifier: draft.timeZoneIdentifier)
+        household.isSample = false
+        let parent = Person(
+            householdID: household.id, name: parentName, role: .parent,
+            colorHex: parentDraft.colorHex,
+            companionID: parentDraft.companionID)
+        let shared = HouseholdSettings(householdID: household.id)
+        let device = LocalDeviceSettings()
+        device.selectedPersonID = parent.id
+        device.devicePersonID = parent.id
+        context.insert(household)
+        context.insert(parent)
+        context.insert(shared)
+        context.insert(device)
+        try context.save()
+        selectedPersonID = parent.id
+        return household
+    }
+
+    func deleteLocalSampleHousehold(_ household: Household,
+                                    context: ModelContext) throws {
+        guard household.isSample else {
+            throw HouseholdTransferError.malformed(
+                "Only a sample household can be removed here.")
+        }
+        let states = try context.fetch(FetchDescriptor<HouseholdCloudState>())
+            .filter { $0.householdID == household.id }
+        guard states.allSatisfy({ $0.mode == .localOnly }) else {
+            throw HouseholdTransferError.malformed(
+                "Turn off or resolve family sharing before removing this sample. Cloud data is never silently deleted.")
+        }
+        try context.fetch(FetchDescriptor<Person>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<Quest>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<QuestCompletion>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<RewardGoal>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<HouseholdSettings>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<HouseholdCloudState>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<SyncRecordMetadata>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<PendingSyncMutation>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<SyncConflict>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        context.delete(household)
+        try context.fetch(FetchDescriptor<LocalDeviceSettings>())
+            .forEach(context.delete)
+        try context.save()
+        selectedPersonID = nil
     }
 
     func createPerson(_ draft: PersonDraft, householdID: UUID, context: ModelContext) throws {

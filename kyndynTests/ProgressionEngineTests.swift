@@ -227,6 +227,163 @@ final class LifecycleRulesTests: XCTestCase {
     }
 }
 
+final class HouseholdTransferTests: XCTestCase {
+    @MainActor private func transferContainer() throws -> ModelContainer {
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        return try ModelContainer(
+            for: Household.self, Person.self, Quest.self,
+            QuestCompletion.self, RewardGoal.self, HouseholdSettings.self,
+            LocalDeviceSettings.self, HouseholdImportReceipt.self,
+            HouseholdCloudState.self, SyncRecordMetadata.self,
+            PendingSyncMutation.self, SyncConflict.self,
+            configurations: configuration)
+    }
+
+    @MainActor func testBackupRoundTripPreservesStableHistoryAndUndo() throws {
+        let source = try transferContainer()
+        let context = source.mainContext
+        let household = Household(
+            name: "Fictional Harbor Family",
+            timeZoneIdentifier: "America/New_York",
+            rewardTitle: "Fictional Picnic", rewardGoalXP: 240)
+        let parent = Person(
+            householdID: household.id, name: "Avery", role: .parent,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Sort art supplies",
+            xp: 17, participantIDs: [parent.id], scheduleKind: .daily)
+        let event = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: parent.id, occurrenceDay: "2026-07-27",
+            completedAt: Date(timeIntervalSince1970: 1_775_000_000),
+            awardedXP: 13)
+        event.reversedAt = event.completedAt.addingTimeInterval(60)
+        let settings = HouseholdSettings(householdID: household.id)
+        [household].forEach(context.insert)
+        context.insert(parent); context.insert(quest); context.insert(event)
+        context.insert(settings)
+        let data = try HouseholdTransferCodec.export(
+            household: household, people: [parent], quests: [quest],
+            completions: [event], goals: [], settings: settings)
+
+        let destination = try transferContainer()
+        let restored = try HouseholdRestoreService.restore(
+            data, context: destination.mainContext)
+        let restoredEvents = try destination.mainContext.fetch(
+            FetchDescriptor<QuestCompletion>())
+        XCTAssertEqual(restored.id, household.id)
+        XCTAssertEqual(restoredEvents.map(\.id), [event.id])
+        XCTAssertEqual(restoredEvents.first?.awardedXP, 13)
+        XCTAssertNotNil(restoredEvents.first?.reversedAt)
+        XCTAssertEqual(ProgressionEngine.familyXP(restoredEvents), 0)
+        XCTAssertEqual(try destination.mainContext.fetch(
+            FetchDescriptor<HouseholdImportReceipt>()).count, 1)
+    }
+
+    @MainActor func testRestoreRequiresEmptyHouseholdAndRejectsMalformedVersion()
+        throws {
+        let container = try transferContainer()
+        let context = container.mainContext
+        let household = Household(name: "Existing", timeZoneIdentifier: "UTC")
+        context.insert(household); try context.save()
+        XCTAssertThrowsError(try HouseholdRestoreService.restore(
+            Data("{}".utf8), context: context)) {
+                XCTAssertEqual(
+                    $0 as? HouseholdTransferError, .householdNotEmpty)
+            }
+        XCTAssertThrowsError(try HouseholdTransferCodec.validateBackup(
+            Data(#"{"format":"kyndyn-household-backup","version":99}"#.utf8)))
+    }
+
+    @MainActor func testBackupExcludesDeviceLocalSecretsAndCloudMetadata()
+        throws {
+        let household = Household(name: "Fictional", timeZoneIdentifier: "UTC")
+        let parent = Person(
+            householdID: household.id, name: "Morgan", role: .parent,
+            colorHex: "#007AFF", companionID: "orbit")
+        let data = try HouseholdTransferCodec.export(
+            household: household, people: [parent], quests: [],
+            completions: [], goals: [], settings: nil)
+        let text = String(decoding: data, as: UTF8.self).lowercased()
+        for forbidden in [
+            "pin", "keychain", "token", "accountfingerprint",
+            "changetoken", "notification", "quietstarthour",
+            "devicepersonid", "recordname", "zoneowner"
+        ] {
+            XCTAssertFalse(text.contains(forbidden), forbidden)
+        }
+    }
+
+    func testRowanDryRunHandlesNumericIDsDuplicatesUndoAndPartialInvalidity()
+        throws {
+        let data = Data(Self.rowanFixture.utf8)
+        let result = try RowanTransferConverter.dryRun(data)
+        XCTAssertTrue(result.report.canImport)
+        XCTAssertEqual(result.backup.people.count, 2)
+        XCTAssertEqual(result.backup.quests.count, 2)
+        XCTAssertEqual(result.backup.completions.count, 2)
+        XCTAssertGreaterThanOrEqual(result.report.skipped, 1)
+        XCTAssertGreaterThanOrEqual(result.report.invalid, 1)
+        XCTAssertGreaterThanOrEqual(result.report.unsupported, 2)
+        XCTAssertNotNil(result.backup.completions.first {
+            $0.awardedXP == 19
+        }?.reversedAt)
+    }
+
+    func testRowanStableMappingAndDSTOccurrenceAreDeterministic() throws {
+        let first = try RowanTransferConverter.dryRun(
+            Data(Self.rowanFixture.utf8)).backup
+        let second = try RowanTransferConverter.dryRun(
+            Data(Self.rowanFixture.utf8)).backup
+        XCTAssertEqual(first.household.id, second.household.id)
+        XCTAssertEqual(first.people.map(\.id), second.people.map(\.id))
+        XCTAssertEqual(first.quests.map(\.id), second.quests.map(\.id))
+        XCTAssertTrue(first.completions.contains {
+            $0.occurrenceDay == "2026-03-08"
+        })
+    }
+
+    private static let rowanFixture = #"""
+    {
+      "format": "rowan-pwa-transfer",
+      "version": 1,
+      "family": {
+        "name": "Fictional Lighthouse Family",
+        "timezone": "America/New_York",
+        "current_reward": "Fictional Museum Day",
+        "goal_xp": 425
+      },
+      "people": [
+        {"id": 7, "name": "Morgan", "role": "parent", "color": "#007AFF", "companion": "orbit", "active": true},
+        {"id": 8, "name": "Riley", "role": "child", "color": "bad-color", "companion": "legacy-dragon", "active": true},
+        {"id": 8, "name": "Duplicate Riley", "role": "child", "active": true}
+      ],
+      "quests": [
+        {"id": 41, "title": "Pack library books", "xp": 20, "assignees": [8], "frequency": "weekdays", "completion_mode": "individual", "active": true},
+        {"id": "42", "title": "Choose Saturday music", "description": "A fictional scheduled quest.", "xp": 15, "assigned_to": 7, "frequency": "scheduled", "scheduled_days": [7], "active": false},
+        {"id": 43, "title": "Unsupported claim", "xp": 10, "assignees": [8], "frequency": "daily", "completion_mode": "claim_once", "active": true},
+        {"id": 44, "title": "Unknown assignment", "xp": 10, "assignees": [999], "frequency": "daily", "active": true},
+        {"id": 45, "title": "Unsupported recurrence", "xp": 10, "assignees": [8], "frequency": "monthly", "active": true}
+      ],
+      "completion_history": [
+        {"id": 501, "quest_id": 41, "person_id": 8, "completed_at": "2026-03-08T07:30:00Z", "awarded_xp": 19, "active": false, "undone_at": "2026-03-08T08:00:00Z"},
+        {"id": 502, "quest_id": "42", "person_id": 7, "completed_at": "2026-07-25T18:00:00Z", "awarded_xp": 15, "active": true},
+        {"id": 502, "quest_id": "42", "person_id": 7, "completed_at": "2026-07-25T18:00:00Z", "awarded_xp": 15, "active": true},
+        {"id": 503, "quest_id": 999, "person_id": 8, "completed_at": "not-a-date", "awarded_xp": 10, "active": true}
+      ],
+      "settings": {
+        "household_name": "Ignored fallback",
+        "timezone": "UTC",
+        "parent_pin": "never-import",
+        "calendar_url": "https://example.invalid/private",
+        "weather_location": "private",
+        "push_subscriptions": ["secret"]
+      }
+    }
+    """#
+}
+
 private struct FakeAuthenticator: DeviceAuthenticating {
     let result: ParentAuthenticationResult
     func authenticate(reason: String) async -> ParentAuthenticationResult { result }

@@ -131,8 +131,15 @@ struct InvitationLandingView: View {
 
 struct OnboardingView: View {
     @Environment(AppModel.self) private var app
+    @EnvironmentObject private var parentAccess: ParentAccessController
     @Environment(\.modelContext) private var context
     @State private var isWorking = false
+    @State private var showSetup = false
+    @State private var showImporter = false
+    @State private var pendingImportData: Data?
+    @State private var pendingImportKind: TransferReport.Source?
+    @State private var importReport: TransferReport?
+    @State private var showImportConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -140,24 +147,195 @@ struct OnboardingView: View {
                 Image(systemName: "leaf.fill").font(.system(size: 58)).foregroundStyle(.purple)
                 Text("Welcome to kyndyn").font(.largeTitle.bold()).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("A calm home base for quests, progress, and family wins. kyndyn works offline and keeps this starter household on this device.")
+                Text("A calm home base for quests, progress, and family wins. Start your own family or explore safely with fictional sample data.")
                     .font(.title3).multilineTextAlignment(.center).foregroundStyle(.secondary)
+                Button {
+                    showSetup = true
+                } label: {
+                    Label("Set up my family", systemImage: "house.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
                 Button {
                     isWorking = true
                     do { try app.seedSample(into: context) } catch { app.errorMessage = error.localizedDescription }
                     isWorking = false
                 } label: {
-                    Label("Create a sample household", systemImage: "sparkles").frame(maxWidth: .infinity)
+                    Label("Create a sample household", systemImage: "sparkles")
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).disabled(isWorking)
-                Text("Uses fictional people only. You can edit them in the protected Parent area.")
+                .buttonStyle(.bordered).controlSize(.large).disabled(isWorking)
+                Button("Restore or migrate a household", systemImage: "square.and.arrow.down") {
+                    Task {
+                        await parentAccess.authenticate()
+                        if parentAccess.isUnlocked { showImporter = true }
+                    }
+                }
+                .buttonStyle(.borderless)
+                Text("Sample mode uses fictional people and stays separate from your family. Restores and Rowan migrations require an empty installation.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
         }
         .background(KyndynLaunchBackground())
         .accessibilityIdentifier("onboarding")
+        .sheet(isPresented: $showSetup) {
+            HouseholdSetupView()
+        }
+        .fileImporter(isPresented: $showImporter,
+                      allowedContentTypes: [.json]) { result in
+            do {
+                let url = try result.get()
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                let data = try Data(contentsOf: url)
+                if let converted = try? RowanTransferConverter.dryRun(data) {
+                    pendingImportKind = .rowanPWA
+                    importReport = converted.report
+                } else {
+                    pendingImportKind = .kyndynBackup
+                    importReport = try HouseholdTransferCodec
+                        .validateBackup(data).1
+                }
+                pendingImportData = data
+                showImportConfirmation = true
+            } catch {
+                app.errorMessage = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: $showImportConfirmation) {
+            ImportReviewView(report: importReport) {
+                guard let data = pendingImportData,
+                      let kind = pendingImportKind else { return }
+                do {
+                    let household = kind == .rowanPWA
+                        ? try RowanTransferConverter.apply(data, context: context)
+                        : try HouseholdRestoreService.restore(data, context: context)
+                    _ = try app.ensureLocalDeviceSettings(in: context)
+                    app.selectedPersonID = try context.fetch(
+                        FetchDescriptor<Person>()).first {
+                            $0.householdID == household.id &&
+                            $0.deletedAt == nil
+                        }?.id
+                    showImportConfirmation = false
+                } catch {
+                    app.errorMessage = error.localizedDescription
+                }
+            }
+        }
         .errorAlert(app: app)
+    }
+}
+
+struct HouseholdSetupView: View {
+    @Environment(AppModel.self) private var app
+    @EnvironmentObject private var parentAccess: ParentAccessController
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = HouseholdSetupDraft()
+    @State private var pin = ""
+    @State private var confirmation = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Your family") {
+                    TextField("Household name", text: $draft.householdName)
+                    Picker("Time zone", selection: $draft.timeZoneIdentifier) {
+                        ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) {
+                            Text($0.replacingOccurrences(of: "_", with: " "))
+                                .tag($0)
+                        }
+                    }
+                }
+                Section("First parent") {
+                    TextField("Parent name", text: $draft.parent.name)
+                    Picker("Profile color", selection: $draft.parent.colorHex) {
+                        ForEach(colorChoices, id: \.self) {
+                            Text(ProfilePalette.name(for: $0)).tag($0)
+                        }
+                    }
+                    Picker("Companion", selection: $draft.parent.companionID) {
+                        ForEach(companionChoices, id: \.self) {
+                            Text($0.capitalized).tag($0)
+                        }
+                    }
+                }
+                Section("Optional kyndyn PIN") {
+                    Text("Your device passcode or biometrics protects the Parent area. You may also add a device-only fallback PIN now.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    SecureField("6–12 digit PIN", text: $pin)
+                        .keyboardType(.numberPad)
+                    SecureField("Confirm PIN", text: $confirmation)
+                        .keyboardType(.numberPad)
+                }
+                Section {
+                    Text("No sample people or quests will be added. You can add family members and quests from the protected Parent area.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Set up my family")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create family") { create() }
+                }
+            }
+        }
+    }
+
+    private func create() {
+        do {
+            if !pin.isEmpty || !confirmation.isEmpty {
+                guard pin == confirmation else {
+                    app.errorMessage = "The PIN entries don’t match."
+                    return
+                }
+                if let message = PINValidation.message(for: pin) {
+                    app.errorMessage = message
+                    return
+                }
+                try parentAccess.configurePIN(pin)
+            }
+            _ = try app.createHousehold(draft, context: context)
+            dismiss()
+        } catch {
+            app.errorMessage = error.localizedDescription
+        }
+    }
+}
+
+struct ImportReviewView: View {
+    let report: TransferReport?
+    let importAction: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let report {
+                    Section("Dry-run report") {
+                        LabeledContent("Accepted", value: "\(report.accepted)")
+                        LabeledContent("Normalized", value: "\(report.normalized)")
+                        LabeledContent("Skipped duplicates", value: "\(report.skipped)")
+                        LabeledContent("Unsupported", value: "\(report.unsupported)")
+                        LabeledContent("Invalid", value: "\(report.invalid)")
+                    }
+                    Section("What will happen") {
+                        Text("This creates one new household on this empty installation. It does not merge with or replace another household.")
+                        ForEach(report.notes, id: \.self) { Text($0) }
+                    }
+                    Section {
+                        Button("Import new household", action: importAction)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!report.canImport)
+                    }
+                }
+            }
+            .navigationTitle("Review import")
+        }
     }
 }
 
@@ -531,9 +709,18 @@ struct QuestListView: View {
 
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
+    @Query private var households: [Household]
     var body: some View {
         NavigationStack {
             List {
+                if households.first?.isSample == true {
+                    Section {
+                        Label("Sample family", systemImage: "sparkles")
+                            .foregroundStyle(.purple)
+                        Text("This household contains fictional practice data and is kept separate from personal setup.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 Section {
                     NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
                     NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
@@ -541,6 +728,9 @@ struct ParentAreaView: View {
                         Label("Family sync", systemImage: "icloud")
                     }
                     NavigationLink { NotificationSettingsView() } label: { Label("Reminders", systemImage: "bell.fill") }
+                    NavigationLink { HouseholdDataProtectionView() } label: {
+                        Label("Backup and migration", systemImage: "externaldrive.fill")
+                    }
                     NavigationLink { ParentSecurityView() } label: { Label("Parent security", systemImage: "lock.shield.fill") }
                 }
                 Section {
@@ -550,6 +740,98 @@ struct ParentAreaView: View {
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .navigationTitle("Parent")
+        }
+    }
+}
+
+struct HouseholdDataProtectionView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @Query private var people: [Person]
+    @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+    @Query private var goals: [RewardGoal]
+    @Query private var settings: [HouseholdSettings]
+    @State private var document: TransferDocument?
+    @State private var exporting = false
+    @State private var confirmSampleRemoval = false
+
+    var body: some View {
+        List {
+            Section("Household backup") {
+                Button("Export household backup",
+                       systemImage: "square.and.arrow.up") {
+                    prepareExport()
+                }
+                Text("The JSON backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("Restore limitation") {
+                Text("For safety, 0.7 restores backups and Rowan transfers only into an empty installation. It does not merge with or replace this household. Export a fresh backup before changing devices or CloudKit environments.")
+            }
+            Section("Development pilot") {
+                Label("Apple Development CloudKit", systemImage: "hammer.fill")
+                Text("This personal pilot uses Apple’s Development environment. Its cloud data may need to be replaced before public release. Keep a recent exported backup.")
+                Text("Use a separate fictional household for destructive sharing, revocation, or Apple-account tests. Production CloudKit has not been deployed.")
+                    .foregroundStyle(.secondary)
+            }
+            if households.first?.isSample == true {
+                Section("Leave sample mode") {
+                    Button("Remove local sample and start my family",
+                           role: .destructive) {
+                        confirmSampleRemoval = true
+                    }
+                    Text("This removes the fictional sample from this device only. kyndyn will refuse if the sample is connected to family sharing.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Backup and migration")
+        .fileExporter(
+            isPresented: $exporting, document: document,
+            contentType: .json,
+            defaultFilename: "kyndyn-household-backup.json"
+        ) { result in
+            if case .failure(let error) = result {
+                app.errorMessage = error.localizedDescription
+            }
+            document = nil
+        }
+        .confirmationDialog(
+            "Remove this sample household?",
+            isPresented: $confirmSampleRemoval,
+            titleVisibility: .visible
+        ) {
+            Button("Remove fictional sample", role: .destructive) {
+                guard let household = households.first else { return }
+                do { try app.deleteLocalSampleHousehold(
+                    household, context: context) }
+                catch { app.errorMessage = error.localizedDescription }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All fictional people, quests, completion history, and local sync metadata for this sample will be removed from this device. Personal or shared households are not affected.")
+        }
+        .errorAlert(app: app)
+    }
+
+    private func prepareExport() {
+        guard let household = households.first else { return }
+        do {
+            let data = try HouseholdTransferCodec.export(
+                household: household,
+                people: people.filter { $0.householdID == household.id },
+                quests: quests.filter { $0.householdID == household.id },
+                completions: completions.filter {
+                    $0.householdID == household.id
+                },
+                goals: goals.filter { $0.householdID == household.id },
+                settings: settings.first { $0.householdID == household.id })
+            document = TransferDocument(data: data)
+            exporting = true
+        } catch {
+            app.errorMessage = error.localizedDescription
         }
     }
 }

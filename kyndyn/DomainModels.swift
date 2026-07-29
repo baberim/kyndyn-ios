@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 3
+    static let version = 4
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -29,6 +29,8 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var deletedAt: Date?
     var rewardTitle: String
     var rewardGoalXP: Int
+    // Local diagnostic classification only. Never included in CloudKit records.
+    var isSample: Bool = false
 
     init(id: UUID = UUID(), name: String, timeZoneIdentifier: String, rewardTitle: String = "Family Adventure", rewardGoalXP: Int = 300) {
         self.id = id
@@ -38,6 +40,23 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.createdAt = .now
         self.rewardTitle = rewardTitle
         self.rewardGoalXP = rewardGoalXP
+    }
+}
+
+@Model final class HouseholdImportReceipt {
+    @Attribute(.unique) var fingerprint: String
+    var householdID: UUID
+    var sourceKind: String
+    var sourceVersion: Int
+    var importedAt: Date
+
+    init(fingerprint: String, householdID: UUID, sourceKind: String,
+         sourceVersion: Int, importedAt: Date = .now) {
+        self.fingerprint = fingerprint
+        self.householdID = householdID
+        self.sourceKind = sourceKind
+        self.sourceVersion = sourceVersion
+        self.importedAt = importedAt
     }
 }
 
