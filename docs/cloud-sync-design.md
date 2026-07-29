@@ -5,8 +5,9 @@
 Cloud Sync is optional. A Local Core household stays fully usable until an
 authenticated parent explicitly enables family sync. Production use requires an
 Apple Developer team and an iCloud container selected by the project owner.
-kyndyn does not contain a guessed container identifier and this milestone does
-not deploy a development or production schema.
+0.5 contains only the project-owner-authorized Development container
+identifier. Live fictional records initialized the Development schema. Release
+configuration remains disabled and no production schema was deployed.
 
 The app target will require the iCloud/CloudKit capability before live testing.
 In Xcode, select **kyndyn → Signing & Capabilities**, choose the authorized team,
@@ -18,10 +19,12 @@ Only the project owner should later deploy the schema in CloudKit Dashboard.
 ## Ownership and record layout
 
 The household owner creates one custom zone in the private database. A
-`Household` root record anchors a `CKShare`; participants read and write the
-shared zone through their shared database. kyndyn never treats share membership
-as proof of parent status. Device-local kyndyn authentication still gates every
-parent mutation.
+`Household` root record anchors a `CKShare`; each other shared record is a child
+of that root so Apple includes the complete hierarchy. Participants retain the
+zone owner name supplied by invitation metadata and read/write that exact zone
+through their shared database. kyndyn never treats share membership as proof of
+parent status. Device-local kyndyn authentication still gates every parent
+mutation.
 
 Stable record names are `<type>-<lowercase UUID>`. Relationships use record
 references where CloudKit supports them and the same stable UUID values in the
@@ -63,9 +66,10 @@ upload never rolls back or deletes the local edit.
 
 ## Incremental synchronization
 
-Each household stores its private or shared database scope, zone name, opaque
-server change token, last successful sync time, and account fingerprint.
-Foreground and manual refresh run the same structured `SyncCoordinator`:
+Each household stores its private or shared database scope, zone name, shared
+zone owner name, opaque server change token, last successful sync time, and
+account fingerprint. In 0.5, the user starts synchronization with manual
+**Refresh now**:
 
 1. verify account identity and household mode;
 2. push pending mutations in deterministic order;
@@ -78,6 +82,10 @@ A stale token clears only the token and performs a full zone fetch. It never
 clears household data. Retryable errors use capped exponential backoff with
 deterministic jitter supplied by the coordinator; permanent errors become
 user-attention states.
+
+Automatic foreground/background refresh is not implemented in 0.5. Adding a
+single-flight lifecycle coordinator, connectivity-triggered retry, and
+CloudKit-compatible background delivery is the recommended next milestone.
 
 ## Conflict policy
 

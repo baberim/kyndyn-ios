@@ -2,6 +2,7 @@ import CloudKit
 import CryptoKit
 import Foundation
 import Observation
+import OSLog
 import SwiftData
 
 enum SyncIdentity {
@@ -82,6 +83,7 @@ struct ShareInvitation: Equatable, Sendable {
     var shareIdentifier: String
     var rootRecordName: String
     var zoneName: String = ""
+    var zoneOwnerName: String? = nil
     var schemaVersion: Int
     var alreadyAccepted: Bool
 }
@@ -126,13 +128,38 @@ protocol CloudAccountChecking: Sendable {
 protocol HouseholdCloudTransport: CloudAccountChecking {
     func prepareZone(named zoneName: String, scope: CloudDatabaseScope) async throws
     func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope]
     func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?,
                       after token: Data?) async throws -> RemoteChangeBatch
+    func verifyRecord(recordName: String, zoneName: String,
+                      scope: CloudDatabaseScope) async throws -> Bool
     func createShare(rootRecordName: String, zoneName: String,
                      title: String) async throws -> HouseholdShareDescriptor
     func accept(invitation: ShareInvitation) async throws
     func participantSummary(shareRecordName: String) async throws -> [String]
+}
+
+extension HouseholdCloudTransport {
+    func save(records: [CloudRecordEnvelope], zoneName: String,
+              scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
+        try await save(records: records, zoneName: zoneName,
+                       zoneOwnerName: nil, scope: scope)
+    }
+
+    func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      after token: Data?) async throws -> RemoteChangeBatch {
+        try await fetchChanges(zoneName: zoneName, scope: scope,
+                               zoneOwnerName: nil, after: token)
+    }
+
+    func verifyRecord(recordName: String, zoneName: String,
+                      scope: CloudDatabaseScope) async throws -> Bool {
+        let batch = try await fetchChanges(
+            zoneName: zoneName, scope: scope, after: nil)
+        return batch.records.contains { $0.recordName == recordName }
+    }
 }
 
 struct UnconfiguredCloudTransport: HouseholdCloudTransport {
@@ -143,10 +170,12 @@ struct UnconfiguredCloudTransport: HouseholdCloudTransport {
         throw CloudGatewayError.transient
     }
     func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
         throw CloudGatewayError.transient
     }
     func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?,
                       after: Data?) async throws -> RemoteChangeBatch {
         throw CloudGatewayError.transient
     }
@@ -448,39 +477,49 @@ struct ProvisioningPreview: Equatable {
                 throw CloudGatewayError.serverRejected
             }
             state.accountFingerprint = fingerprint
-            state.provisioningStage = .accountVerified
-            try context.save()
+            if state.provisioningStage == .none {
+                state.provisioningStage = .accountVerified
+                try context.save()
+            }
 
             let zone = state.zoneName!
-            try await transport.prepareZone(named: zone, scope: .privateDatabase)
-            state.provisioningStage = .zoneReady
-            try context.save()
+            if state.provisioningStage.precedes(.zoneReady) {
+                try await transport.prepareZone(
+                    named: zone, scope: .privateDatabase)
+                state.provisioningStage = .zoneReady
+                try context.save()
+            }
 
-            if let root = records.first(where: { $0.type == .household }) {
+            if state.provisioningStage.precedes(.rootReady),
+               let root = records.first(where: { $0.type == .household }) {
                 _ = try await transport.save(records: [root], zoneName: zone,
                                              scope: .privateDatabase)
+                state.provisioningStage = .rootReady
+                try context.save()
             }
-            state.provisioningStage = .rootReady
-            try context.save()
 
-            _ = try await transport.save(records: records, zoneName: zone,
-                                         scope: .privateDatabase)
-            state.provisioningStage = .initialUploadComplete
-            try context.save()
+            if state.provisioningStage.precedes(.initialUploadComplete) {
+                _ = try await transport.save(
+                    records: records, zoneName: zone, scope: .privateDatabase)
+                state.sharingHierarchyVersion = 1
+                state.provisioningStage = .initialUploadComplete
+                try context.save()
+            }
 
-            let share = try await transport.createShare(
-                rootRecordName: state.rootRecordName!, zoneName: zone,
-                title: "kyndyn family")
-            state.shareRecordName = share.shareRecordName
-            state.provisioningStage = .shareReady
-            try context.save()
+            if state.provisioningStage.precedes(.shareReady) ||
+                state.shareRecordName == nil {
+                let share = try await transport.createShare(
+                    rootRecordName: state.rootRecordName!, zoneName: zone,
+                    title: "kyndyn family")
+                state.shareRecordName = share.shareRecordName
+                state.provisioningStage = .shareReady
+                try context.save()
+            }
 
-            let roundTrip = try await transport.fetchChanges(
-                zoneName: zone, scope: .privateDatabase, after: nil)
-            guard roundTrip.records.contains(where: {
-                $0.recordName == state.rootRecordName
-            }) else { throw CloudGatewayError.serverRejected }
-            state.changeToken = roundTrip.changeToken
+            guard try await transport.verifyRecord(
+                recordName: state.rootRecordName!, zoneName: zone,
+                scope: .privateDatabase
+            ) else { throw CloudGatewayError.serverRejected }
             state.provisioningStage = .roundTripVerified
             state.mode = .owner
             state.lastSuccessfulSyncAt = .now
@@ -519,6 +558,16 @@ struct ProvisioningPreview: Equatable {
                 return
             }
             let householdID = state.householdID
+            if state.databaseScope == .privateDatabase,
+               state.sharingHierarchyVersion < 1 {
+                let records = try sharingRecords(
+                    householdID: householdID, context: context)
+                _ = try await transport.save(
+                    records: records, zoneName: zone,
+                    zoneOwnerName: nil, scope: .privateDatabase)
+                state.sharingHierarchyVersion = 1
+                try context.save()
+            }
             let pending = try context.fetch(FetchDescriptor<PendingSyncMutation>(
                 predicate: #Predicate {
                     $0.householdID == householdID && $0.nextAttemptAt <= now
@@ -528,12 +577,14 @@ struct ProvisioningPreview: Equatable {
                 let envelope = try SyncPayloadCodec.decode(mutation.payload)
                 let confirmed = try await transport.save(
                     records: [envelope], zoneName: zone,
+                    zoneOwnerName: state.zoneOwnerName,
                     scope: state.databaseScope)
                 if !confirmed.isEmpty { context.delete(mutation) }
             }
             do {
                 let changes = try await transport.fetchChanges(
                     zoneName: zone, scope: state.databaseScope,
+                    zoneOwnerName: state.zoneOwnerName,
                     after: state.changeToken)
                 try SyncRemoteApplier.apply(changes.records, context: context)
                 await refreshRemindersIfNeeded(changes.records, context: context)
@@ -541,7 +592,8 @@ struct ProvisioningPreview: Equatable {
             } catch CloudGatewayError.staleChangeToken {
                 state.changeToken = nil
                 let changes = try await transport.fetchChanges(
-                    zoneName: zone, scope: state.databaseScope, after: nil)
+                    zoneName: zone, scope: state.databaseScope,
+                    zoneOwnerName: state.zoneOwnerName, after: nil)
                 try SyncRemoteApplier.apply(changes.records, context: context)
                 await refreshRemindersIfNeeded(changes.records, context: context)
                 state.changeToken = changes.changeToken
@@ -587,9 +639,8 @@ struct ProvisioningPreview: Equatable {
         defer { isWorking = false }
         do {
             try await transport.accept(invitation: invitation)
-            let changes = try await transport.fetchChanges(
-                zoneName: invitation.zoneName, scope: .sharedDatabase,
-                after: nil)
+            let changes = try await fetchAcceptedShareChanges(
+                invitation: invitation)
             guard let root = changes.records.first(where: {
                 $0.type == .household &&
                 $0.recordName == invitation.rootRecordName
@@ -603,6 +654,7 @@ struct ProvisioningPreview: Equatable {
             state.mode = .participant
             state.databaseScope = .sharedDatabase
             state.zoneName = invitation.zoneName
+            state.zoneOwnerName = invitation.zoneOwnerName
             state.rootRecordName = invitation.rootRecordName
             state.changeToken = changes.changeToken
             state.provisioningStage = .roundTripVerified
@@ -622,6 +674,53 @@ struct ProvisioningPreview: Equatable {
             statusMessage = "kyndyn couldn’t join this family yet."
             return nil
         }
+    }
+
+    private func fetchAcceptedShareChanges(
+        invitation: ShareInvitation
+    ) async throws -> RemoteChangeBatch {
+        var lastError: CloudGatewayError = .transient
+        for attempt in 0..<4 {
+            do {
+                return try await transport.fetchChanges(
+                    zoneName: invitation.zoneName,
+                    scope: .sharedDatabase,
+                    zoneOwnerName: invitation.zoneOwnerName,
+                    after: nil)
+            } catch let error as CloudGatewayError {
+                lastError = error
+                guard error.retryable, attempt < 3 else { throw error }
+                try await Task.sleep(
+                    for: .milliseconds(500 * (1 << attempt)))
+            }
+        }
+        throw lastError
+    }
+
+    private func sharingRecords(
+        householdID: UUID, context: ModelContext
+    ) throws -> [CloudRecordEnvelope] {
+        guard let household = try context.fetch(FetchDescriptor<Household>())
+            .first(where: { $0.id == householdID }) else {
+            throw CloudGatewayError.serverRejected
+        }
+        var records = [SyncSnapshot.household(household)]
+        records += try context.fetch(FetchDescriptor<Person>())
+            .filter { $0.householdID == householdID }
+            .map { SyncSnapshot.person($0) }
+        records += try context.fetch(FetchDescriptor<Quest>())
+            .filter { $0.householdID == householdID }
+            .flatMap { SyncSnapshot.quest($0) }
+        records += try context.fetch(FetchDescriptor<QuestCompletion>())
+            .filter { $0.householdID == householdID }
+            .map { SyncSnapshot.completion($0) }
+        records += try context.fetch(FetchDescriptor<RewardGoal>())
+            .filter { $0.householdID == householdID }
+            .map { SyncSnapshot.reward($0) }
+        records += try context.fetch(FetchDescriptor<HouseholdSettings>())
+            .filter { $0.householdID == householdID }
+            .map { SyncSnapshot.settings($0) }
+        return records
     }
 
     private func refreshRemindersIfNeeded(
@@ -654,6 +753,16 @@ struct ProvisioningPreview: Equatable {
             ? "Sync paused temporarily. Your changes are safe on this device."
             : "Family sync needs your attention."
         }
+    }
+}
+
+private extension ProvisioningStage {
+    func precedes(_ other: ProvisioningStage) -> Bool {
+        guard let current = Self.allCases.firstIndex(of: self),
+              let target = Self.allCases.firstIndex(of: other) else {
+            return true
+        }
+        return current < target
     }
 }
 
@@ -866,6 +975,7 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
     }
 
     func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
         try consumeFailure()
         var zone = zones[zoneName] ?? StoredZone()
@@ -896,6 +1006,7 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
     }
 
     func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?,
                       after token: Data?) async throws -> RemoteChangeBatch {
         try consumeFailure()
         if expireTokenOnNextFetch {
@@ -984,13 +1095,15 @@ actor CloudKitShareMetadataVault {
             UnsafeShareMetadata(value: metadata)
     }
 
-    func take(identifier: String) -> CKShare.Metadata? {
-        values.removeValue(forKey: identifier)?.value
+    func value(identifier: String) -> CKShare.Metadata? {
+        values[identifier]?.value
     }
 }
 
 struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable {
     let container: CKContainer
+    private static let logger = Logger(
+        subsystem: "com.kyndynfamily.kyndyn", category: "CloudKit")
 
     func accountAvailability() async throws -> CloudAccountAvailability {
         try await CloudKitAccountChecker(container: container).accountAvailability()
@@ -1002,13 +1115,14 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
             _ = try await database(scope).save(CKRecordZone(
                 zoneID: CKRecordZone.ID(zoneName: zoneName)))
         } catch {
-            throw map(error)
+            throw map(error, operation: "prepare-zone")
         }
     }
 
     func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
-        let zoneID = CKRecordZone.ID(zoneName: zoneName)
+        let zoneID = zoneID(name: zoneName, ownerName: zoneOwnerName)
         let cloudRecords = try records.map { envelope in
             let record: CKRecord
             if let systemFields = envelope.cloudSystemFields,
@@ -1026,6 +1140,14 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
             record["schemaVersion"] = KyndynSchema.version as NSNumber
             record["mutationID"] = envelope.mutationID.uuidString as NSString
             record["tombstone"] = envelope.tombstone as NSNumber
+            if envelope.type != .household {
+                record.parent = CKRecord.Reference(
+                    recordID: CKRecord.ID(
+                        recordName: SyncIdentity.recordName(
+                            type: .household, id: envelope.householdID),
+                        zoneID: zoneID),
+                    action: .none)
+            }
             return record
         }
         do {
@@ -1037,11 +1159,12 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
                 return try envelope(from: record)
             }
         } catch {
-            throw map(error)
+            throw map(error, operation: "save-records")
         }
     }
 
     func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?,
                       after token: Data?) async throws -> RemoteChangeBatch {
         let decodedToken = token.flatMap {
             try? NSKeyedUnarchiver.unarchivedObject(
@@ -1049,11 +1172,15 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         }
         do {
             let result = try await database(scope).recordZoneChanges(
-                inZoneWith: CKRecordZone.ID(zoneName: zoneName),
+                inZoneWith: zoneID(name: zoneName, ownerName: zoneOwnerName),
                 since: decodedToken)
             let records = try result.modificationResultsByID.values.compactMap {
                 change -> CloudRecordEnvelope? in
                 let modification = try change.get()
+                guard modification.record.recordType != CKRecord.SystemType.share,
+                      modification.record["kyndynPayload"] is Data else {
+                    return nil
+                }
                 return try envelope(from: modification.record)
             }
             let encoded = try NSKeyedArchiver.archivedData(
@@ -1066,7 +1193,21 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         } catch let error as CKError where error.code == .changeTokenExpired {
             throw CloudGatewayError.staleChangeToken
         } catch {
-            throw map(error)
+            throw map(error, operation: "fetch-changes")
+        }
+    }
+
+    func verifyRecord(recordName: String, zoneName: String,
+                      scope: CloudDatabaseScope) async throws -> Bool {
+        do {
+            _ = try await database(scope).record(for: CKRecord.ID(
+                recordName: recordName,
+                zoneID: CKRecordZone.ID(zoneName: zoneName)))
+            return true
+        } catch let error as CKError where error.code == .unknownItem {
+            return false
+        } catch {
+            throw map(error, operation: "verify-record")
         }
     }
 
@@ -1089,19 +1230,20 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
             return HouseholdShareDescriptor(
                 shareRecordName: shareName, title: title)
         } catch {
-            throw map(error)
+            throw map(error, operation: "create-share")
         }
     }
 
     func accept(invitation: ShareInvitation) async throws {
-        guard let metadata = await CloudKitShareMetadataVault.shared.take(
+        guard let metadata = await CloudKitShareMetadataVault.shared.value(
             identifier: invitation.shareIdentifier) else {
             throw CloudGatewayError.malformedInvitation
         }
+        if metadata.participantStatus == .accepted { return }
         do {
             try await container.accept(metadata)
         } catch {
-            throw map(error)
+            throw map(error, operation: "accept-share")
         }
     }
 
@@ -1114,6 +1256,13 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
     private func database(_ scope: CloudDatabaseScope) -> CKDatabase {
         scope == .privateDatabase
             ? container.privateCloudDatabase : container.sharedCloudDatabase
+    }
+
+    private func zoneID(name: String, ownerName: String?) -> CKRecordZone.ID {
+        if let ownerName, !ownerName.isEmpty {
+            return CKRecordZone.ID(zoneName: name, ownerName: ownerName)
+        }
+        return CKRecordZone.ID(zoneName: name)
     }
 
     private func cloudRecordType(_ type: SyncEntityType) -> String {
@@ -1138,8 +1287,17 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         return value
     }
 
-    private func map(_ error: Error) -> CloudGatewayError {
-        guard let cloudError = error as? CKError else { return .transient }
+    private func map(_ error: Error, operation: StaticString) -> CloudGatewayError {
+        if let gatewayError = error as? CloudGatewayError {
+            return gatewayError
+        }
+        guard let cloudError = error as? CKError else {
+            Self.logger.error(
+                "\(operation): non-CloudKit failure \(String(describing: type(of: error)), privacy: .public)")
+            return .transient
+        }
+        Self.logger.error(
+            "\(operation): CKError code \(cloudError.errorCode, privacy: .public)")
         switch cloudError.code {
         case .networkUnavailable, .networkFailure: return .offline
         case .notAuthenticated: return .notSignedIn

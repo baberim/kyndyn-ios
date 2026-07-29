@@ -11,7 +11,8 @@ assuming a phone-shaped screen.
 - `DomainModels.swift`: persisted source entities and explicit schema version.
 - `ProgressionEngine.swift`: pure recurrence, due-date, completion, XP, level, streak, and family progress projections.
 - `AppModel.swift`: main-actor application orchestration and SwiftData writes.
-- `Services.swift`: LocalAuthentication, Keychain PIN storage, UserNotifications, and protocols/test substitutes for device and future services.
+- `Services.swift`: LocalAuthentication, Keychain PIN storage,
+  UserNotifications, and the Apple system CloudKit sharing presenter.
 - `AppConfiguration.swift`: validates centralized CloudKit build settings before
   any live Apple container is instantiated.
 - `Views.swift`: presentation only.
@@ -24,7 +25,16 @@ The schema version is currently `3`. Household time zones are stored as IANA ide
 
 ## CloudKit direction
 
-SwiftData remains the immediate local source. `HouseholdCloudTransport` isolates CloudKit account, zone, record, change-token, share, invitation, and participant operations. `CloudSyncController` owns resumable provisioning and incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own deterministic merge/application. Production uses an owner private custom zone shared through `CKShare`; tests use an actor-backed in-memory transport. No generic kyndyn-hosted family database is introduced.
+SwiftData remains the immediate local source and is explicitly configured not
+to activate SwiftData’s automatic CloudKit store. `HouseholdCloudTransport`
+isolates CloudKit account, zone, record, change-token, share, invitation, and
+participant operations. `CloudSyncController` owns resumable provisioning and
+incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own
+deterministic merge/application. The owner’s private custom zone is shared
+through a root-record `CKShare`; descendants use CloudKit parent references,
+and participant devices retain the owner-qualified shared zone ID. Tests use an
+actor-backed in-memory transport. No generic kyndyn-hosted family database is
+introduced.
 
 ## Adaptive layout principles
 

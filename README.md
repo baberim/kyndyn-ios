@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Apple Multi-Device Readiness 0.4
+## Current milestone — Development CloudKit Validation 0.5
 
 The app provides a locally usable vertical slice:
 
@@ -24,6 +24,12 @@ The app provides a locally usable vertical slice:
 - resumable owner provisioning and CloudKit share invitation routing;
 - deterministic in-memory multi-device tests that do not require Apple credentials.
 - centralized, fail-safe Apple/CloudKit configuration readiness;
+- live Development CloudKit owner provisioning and private sharing through
+  Apple’s system interface;
+- scene-aware invitation routing on fresh, running, and backgrounded installs;
+- verified owner/participant completion and exact undo convergence on two
+  physical devices;
+- an Apple-compliant native app icon;
 - responsive profile, dashboard, quest, and Parent-area presentation across
   compact and regular widths;
 - visible, named profile-color accents that supplement names and companions.
@@ -36,9 +42,11 @@ Requirements: Xcode 26 or later and iOS 18 or later.
 2. Select the `kyndyn` scheme and an iPhone or iPad simulator.
 3. Build and run.
 
-No Apple Developer account, CloudKit container, server, or secret is needed for local development.
-Live CloudKit is deliberately disabled until the project owner completes
-[`docs/cloudkit-configuration.md`](docs/cloudkit-configuration.md).
+No Apple Developer account, CloudKit container, server, or secret is needed for
+local-only development and deterministic tests. Live Debug synchronization uses
+the authorized Development container documented in
+[`docs/cloudkit-configuration.md`](docs/cloudkit-configuration.md). Release
+builds remain fail-safe and do not enable live sync.
 
 The complete native identity was renamed for this milestone. Because the bundle
 identifier changed, iOS treats this as a new development app; see
@@ -54,4 +62,6 @@ xcodebuild test -project kyndyn.xcodeproj -scheme kyndyn -destination 'platform=
 
 The simulator can approve or reject notification permission. For LocalAuthentication, use **Features → Face ID** in Simulator to toggle enrollment and matching. A device passcode prompt may appear instead depending on simulator state.
 
-See `docs/` for architecture, lifecycle and schedule semantics, privacy, migration, accessibility, asset provenance, and App Store work.
+See [`docs/development-cloudkit-validation-0.5.md`](docs/development-cloudkit-validation-0.5.md)
+for exact live and automated results. Automatic refresh is intentionally
+deferred; 0.5 requires manual **Refresh now** on each device.

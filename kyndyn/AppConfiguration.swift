@@ -15,7 +15,10 @@ struct KyndynCloudConfiguration: Equatable, Sendable {
     let environment: KyndynCloudEnvironment
     let isEnabled: Bool
 
-    init(info: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
+    init(
+        info: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
         let identifier = (info[Self.containerInfoKey] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         containerIdentifier = identifier.flatMap { $0.isEmpty ? nil : $0 }
@@ -23,7 +26,9 @@ struct KyndynCloudConfiguration: Equatable, Sendable {
             rawValue: (info[Self.environmentInfoKey] as? String)?
                 .lowercased() ?? ""
         ) ?? .development
-        if let enabled = info[Self.enabledInfoKey] as? Bool {
+        if arguments.contains("-ui-testing-cloud-unconfigured") {
+            isEnabled = false
+        } else if let enabled = info[Self.enabledInfoKey] as? Bool {
             isEnabled = enabled
         } else {
             isEnabled = (info[Self.enabledInfoKey] as? String)?

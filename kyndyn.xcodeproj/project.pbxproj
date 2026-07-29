@@ -1,8 +1,9 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
-	objectVersion = 77;
+	classes = {
+	};
+	objectVersion = 71;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -27,8 +28,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		C10000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = D10000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = E10000000000000000000001; remoteInfo = kyndyn; };
-		C10000000000000000000002 = {isa = PBXContainerItemProxy; containerPortal = D10000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = E10000000000000000000001; remoteInfo = kyndyn; };
+		C10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E10000000000000000000001;
+			remoteInfo = kyndyn;
+		};
+		C10000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E10000000000000000000001;
+			remoteInfo = kyndyn;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -53,67 +66,466 @@
 		B10000000000000000000013 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA2129B2301A79F000756983 /* kyndyn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = kyndyn.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		F10000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		F10000000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		F10000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		F10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		G10000000000000000000001 = {isa = PBXGroup; children = (G10000000000000000000002 /* kyndyn */, G10000000000000000000005 /* kyndynTests */, G10000000000000000000006 /* kyndynUITests */, G10000000000000000000004 /* Products */); sourceTree = "<group>"; };
-		G10000000000000000000002 /* kyndyn */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000015, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, B10000000000000000000013, G10000000000000000000007 /* Resources */, G10000000000000000000003 /* Companions */); path = kyndyn; sourceTree = "<group>"; };
-		G10000000000000000000003 /* Companions */ = {isa = PBXGroup; children = (B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B1000000000000000000000A, B1000000000000000000000B); path = Resources/Companions; sourceTree = "<group>"; };
-		G10000000000000000000004 /* Products */ = {isa = PBXGroup; children = (B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000010); name = Products; sourceTree = "<group>"; };
-		G10000000000000000000005 /* kyndynTests */ = {isa = PBXGroup; children = (B1000000000000000000000C, B10000000000000000000014); path = kyndynTests; sourceTree = "<group>"; };
-		G10000000000000000000006 /* kyndynUITests */ = {isa = PBXGroup; children = (B1000000000000000000000D); path = kyndynUITests; sourceTree = "<group>"; };
-		G10000000000000000000007 /* Resources */ = {isa = PBXGroup; children = (B10000000000000000000011, B10000000000000000000012); path = Resources; sourceTree = "<group>"; };
+		G10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000002 /* kyndyn */,
+				G10000000000000000000005 /* kyndynTests */,
+				G10000000000000000000006 /* kyndynUITests */,
+				G10000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G10000000000000000000002 /* kyndyn */ = {
+			isa = PBXGroup;
+			children = (
+				FA2129B2301A79F000756983 /* kyndyn.entitlements */,
+				B10000000000000000000001 /* kyndynApp.swift */,
+				B10000000000000000000015 /* AppConfiguration.swift */,
+				B10000000000000000000016 /* Info.plist */,
+				B10000000000000000000002 /* DomainModels.swift */,
+				B10000000000000000000003 /* ProgressionEngine.swift */,
+				B10000000000000000000004 /* Services.swift */,
+				B10000000000000000000005 /* AppModel.swift */,
+				B10000000000000000000006 /* Views.swift */,
+				B10000000000000000000013 /* SyncEngine.swift */,
+				G10000000000000000000007 /* Resources */,
+				G10000000000000000000003 /* Resources/Companions */,
+			);
+			path = kyndyn;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000003 /* Resources/Companions */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* spark.png */,
+				B10000000000000000000008 /* orbit.png */,
+				B10000000000000000000009 /* pixel.png */,
+				B1000000000000000000000A /* comet.png */,
+				B1000000000000000000000B /* bop.png */,
+			);
+			path = Resources/Companions;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000E /* kyndyn.app */,
+				B1000000000000000000000F /* kyndynTests.xctest */,
+				B10000000000000000000010 /* kyndynUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000005 /* kyndynTests */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000C /* ProgressionEngineTests.swift */,
+				B10000000000000000000014 /* SyncEngineTests.swift */,
+			);
+			path = kyndynTests;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000006 /* kyndynUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000D /* kyndynUITests.swift */,
+			);
+			path = kyndynUITests;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000007 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000011 /* Assets.xcassets */,
+				B10000000000000000000012 /* LaunchScreen.storyboard */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E10000000000000000000001 /* kyndyn */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000001; buildPhases = (I10000000000000000000001, F10000000000000000000001, J10000000000000000000001); buildRules = (); dependencies = (); name = kyndyn; productName = kyndyn; productReference = B1000000000000000000000E; productType = "com.apple.product-type.application"; };
-		E10000000000000000000002 /* kyndynTests */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000002; buildPhases = (I10000000000000000000002, F10000000000000000000002, J10000000000000000000002); buildRules = (); dependencies = (K10000000000000000000001); name = kyndynTests; productName = kyndynTests; productReference = B1000000000000000000000F; productType = "com.apple.product-type.bundle.unit-test"; };
-		E10000000000000000000003 /* kyndynUITests */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000003; buildPhases = (I10000000000000000000003, F10000000000000000000003, J10000000000000000000003); buildRules = (); dependencies = (K10000000000000000000002); name = kyndynUITests; productName = kyndynUITests; productReference = B10000000000000000000010; productType = "com.apple.product-type.bundle.ui-testing"; };
+		E10000000000000000000001 /* kyndyn */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000001 /* Build configuration list for PBXNativeTarget "kyndyn" */;
+			buildPhases = (
+				I10000000000000000000001 /* Sources */,
+				F10000000000000000000001 /* Frameworks */,
+				J10000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = kyndyn;
+			productName = kyndyn;
+			productReference = B1000000000000000000000E /* kyndyn.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E10000000000000000000002 /* kyndynTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000002 /* Build configuration list for PBXNativeTarget "kyndynTests" */;
+			buildPhases = (
+				I10000000000000000000002 /* Sources */,
+				F10000000000000000000002 /* Frameworks */,
+				J10000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				K10000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = kyndynTests;
+			productName = kyndynTests;
+			productReference = B1000000000000000000000F /* kyndynTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		E10000000000000000000003 /* kyndynUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000003 /* Build configuration list for PBXNativeTarget "kyndynUITests" */;
+			buildPhases = (
+				I10000000000000000000003 /* Sources */,
+				F10000000000000000000003 /* Frameworks */,
+				J10000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				K10000000000000000000002 /* PBXTargetDependency */,
+			);
+			name = kyndynUITests;
+			productName = kyndynUITests;
+			productReference = B10000000000000000000010 /* kyndynUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		D10000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {E10000000000000000000001 = {CreatedOnToolsVersion = 26.0;}; E10000000000000000000002 = {CreatedOnToolsVersion = 26.0; TestTargetID = E10000000000000000000001;}; E10000000000000000000003 = {CreatedOnToolsVersion = 26.0; TestTargetID = E10000000000000000000001;};};}; buildConfigurationList = H10000000000000000000004; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = G10000000000000000000001; productRefGroup = G10000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (E10000000000000000000001, E10000000000000000000002, E10000000000000000000003); };
+		D10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					E10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					E10000000000000000000002 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = E10000000000000000000001;
+					};
+					E10000000000000000000003 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = E10000000000000000000001;
+					};
+				};
+			};
+			buildConfigurationList = H10000000000000000000004 /* Build configuration list for PBXProject "kyndyn" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G10000000000000000000001;
+			productRefGroup = G10000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000000000000000000001 /* kyndyn */,
+				E10000000000000000000002 /* kyndynTests */,
+				E10000000000000000000003 /* kyndynUITests */,
+			);
+		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		J10000000000000000000001 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000E, A1000000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
-		J10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		J10000000000000000000003 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		J10000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000007 /* spark.png in Resources */,
+				A10000000000000000000008 /* orbit.png in Resources */,
+				A10000000000000000000009 /* pixel.png in Resources */,
+				A1000000000000000000000A /* comet.png in Resources */,
+				A1000000000000000000000B /* bop.png in Resources */,
+				A1000000000000000000000E /* Assets.xcassets in Resources */,
+				A1000000000000000000000F /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		I10000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000012, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000010); runOnlyForDeploymentPostprocessing = 0; };
-		I10000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000C, A10000000000000000000011); runOnlyForDeploymentPostprocessing = 0; };
-		I10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D); runOnlyForDeploymentPostprocessing = 0; };
+		I10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* kyndynApp.swift in Sources */,
+				A10000000000000000000012 /* AppConfiguration.swift in Sources */,
+				A10000000000000000000002 /* DomainModels.swift in Sources */,
+				A10000000000000000000003 /* ProgressionEngine.swift in Sources */,
+				A10000000000000000000004 /* Services.swift in Sources */,
+				A10000000000000000000005 /* AppModel.swift in Sources */,
+				A10000000000000000000006 /* Views.swift in Sources */,
+				A10000000000000000000010 /* SyncEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		I10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000C /* ProgressionEngineTests.swift in Sources */,
+				A10000000000000000000011 /* SyncEngineTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		I10000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000D /* kyndynUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		K10000000000000000000001 = {isa = PBXTargetDependency; target = E10000000000000000000001; targetProxy = C10000000000000000000001; };
-		K10000000000000000000002 = {isa = PBXTargetDependency; target = E10000000000000000000001; targetProxy = C10000000000000000000002; };
+		K10000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E10000000000000000000001 /* kyndyn */;
+			targetProxy = C10000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		K10000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E10000000000000000000001 /* kyndyn */;
+			targetProxy = C10000000000000000000002 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		L10000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug; };
-		L10000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O";}; name = Release; };
-		L10000000000000000000003 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = kyndyn; INFOPLIST_KEY_KyndynCloudKitContainerIdentifier = "$(KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER)"; INFOPLIST_KEY_KyndynCloudKitEnvironment = development; INFOPLIST_KEY_KyndynCloudSyncConfigured = "$(KYNDYN_CLOUD_SYNC_CONFIGURED)"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = ""; KYNDYN_CLOUD_SYNC_CONFIGURED = NO; MARKETING_VERSION = 0.4.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Debug; };
-		L10000000000000000000004 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = kyndyn; INFOPLIST_KEY_KyndynCloudKitContainerIdentifier = "$(KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER)"; INFOPLIST_KEY_KyndynCloudKitEnvironment = production; INFOPLIST_KEY_KyndynCloudSyncConfigured = "$(KYNDYN_CLOUD_SYNC_CONFIGURED)"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = ""; KYNDYN_CLOUD_SYNC_CONFIGURED = NO; MARKETING_VERSION = 0.4.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Release; };
-		L10000000000000000000005 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kyndyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kyndyn";}; name = Debug; };
-		L10000000000000000000006 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kyndyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kyndyn";}; name = Release; };
-		L10000000000000000000007 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = kyndyn;}; name = Debug; };
-		L10000000000000000000008 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = kyndyn;}; name = Release; };
+		L10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		L10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		L10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = kyndyn/Info.plist;
+				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
+				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
+				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		L10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = kyndyn/Info.plist;
+				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = "";
+				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
+				KYNDYN_CLOUD_SYNC_CONFIGURED = NO;
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		L10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kyndyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kyndyn";
+			};
+			name = Debug;
+		};
+		L10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kyndyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kyndyn";
+			};
+			name = Release;
+		};
+		L10000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = kyndyn;
+			};
+			name = Debug;
+		};
+		L10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndynUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = kyndyn;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		H10000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000003, L10000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		H10000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000005, L10000000000000000000006); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		H10000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000007, L10000000000000000000008); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		H10000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000001, L10000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000001 /* Build configuration list for PBXNativeTarget "kyndyn" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				L10000000000000000000003 /* Debug */,
+				L10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H10000000000000000000002 /* Build configuration list for PBXNativeTarget "kyndynTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				L10000000000000000000005 /* Debug */,
+				L10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H10000000000000000000003 /* Build configuration list for PBXNativeTarget "kyndynUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				L10000000000000000000007 /* Debug */,
+				L10000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H10000000000000000000004 /* Build configuration list for PBXProject "kyndyn" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				L10000000000000000000001 /* Debug */,
+				L10000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 	};
 	rootObject = D10000000000000000000001 /* Project object */;
