@@ -1,7 +1,11 @@
+import CloudKit
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import OSLog
 import Security
+import SwiftUI
+import UIKit
 import UserNotifications
 
 protocol HouseholdSyncing: Sendable {
@@ -29,6 +33,91 @@ protocol HouseholdImporting: Sendable {
 }
 struct DisabledImporter: HouseholdImporting {
     func dryRun(data: Data) async -> ImportReport { ImportReport(invalid: 1) }
+}
+
+// MARK: - System CloudKit sharing
+
+@MainActor
+final class CloudSharingSheetModel: ObservableObject {
+    @Published var isPresented = false
+    @Published private(set) var errorMessage: String?
+    fileprivate private(set) var controller: UICloudSharingController?
+    private static let logger = Logger(
+        subsystem: "com.kyndynfamily.kyndyn", category: "CloudSharing")
+
+    func prepare(zoneName: String, shareRecordName: String) async {
+        errorMessage = nil
+        guard !zoneName.isEmpty, !shareRecordName.isEmpty else {
+            errorMessage = "The family invitation is still being prepared. Refresh family sync and try again."
+            return
+        }
+        guard case .success(let container) = KyndynCloudContainerFactory.make()
+        else {
+            errorMessage = "Family invitations aren’t available in this build."
+            return
+        }
+        do {
+            let recordID = CKRecord.ID(
+                recordName: shareRecordName,
+                zoneID: CKRecordZone.ID(zoneName: zoneName))
+            guard let share = try await container.privateCloudDatabase
+                .record(for: recordID) as? CKShare else {
+                errorMessage = "The family invitation couldn’t be opened. Refresh family sync and try again."
+                return
+            }
+            let controller = UICloudSharingController(
+                share: share, container: container)
+            controller.availablePermissions = [.allowPrivate, .allowReadWrite]
+            self.controller = controller
+            isPresented = true
+        } catch let error as CKError {
+            Self.logger.error(
+                "prepare-share-sheet: CKError code \(error.errorCode, privacy: .public)")
+            errorMessage = "Apple’s family sharing screen couldn’t be opened. Check your connection and try again."
+        } catch {
+            Self.logger.error(
+                "prepare-share-sheet: non-CloudKit failure \(String(describing: type(of: error)), privacy: .public)")
+            errorMessage = "The family invitation couldn’t be opened. Try again."
+        }
+    }
+
+    func clearError() { errorMessage = nil }
+}
+
+struct SystemCloudSharingSheet: UIViewControllerRepresentable {
+    @ObservedObject var model: CloudSharingSheetModel
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        guard let controller = model.controller else {
+            return UIViewController()
+        }
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController,
+                                context: Context) {}
+
+    @MainActor
+    final class Coordinator: NSObject, UICloudSharingControllerDelegate {
+        private static let logger = Logger(
+            subsystem: "com.kyndynfamily.kyndyn", category: "CloudSharing")
+
+        func itemTitle(for csc: UICloudSharingController) -> String? {
+            "kyndyn family"
+        }
+
+        func cloudSharingController(
+            _ csc: UICloudSharingController,
+            failedToSaveShareWithError error: Error
+        ) {
+            let code = (error as? CKError)?.errorCode ?? -1
+            Self.logger.error(
+                "share-sheet-save: CKError code \(code, privacy: .public)")
+        }
+    }
 }
 
 // MARK: - Parent authentication

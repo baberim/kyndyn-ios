@@ -30,15 +30,20 @@ private actor InterruptingTransport: HouseholdCloudTransport {
         try await base.prepareZone(named: name, scope: scope)
     }
     func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
         try interruptIfNeeded()
-        return try await base.save(records: records, zoneName: zoneName, scope: scope)
+        return try await base.save(
+            records: records, zoneName: zoneName,
+            zoneOwnerName: zoneOwnerName, scope: scope)
     }
     func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?,
                       after token: Data?) async throws -> RemoteChangeBatch {
         try interruptIfNeeded()
-        return try await base.fetchChanges(zoneName: zoneName, scope: scope,
-                                           after: token)
+        return try await base.fetchChanges(
+            zoneName: zoneName, scope: scope,
+            zoneOwnerName: zoneOwnerName, after: token)
     }
     func createShare(rootRecordName: String, zoneName: String,
                      title: String) async throws -> HouseholdShareDescriptor {
@@ -82,7 +87,9 @@ final class SyncMetadataAndQueueTests: XCTestCase {
 
     private func container() throws -> ModelContainer {
         try ModelContainer(for: schema(), configurations:
-            ModelConfiguration(schema: schema(), isStoredInMemoryOnly: true))
+            ModelConfiguration(
+                schema: schema(), isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none))
     }
 
     func testLocalOnlyHouseholdDoesNotQueueOrRequireCloud() throws {
@@ -145,13 +152,15 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         ])
         do {
             let old = try ModelContainer(for: oldSchema,
-                configurations: ModelConfiguration(schema: oldSchema, url: url))
+                configurations: ModelConfiguration(
+                    schema: oldSchema, url: url, cloudKitDatabase: .none))
             old.mainContext.insert(Household(
                 name: "Pre 0.3 Fictional", timeZoneIdentifier: "UTC"))
             try old.mainContext.save()
         }
         let migrated = try ModelContainer(for: schema(),
-            configurations: ModelConfiguration(schema: schema(), url: url))
+            configurations: ModelConfiguration(
+                schema: schema(), url: url, cloudKitDatabase: .none))
         XCTAssertEqual(try migrated.mainContext.fetch(
             FetchDescriptor<Household>()).first?.name, "Pre 0.3 Fictional")
         XCTAssertTrue(try migrated.mainContext.fetch(
@@ -242,7 +251,9 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             PendingShareInvitation.self
         ])
         let container = try ModelContainer(for: schema, configurations:
-            ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+            ModelConfiguration(
+                schema: schema, isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none))
         let household = Household(name: "Provision Test", timeZoneIdentifier: "UTC")
         let state = HouseholdCloudState(householdID: household.id)
         container.mainContext.insert(household)
@@ -372,6 +383,8 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         let transport = InMemoryCloudTransport()
         let controller = CloudSyncController(transport: transport)
         await controller.provisionOwner(household: household, records: records,
+            state: state, context: container.mainContext)
+        await controller.synchronize(
             state: state, context: container.mainContext)
         XCTAssertNotNil(state.changeToken)
         await transport.expireNextChangeToken()

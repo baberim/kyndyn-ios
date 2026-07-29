@@ -4,7 +4,8 @@ import SwiftData
 
 final class ProgressionEngineTests: XCTestCase {
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Household.self, Person.self, Quest.self, QuestCompletion.self, LocalDeviceSettings.self, configurations: configuration)
         let household = Household(name: "Fictional Test Family", timeZoneIdentifier: "America/New_York")
         let person = Person(householdID: household.id, name: "Avery", role: .child, colorHex: "#000000", companionID: "spark")
@@ -122,6 +123,18 @@ final class ConfigurationAndAdaptiveLayoutTests: XCTestCase {
         )
     }
 
+    func testUITestOverrideKeepsLiveCloudConfigurationDeterministic() {
+        let configuration = KyndynCloudConfiguration(
+            info: [
+                KyndynCloudConfiguration.enabledInfoKey: "YES",
+                KyndynCloudConfiguration.containerInfoKey:
+                    "iCloud.com.example.kyndyn"
+            ],
+            arguments: ["-ui-testing-cloud-unconfigured"]
+        )
+        XCTAssertEqual(configuration.readiness, .disabled)
+    }
+
     func testDevelopmentCloudConfigurationIsExplicit() {
         let configuration = KyndynCloudConfiguration(info: [
             KyndynCloudConfiguration.enabledInfoKey: "YES",
@@ -150,7 +163,8 @@ final class ConfigurationAndAdaptiveLayoutTests: XCTestCase {
 
 final class LifecycleRulesTests: XCTestCase {
     @MainActor func testUpgradedHouseholdGetsMissingDeviceSettings() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: Household.self, Person.self, Quest.self, QuestCompletion.self,
             LocalDeviceSettings.self, configurations: configuration)
@@ -192,7 +206,8 @@ final class LifecycleRulesTests: XCTestCase {
     }
 
     @MainActor func testArchivePreservesHistoryAndStableIDs() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Household.self, Person.self, Quest.self, QuestCompletion.self, configurations: configuration)
         let context = container.mainContext
         let household = Household(name: "Test", timeZoneIdentifier: "UTC")

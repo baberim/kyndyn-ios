@@ -9,7 +9,10 @@ final class KyndynUITests: XCTestCase {
         additionalArguments: [String] = []
     ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing-reset"]
+        app.launchArguments = [
+            "-ui-testing-reset",
+            "-ui-testing-cloud-unconfigured"
+        ]
             + (parentUnlocked ? ["-ui-testing-parent-unlocked"] : [])
             + additionalArguments
         app.launch()
@@ -96,13 +99,20 @@ final class KyndynUITests: XCTestCase {
 
     func testHouseholdPersistsAcrossRelaunch() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing-persistence", "-ui-testing-persistence-reset"]
+        app.launchArguments = [
+            "-ui-testing-persistence",
+            "-ui-testing-persistence-reset",
+            "-ui-testing-cloud-unconfigured"
+        ]
         app.launch()
         XCTAssertTrue(app.buttons["Create a sample household"].waitForExistence(timeout: 8))
         app.buttons["Create a sample household"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         app.terminate()
-        app.launchArguments = ["-ui-testing-persistence"]
+        app.launchArguments = [
+            "-ui-testing-persistence",
+            "-ui-testing-cloud-unconfigured"
+        ]
         app.launch()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Create a sample household"].exists)

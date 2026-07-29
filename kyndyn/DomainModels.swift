@@ -253,8 +253,10 @@ enum SyncErrorCategory: String, Codable {
     var databaseScopeRaw: String = CloudDatabaseScope.privateDatabase.rawValue
     var provisioningStageRaw: String = ProvisioningStage.none.rawValue
     var zoneName: String?
+    var zoneOwnerName: String?
     var rootRecordName: String?
     var shareRecordName: String?
+    var sharingHierarchyVersion: Int = 0
     var accountFingerprint: String?
     var changeToken: Data?
     var lastSuccessfulSyncAt: Date?

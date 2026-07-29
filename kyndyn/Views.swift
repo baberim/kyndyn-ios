@@ -880,6 +880,7 @@ struct CloudSyncSettingsView: View {
     @Query private var cloudStates: [HouseholdCloudState]
     @Query private var pending: [PendingSyncMutation]
     @State private var confirmEnable = false
+    @StateObject private var sharingSheet = CloudSharingSheetModel()
     private let configuration = KyndynCloudConfiguration()
 
     private var household: Household? { households.first }
@@ -927,12 +928,29 @@ struct CloudSyncSettingsView: View {
                     LabeledContent("Cloud records", value: "\(preview.totalRecords)")
                 }
                 Section {
-                    if state?.mode == .owner || state?.mode == .participant {
+                    if state?.mode == .owner || state?.mode == .participant ||
+                        (state?.mode == .recoverableError &&
+                         state?.provisioningStage == .roundTripVerified) {
                         Button("Refresh now", systemImage: "arrow.clockwise") {
                             guard let state else { return }
                             Task { await sync.synchronize(state: state, context: context) }
                         }
                         .disabled(sync.isWorking)
+                        if state?.databaseScope == .privateDatabase,
+                           let zoneName = state?.zoneName,
+                           let shareRecordName = state?.shareRecordName {
+                            Button("Invite or manage family",
+                                   systemImage: "person.2.badge.plus") {
+                                Task {
+                                    await sharingSheet.prepare(
+                                        zoneName: zoneName,
+                                        shareRecordName: shareRecordName)
+                                }
+                            }
+                            .disabled(sync.isWorking)
+                            .accessibilityHint(
+                                "Opens Apple’s private family invitation screen")
+                        }
                     } else {
                         Button("Enable family sync", systemImage: "icloud.and.arrow.up") {
                             confirmEnable = true
@@ -955,6 +973,20 @@ struct CloudSyncSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("kyndyn will prepare this household in the owner’s iCloud and create an Apple sharing invitation. Local data remains available if setup is interrupted.")
+        }
+        .sheet(isPresented: $sharingSheet.isPresented) {
+            SystemCloudSharingSheet(model: sharingSheet)
+        }
+        .alert(
+            "Invitation unavailable",
+            isPresented: Binding(
+                get: { sharingSheet.errorMessage != nil },
+                set: { if !$0 { sharingSheet.clearError() } }
+            )
+        ) {
+            Button("OK", role: .cancel) { sharingSheet.clearError() }
+        } message: {
+            Text(sharingSheet.errorMessage ?? "")
         }
         .task { ensureState() }
     }

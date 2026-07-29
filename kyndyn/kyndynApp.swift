@@ -13,8 +13,9 @@ import UIKit
             shareIdentifier: metadata.share.recordID.recordName,
             rootRecordName: metadata.hierarchicalRootRecordID?.recordName ?? "",
             zoneName: metadata.hierarchicalRootRecordID?.zoneID.zoneName ?? "",
+            zoneOwnerName: metadata.hierarchicalRootRecordID?.zoneID.ownerName,
             schemaVersion: KyndynSchema.version,
-            alreadyAccepted: false
+            alreadyAccepted: metadata.participantStatus == .accepted
         )
     }
 
@@ -22,11 +23,49 @@ import UIKit
 }
 
 final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(
+            name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = CloudShareSceneDelegate.self
+        return configuration
+    }
+
     func application(_ application: UIApplication,
                      userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
+        CloudShareReceiver.receive(metadata)
+    }
+}
+
+final class CloudShareSceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let metadata = connectionOptions.cloudKitShareMetadata else {
+            return
+        }
+        CloudShareReceiver.receive(metadata)
+    }
+
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
+    ) {
+        CloudShareReceiver.receive(metadata)
+    }
+}
+
+@MainActor
+private enum CloudShareReceiver {
+    static func receive(_ metadata: CKShare.Metadata) {
         Task {
             await CloudKitShareMetadataVault.shared.store(metadata)
-            await MainActor.run { CloudShareInbox.shared.receive(metadata) }
+            CloudShareInbox.shared.receive(metadata)
         }
     }
 }
@@ -62,9 +101,17 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
                     try? FileManager.default.removeItem(at: directory)
                 }
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "kyndyn.store"))
+                configuration = ModelConfiguration(
+                    schema: schema,
+                    url: directory.appending(path: "kyndyn.store"),
+                    cloudKitDatabase: .none
+                )
             } else {
-                configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: testing)
+                configuration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: testing,
+                    cloudKitDatabase: .none
+                )
             }
             container = try ModelContainer(
                 for: schema,
