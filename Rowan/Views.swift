@@ -10,11 +10,16 @@ struct RootView: View {
     @Query private var households: [Household]
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var deviceSettings: [LocalDeviceSettings]
+    @Query private var pendingInvitations: [PendingShareInvitation]
+    @State private var shareInbox = CloudShareInbox.shared
 
     var body: some View {
         ZStack {
             Group {
-                if households.isEmpty {
+                if shareInbox.pending != nil ||
+                    pendingInvitations.contains(where: { $0.stateRaw == "pending" }) {
+                    InvitationLandingView()
+                } else if households.isEmpty {
                     OnboardingView()
                 } else if app.selectedPersonID == nil {
                     ProfilePickerView()
@@ -34,6 +39,15 @@ struct RootView: View {
         }
         .tint(.purple)
         .task {
+            if let invitation = shareInbox.pending,
+               !pendingInvitations.contains(where: {
+                   $0.shareIdentifier == invitation.shareIdentifier
+               }) {
+                context.insert(PendingShareInvitation(
+                    shareIdentifier: invitation.shareIdentifier,
+                    expectedSchemaVersion: invitation.schemaVersion))
+                try? context.save()
+            }
             if app.selectedPersonID == nil,
                let stored = deviceSettings.first?.selectedPersonID,
                people.contains(where: { $0.id == stored && $0.deletedAt == nil }) {
@@ -41,6 +55,46 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: app.isPreparing)
+    }
+}
+
+struct InvitationLandingView: View {
+    @Environment(InvitationRouter.self) private var router
+    @Environment(CloudSyncController.self) private var sync
+    @Environment(\.modelContext) private var context
+    @Query private var storedInvitations: [PendingShareInvitation]
+    @State private var inbox = CloudShareInbox.shared
+
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView {
+                Label("Family invitation", systemImage: "person.2.badge.plus")
+            } description: {
+                Text("Someone invited this device to a Rowan family. Rowan will verify it before creating any sample household.")
+            } actions: {
+                Button("Review invitation") {
+                    guard let invitation = inbox.pending else { return }
+                    router.receive(invitation)
+                    Task {
+                        if await sync.acceptInvitation(invitation, context: context) != nil {
+                            storedInvitations.first {
+                                $0.shareIdentifier == invitation.shareIdentifier
+                            }?.stateRaw = "joined"
+                            try? context.save()
+                            inbox.clear()
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(sync.isWorking)
+                .accessibilityHint("Validates the shared Rowan household")
+                Text(sync.statusMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Invitation status, \(sync.statusMessage)")
+            }
+            .navigationTitle("Join Rowan family")
+        }
     }
 }
 
@@ -318,6 +372,9 @@ struct ParentAreaView: View {
                 Section {
                     NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
                     NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
+                    NavigationLink { CloudSyncSettingsView() } label: {
+                        Label("Family sync", systemImage: "icloud")
+                    }
                     NavigationLink { NotificationSettingsView() } label: { Label("Reminders", systemImage: "bell.fill") }
                     NavigationLink { ParentSecurityView() } label: { Label("Parent security", systemImage: "lock.shield.fill") }
                 }
@@ -635,6 +692,128 @@ struct WeekdayPicker: View {
             .buttonStyle(.bordered)
             .tint(selection.contains(number) ? .purple : .secondary)
             .accessibilityValue(selection.contains(number) ? "Selected" : "Not selected")
+        }
+    }
+}
+
+struct CloudSyncSettingsView: View {
+    @Environment(CloudSyncController.self) private var sync
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @Query private var people: [Person]
+    @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+    @Query private var goals: [RewardGoal]
+    @Query private var sharedSettings: [HouseholdSettings]
+    @Query private var cloudStates: [HouseholdCloudState]
+    @Query private var pending: [PendingSyncMutation]
+    @State private var confirmEnable = false
+
+    private var household: Household? { households.first }
+    private var state: HouseholdCloudState? {
+        guard let household else { return nil }
+        return cloudStates.first { $0.householdID == household.id }
+    }
+
+    var body: some View {
+        List {
+            Section("Status") {
+                LabeledContent("This household", value: modeText)
+                    .accessibilityIdentifier("cloud-household-mode")
+                LabeledContent("Sync", value: sync.statusMessage)
+                    .accessibilityLabel("Family sync status, \(sync.statusMessage)")
+                if !pending.isEmpty {
+                    LabeledContent("Waiting to sync", value: "\(pending.count) changes")
+                }
+                if let date = state?.lastSuccessfulSyncAt {
+                    LabeledContent("Last updated", value: date.formatted())
+                }
+            }
+            Section("What family sync does") {
+                Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
+                Text("Your Rowan PIN, authentication, notification permission, quiet hours, and device preferences stay only on this device.")
+                    .foregroundStyle(.secondary)
+            }
+            if let household {
+                let preview = sync.preview(
+                    household: household, people: people, quests: quests,
+                    completions: completions, goals: goals)
+                Section("Ready to synchronize") {
+                    LabeledContent("People", value: "\(preview.people)")
+                    LabeledContent("Quests", value: "\(preview.quests)")
+                    LabeledContent("Completion events", value: "\(preview.completions)")
+                    LabeledContent("Cloud records", value: "\(preview.totalRecords)")
+                }
+                Section {
+                    if state?.mode == .owner || state?.mode == .participant {
+                        Button("Refresh now", systemImage: "arrow.clockwise") {
+                            guard let state else { return }
+                            Task { await sync.synchronize(state: state, context: context) }
+                        }
+                        .disabled(sync.isWorking)
+                    } else {
+                        Button("Enable family sync", systemImage: "icloud.and.arrow.up") {
+                            confirmEnable = true
+                        }
+                        .disabled(sync.isWorking)
+                    }
+                } footer: {
+                    Text("Live family sync requires the authorized Apple Developer team and iCloud container. Until configured, Rowan stays safely local-only.")
+                }
+            }
+        }
+        .accessibilityIdentifier("cloud-sync-settings")
+        .navigationTitle("Family sync")
+        .confirmationDialog(
+            "Enable family sync?",
+            isPresented: $confirmEnable,
+            titleVisibility: .visible
+        ) {
+            Button("Enable and upload") { enable() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Rowan will prepare this household in the owner’s iCloud and create an Apple sharing invitation. Local data remains available if setup is interrupted.")
+        }
+        .task { ensureState() }
+    }
+
+    private var modeText: String {
+        switch state?.mode ?? .localOnly {
+        case .localOnly: return "Only on this device"
+        case .preparing: return "Preparing family sync"
+        case .owner: return "Hosted by you"
+        case .participant: return "Shared with you"
+        case .unavailable: return "iCloud unavailable"
+        case .accountChanged: return "iCloud account changed"
+        case .paused: return "Paused"
+        case .recoverableError: return "Will retry"
+        case .needsAttention: return "Needs attention"
+        }
+    }
+
+    private func ensureState() {
+        guard let household, state == nil else { return }
+        context.insert(HouseholdCloudState(householdID: household.id))
+        try? context.save()
+    }
+
+    private func enable() {
+        guard let household else { return }
+        let cloudState = state ?? {
+            let value = HouseholdCloudState(householdID: household.id)
+            context.insert(value)
+            return value
+        }()
+        var records = [SyncSnapshot.household(household)]
+        records += people.map { SyncSnapshot.person($0) }
+        records += quests.flatMap { SyncSnapshot.quest($0) }
+        records += completions.map { SyncSnapshot.completion($0) }
+        records += goals.map { SyncSnapshot.reward($0) }
+        records += sharedSettings.map { SyncSnapshot.settings($0) }
+        Task {
+            await sync.provisionOwner(
+                household: household, records: records,
+                state: cloudState, context: context)
         }
     }
 }
