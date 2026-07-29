@@ -112,6 +112,7 @@ struct InvitationLandingView: View {
                             }?.stateRaw = "joined"
                             try? context.save()
                             inbox.clear()
+                            AutomaticSyncSignalCenter.shared.send(.shareAccepted)
                         }
                     }
                 }
@@ -870,6 +871,7 @@ struct WeekdayPicker: View {
 
 struct CloudSyncSettingsView: View {
     @Environment(CloudSyncController.self) private var sync
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
     @Query private var people: [Person]
@@ -894,8 +896,9 @@ struct CloudSyncSettingsView: View {
             Section("Status") {
                 LabeledContent("This household", value: modeText)
                     .accessibilityIdentifier("cloud-household-mode")
-                LabeledContent("Sync", value: sync.statusMessage)
-                    .accessibilityLabel("Family sync status, \(sync.statusMessage)")
+                LabeledContent("Sync", value: automaticStatusText)
+                    .accessibilityLabel(
+                        "Family sync status, \(automaticStatusText)")
                 if !pending.isEmpty {
                     LabeledContent("Waiting to sync", value: "\(pending.count) changes")
                 }
@@ -932,10 +935,9 @@ struct CloudSyncSettingsView: View {
                         (state?.mode == .recoverableError &&
                          state?.provisioningStage == .roundTripVerified) {
                         Button("Refresh now", systemImage: "arrow.clockwise") {
-                            guard let state else { return }
-                            Task { await sync.synchronize(state: state, context: context) }
+                            automaticSync.request(.manual)
                         }
-                        .disabled(sync.isWorking)
+                        .disabled(sync.isWorking || automaticSync.isRunning)
                         if state?.databaseScope == .privateDatabase,
                            let zoneName = state?.zoneName,
                            let shareRecordName = state?.shareRecordName {
@@ -1005,6 +1007,17 @@ struct CloudSyncSettingsView: View {
         }
     }
 
+    private var automaticStatusText: String {
+        switch automaticSync.displayState {
+        case .synchronizing: return "Synchronizing"
+        case .upToDate: return "Up to date"
+        case .offline: return "Offline — changes are safe"
+        case .waiting: return "Waiting for Apple or network"
+        case .needsAttention: return sync.statusMessage
+        case .localOnly: return sync.statusMessage
+        }
+    }
+
     private var configurationIsReady: Bool {
         if case .ready = configuration.readiness { return true }
         return false
@@ -1033,6 +1046,9 @@ struct CloudSyncSettingsView: View {
             await sync.provisionOwner(
                 household: household, records: records,
                 state: cloudState, context: context)
+            if cloudState.mode == .owner {
+                automaticSync.request(.accountRecovery)
+            }
         }
     }
 }

@@ -68,8 +68,9 @@ upload never rolls back or deletes the local edit.
 
 Each household stores its private or shared database scope, zone name, shared
 zone owner name, opaque server change token, last successful sync time, and
-account fingerprint. In 0.5, the user starts synchronization with manual
-**Refresh now**:
+account fingerprint. In 0.6 a single coordinator starts synchronization from
+lifecycle, queued-mutation, connectivity, invitation, and CloudKit-notification
+hints. **Refresh now** remains a recovery and diagnostic control:
 
 1. verify account identity and household mode;
 2. push pending mutations in deterministic order;
@@ -83,9 +84,25 @@ clears household data. Retryable errors use capped exponential backoff with
 deterministic jitter supplied by the coordinator; permanent errors become
 user-attention states.
 
-Automatic foreground/background refresh is not implemented in 0.5. Adding a
-single-flight lifecycle coordinator, connectivity-triggered retry, and
-CloudKit-compatible background delivery is the recommended next milestone.
+Rapid local writes are debounced and triggers are coalesced. A trigger received
+during a run causes one subsequent run rather than overlap. Retryable failures
+use the persisted queue schedule plus bounded coordinator backoff. Offline
+failures wait for connectivity or lifecycle recovery instead of retrying in a
+tight loop.
+
+Each eligible owner-private zone has one deterministic
+`CKRecordZoneSubscription`. The participant shared database uses one
+`CKDatabaseSubscription`, following CloudKit’s shared-database requirement.
+Notifications contain no household content and are only hints to fetch changes
+with saved tokens. Missing subscriptions are repaired safely. Subscription
+failure does not disable local use or the foreground catch-up path.
+
+iOS may delay or omit silent notifications and background refresh. kyndyn does
+not promise real-time delivery or keep itself alive with timers. Foregrounding
+and relaunch always request a catch-up. While visibly active, a bounded
+15-second pulse covers delayed notification delivery; it is cancelled on
+backgrounding and never attempts to extend execution. Persisted outgoing
+mutations remain available after termination.
 
 ## Conflict policy
 

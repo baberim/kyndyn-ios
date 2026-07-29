@@ -1,3 +1,4 @@
+import BackgroundTasks
 import CloudKit
 import SwiftUI
 import SwiftData
@@ -23,6 +24,26 @@ import UIKit
 }
 
 final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
+    static let refreshIdentifier = "com.kyndynfamily.kyndyn.sync-refresh"
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions:
+            [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        application.registerForRemoteNotifications()
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.refreshIdentifier, using: nil
+        ) { task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            AutomaticSyncBackgroundBridge.shared.handle(refreshTask)
+        }
+        return true
+    }
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
@@ -37,6 +58,19 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
         CloudShareReceiver.receive(metadata)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler:
+            @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task { @MainActor in
+            let completed = await AutomaticSyncBackgroundBridge.shared.perform(
+                .remoteNotification)
+            completionHandler(completed ? .newData : .noData)
+        }
     }
 }
 
@@ -66,7 +100,73 @@ private enum CloudShareReceiver {
         Task {
             await CloudKitShareMetadataVault.shared.store(metadata)
             CloudShareInbox.shared.receive(metadata)
+            AutomaticSyncSignalCenter.shared.send(.shareAccepted)
         }
+    }
+}
+
+@MainActor
+final class AutomaticSyncBackgroundBridge {
+    static let shared = AutomaticSyncBackgroundBridge()
+    weak var coordinator: AutomaticSyncCoordinator?
+
+    func handle(_ task: BGAppRefreshTask) {
+        guard let coordinator else {
+            task.setTaskCompleted(success: false)
+            return
+        }
+        task.expirationHandler = {
+            Task { @MainActor in
+                coordinator.cancelForBackgroundExpiration()
+            }
+        }
+        coordinator.request(.backgroundRefresh)
+        Task {
+            await coordinator.waitUntilIdle()
+            task.setTaskCompleted(success: !Task.isCancelled)
+        }
+    }
+
+    func perform(_ trigger: AutomaticSyncTrigger) async -> Bool {
+        guard let coordinator else { return false }
+        let previousRuns = coordinator.completedRunCount
+        coordinator.request(trigger)
+        await coordinator.waitUntilIdle()
+        return coordinator.completedRunCount > previousRuns
+    }
+
+    func schedule() {
+        let request = BGAppRefreshTaskRequest(
+            identifier: CloudShareAppDelegate.refreshIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+}
+
+@MainActor
+final class ForegroundSyncPulse {
+    private let interval: Duration
+    private var task: Task<Void, Never>?
+
+    init(interval: Duration = .seconds(15)) {
+        self.interval = interval
+    }
+
+    func start(coordinator: AutomaticSyncCoordinator) {
+        stop()
+        task = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                coordinator.request(.foregroundCatchUp)
+                await coordinator.waitUntilIdle()
+            }
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
     }
 }
 
@@ -77,10 +177,13 @@ private enum CloudShareReceiver {
         transport: CloudTransportFactory.make())
     @State private var invitationRouter = InvitationRouter(
         transport: CloudTransportFactory.make())
+    @State private var automaticSync = AutomaticSyncCoordinator()
     @StateObject private var parentAccess = ParentAccessController()
     @Environment(\.scenePhase) private var scenePhase
     private let container: ModelContainer?
     private let storeError: String?
+    private let connectivity = ConnectivityRestorationMonitor()
+    private let foregroundSyncPulse = ForegroundSyncPulse()
 
     init() {
         let schema = Schema([
@@ -132,13 +235,23 @@ private enum CloudShareReceiver {
                     RootView()
                         .environment(model)
                         .environment(cloudSync)
+                        .environment(automaticSync)
                         .environment(invitationRouter)
                         .environmentObject(parentAccess)
                         .modelContainer(container)
                         .task {
+                            automaticSync.configure(
+                                controller: cloudSync,
+                                context: container.mainContext)
+                            AutomaticSyncBackgroundBridge.shared.coordinator =
+                                automaticSync
+                            connectivity.start()
+                            foregroundSyncPulse.start(
+                                coordinator: automaticSync)
                             parentAccess.unlockForUITesting()
                             await Task.yield()
                             model.finishedPreparing()
+                            automaticSync.request(.launch)
                         }
                 } else {
                     StoreRecoveryView(detail: storeError)
@@ -146,10 +259,26 @@ private enum CloudShareReceiver {
             }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
-                case .background: parentAccess.didEnterBackground()
-                case .active: parentAccess.didBecomeActive()
+                case .background:
+                    parentAccess.didEnterBackground()
+                    foregroundSyncPulse.stop()
+                    AutomaticSyncBackgroundBridge.shared.schedule()
+                case .active:
+                    parentAccess.didBecomeActive()
+                    automaticSync.request(.becameActive)
+                    foregroundSyncPulse.start(
+                        coordinator: automaticSync)
                 default: break
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: .kyndynAutomaticSyncRequested)
+            ) { notification in
+                guard let raw = notification.userInfo?["trigger"] as? String,
+                      let trigger = AutomaticSyncTrigger(rawValue: raw) else {
+                    return
+                }
+                automaticSync.request(trigger)
             }
         }
     }

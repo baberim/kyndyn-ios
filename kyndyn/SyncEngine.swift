@@ -1,6 +1,7 @@
 import CloudKit
 import CryptoKit
 import Foundation
+import Network
 import Observation
 import OSLog
 import SwiftData
@@ -139,9 +140,14 @@ protocol HouseholdCloudTransport: CloudAccountChecking {
                      title: String) async throws -> HouseholdShareDescriptor
     func accept(invitation: ShareInvitation) async throws
     func participantSummary(shareRecordName: String) async throws -> [String]
+    func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
+                                  scope: CloudDatabaseScope) async throws
 }
 
 extension HouseholdCloudTransport {
+    func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
+                                  scope: CloudDatabaseScope) async throws {}
+
     func save(records: [CloudRecordEnvelope], zoneName: String,
               scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
         try await save(records: records, zoneName: zoneName,
@@ -353,7 +359,7 @@ enum SyncSnapshot {
                 "weekdays": value.weekdays.sorted().map(String.init).joined(separator: ","),
                 "startDate": value.startDate.ISO8601Format(),
                 "dueAt": value.dueAt?.ISO8601Format() ?? ""
-            ], mutationID: mutationID, tombstone: value.deletedAt != nil)
+            ], mutationID: UUID(), tombstone: value.deletedAt != nil)
         return [quest, schedule]
     }
 
@@ -419,6 +425,7 @@ enum SyncQueue {
         metadata.tombstone = envelope.tombstone
         metadata.status = .pending
         try context.save()
+        AutomaticSyncSignalCenter.shared.send(.localMutation)
     }
 
     static func backoff(retryCount: Int, base: TimeInterval = 2,
@@ -447,6 +454,23 @@ struct ProvisioningPreview: Equatable {
          notificationScheduler: NotificationScheduling = UserNotificationScheduler()) {
         self.transport = transport
         self.notificationScheduler = notificationScheduler
+    }
+
+    func ensureChangeSubscription(for state: HouseholdCloudState) async -> Bool {
+        guard let zoneName = state.zoneName,
+              [.owner, .participant, .recoverableError].contains(state.mode) else {
+            return false
+        }
+        do {
+            try await transport.ensureChangeSubscription(
+                zoneName: zoneName, zoneOwnerName: state.zoneOwnerName,
+                scope: state.databaseScope)
+            return true
+        } catch {
+            // Subscriptions improve promptness, but foreground and relaunch
+            // catch-up remain the correctness path.
+            return false
+        }
     }
 
     func preview(household: Household, people: [Person], quests: [Quest],
@@ -527,6 +551,9 @@ struct ProvisioningPreview: Equatable {
             statusMessage = "Family sync is on"
             lastErrorCategory = nil
             try context.save()
+        } catch is CancellationError {
+            statusMessage = "Waiting for the next safe sync opportunity."
+            return
         } catch let error as CloudGatewayError {
             apply(error: error, state: state)
             try? context.save()
@@ -604,6 +631,9 @@ struct ProvisioningPreview: Equatable {
             statusMessage = "Up to date"
             lastErrorCategory = nil
             try context.save()
+        } catch is CancellationError {
+            statusMessage = "Waiting for the next safe sync opportunity."
+            return
         } catch let error as CloudGatewayError {
             let householdID = state.householdID
             let pending = (try? context.fetch(FetchDescriptor<PendingSyncMutation>(
@@ -946,6 +976,7 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
     private var availability: CloudAccountAvailability
     private var injectedFailures: [CloudGatewayError] = []
     private var expireTokenOnNextFetch = false
+    private var subscriptions: Set<String> = []
 
     init(accountFingerprint: String = "test-account") {
         availability = .available(fingerprint: accountFingerprint)
@@ -1047,6 +1078,17 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
         try consumeFailure()
         return shares[shareRecordName] == nil ? [] : ["Owner", "Participant"]
     }
+
+    func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
+                                  scope: CloudDatabaseScope) async throws {
+        try consumeFailure()
+        let key = scope == .sharedDatabase
+            ? scope.rawValue
+            : "\(scope.rawValue):\(zoneOwnerName ?? ""):\(zoneName)"
+        subscriptions.insert(key)
+    }
+
+    func subscriptionCount() -> Int { subscriptions.count }
 
     func allRecords(zoneName: String) -> [CloudRecordEnvelope] {
         Array(zones[zoneName]?.records.values ?? [:].values)
@@ -1253,6 +1295,37 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         ["Owner", "Invited family members"]
     }
 
+    func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
+                                  scope: CloudDatabaseScope) async throws {
+        let zone = zoneID(name: zoneName, ownerName: zoneOwnerName)
+        let identity = scope == .sharedDatabase
+            ? scope.rawValue
+            : "\(scope.rawValue):\(zone.ownerName):\(zone.zoneName)"
+        let digest = SHA256.hash(data: Data(identity.utf8))
+        let identifier = "kyndyn-zone-" + digest.prefix(12).map {
+            String(format: "%02x", $0)
+        }.joined()
+        let database = database(scope)
+        do {
+            _ = try await database.subscription(for: identifier)
+        } catch let error as CKError where error.code == .unknownItem {
+            let subscription: CKSubscription = scope == .sharedDatabase
+                ? CKDatabaseSubscription(subscriptionID: identifier)
+                : CKRecordZoneSubscription(
+                    zoneID: zone, subscriptionID: identifier)
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            subscription.notificationInfo = info
+            do {
+                _ = try await database.save(subscription)
+            } catch {
+                throw map(error, operation: "save-subscription")
+            }
+        } catch {
+            throw map(error, operation: "fetch-subscription")
+        }
+    }
+
     private func database(_ scope: CloudDatabaseScope) -> CKDatabase {
         scope == .privateDatabase
             ? container.privateCloudDatabase : container.sharedCloudDatabase
@@ -1309,4 +1382,189 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         default: return .transient
         }
     }
+}
+
+enum AutomaticSyncTrigger: String, Hashable, Sendable {
+    case launch
+    case becameActive
+    case returnedToForeground
+    case localMutation
+    case connectivityRestored
+    case remoteNotification
+    case shareAccepted
+    case accountRecovery
+    case backgroundRefresh
+    case foregroundCatchUp
+    case manual
+
+    var shouldDebounce: Bool { self == .localMutation }
+}
+
+extension Notification.Name {
+    static let kyndynAutomaticSyncRequested =
+        Notification.Name("com.kyndynfamily.kyndyn.automatic-sync-requested")
+}
+
+@MainActor
+final class AutomaticSyncSignalCenter {
+    static let shared = AutomaticSyncSignalCenter()
+
+    func send(_ trigger: AutomaticSyncTrigger) {
+        NotificationCenter.default.post(
+            name: .kyndynAutomaticSyncRequested,
+            object: nil,
+            userInfo: ["trigger": trigger.rawValue])
+    }
+}
+
+enum AutomaticSyncDisplayState: Equatable {
+    case localOnly
+    case waiting
+    case synchronizing
+    case upToDate(Date)
+    case offline
+    case needsAttention
+}
+
+@MainActor
+@Observable final class AutomaticSyncCoordinator {
+    typealias Run = @MainActor () async -> Void
+
+    private(set) var displayState: AutomaticSyncDisplayState = .localOnly
+    private(set) var isRunning = false
+    private(set) var completedRunCount = 0
+    private(set) var lastTriggers: Set<AutomaticSyncTrigger> = []
+
+    private let debounceNanoseconds: UInt64
+    private var run: Run?
+    private var pendingTriggers: Set<AutomaticSyncTrigger> = []
+    private var scheduledTask: Task<Void, Never>?
+    private var consecutiveRetryCount = 0
+
+    init(debounceNanoseconds: UInt64 = 650_000_000) {
+        self.debounceNanoseconds = debounceNanoseconds
+    }
+
+    func configure(run: @escaping Run) {
+        self.run = run
+    }
+
+    func configure(controller: CloudSyncController, context: ModelContext) {
+        configure { [weak self] in
+            let states = (try? context.fetch(
+                FetchDescriptor<HouseholdCloudState>())) ?? []
+            let eligible = states.filter {
+                [.owner, .participant, .recoverableError].contains($0.mode)
+            }
+            guard !eligible.isEmpty else {
+                self?.displayState = .localOnly
+                return
+            }
+            var subscriptionReady = true
+            for state in eligible {
+                if Task.isCancelled { return }
+                subscriptionReady =
+                    await controller.ensureChangeSubscription(for: state)
+                    && subscriptionReady
+                if Task.isCancelled { return }
+                await controller.synchronize(state: state, context: context)
+            }
+            if controller.lastErrorCategory == .offline {
+                self?.displayState = .offline
+            } else if controller.lastErrorCategory == .transient ||
+                        controller.lastErrorCategory == .staleChangeToken {
+                self?.displayState = .waiting
+            } else if let error = controller.lastErrorCategory,
+                      ![.offline, .transient, .staleChangeToken].contains(error) {
+                self?.displayState = .needsAttention
+            } else if let date = eligible.compactMap(\.lastSuccessfulSyncAt).max() {
+                self?.displayState = .upToDate(date)
+            } else {
+                self?.displayState = .waiting
+            }
+            _ = subscriptionReady
+        }
+    }
+
+    func request(_ trigger: AutomaticSyncTrigger) {
+        pendingTriggers.insert(trigger)
+        displayState = .waiting
+        guard !isRunning else { return }
+
+        let delay = pendingTriggers.allSatisfy(\.shouldDebounce)
+            ? debounceNanoseconds : 0
+        scheduledTask?.cancel()
+        scheduledTask = Task { [weak self] in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            guard !Task.isCancelled else { return }
+            await self?.drain()
+        }
+    }
+
+    func cancelForBackgroundExpiration() {
+        scheduledTask?.cancel()
+        scheduledTask = nil
+        if isRunning { displayState = .waiting }
+    }
+
+    func waitUntilIdle() async {
+        while isRunning || !pendingTriggers.isEmpty {
+            await Task.yield()
+        }
+    }
+
+    private func drain() async {
+        guard !isRunning, let run else { return }
+        isRunning = true
+        while !pendingTriggers.isEmpty, !Task.isCancelled {
+            lastTriggers = pendingTriggers
+            pendingTriggers.removeAll()
+            displayState = .synchronizing
+            await run()
+            completedRunCount += 1
+        }
+        isRunning = false
+        scheduledTask = nil
+        if displayState == .waiting, !Task.isCancelled {
+            consecutiveRetryCount = min(consecutiveRetryCount + 1, 5)
+            let seconds = min(60, 2 << (consecutiveRetryCount - 1))
+            scheduledTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(seconds))
+                guard !Task.isCancelled else { return }
+                self?.scheduledTask = nil
+                self?.request(.accountRecovery)
+            }
+        } else if case .upToDate = displayState {
+            consecutiveRetryCount = 0
+        }
+    }
+}
+
+final class ConnectivityRestorationMonitor: @unchecked Sendable {
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(
+        label: "com.kyndynfamily.kyndyn.connectivity")
+    private var wasUnavailable = false
+
+    func start() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            if path.status == .satisfied {
+                if self.wasUnavailable {
+                    Task { @MainActor in
+                        AutomaticSyncSignalCenter.shared.send(
+                            .connectivityRestored)
+                    }
+                }
+                self.wasUnavailable = false
+            } else {
+                self.wasUnavailable = true
+            }
+        }
+        monitor.start(queue: queue)
+    }
+
+    func cancel() { monitor.cancel() }
 }
