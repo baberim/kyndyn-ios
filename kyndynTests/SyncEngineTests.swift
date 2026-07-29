@@ -132,6 +132,36 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         XCTAssertEqual(mutation.mutationID, envelope.mutationID)
     }
 
+    func testQuestAndScheduleUseDistinctQueueMutationIdentities() throws {
+        let container = try container()
+        let context = container.mainContext
+        let household = Household(
+            name: "Fictional Family", timeZoneIdentifier: "UTC")
+        let state = HouseholdCloudState(householdID: household.id)
+        state.mode = .owner
+        let quest = Quest(
+            householdID: household.id, title: "Test both cloud records",
+            xp: 10, participantIDs: [], scheduleKind: .daily)
+        context.insert(household)
+        context.insert(state)
+        context.insert(quest)
+        try context.save()
+
+        for envelope in SyncSnapshot.quest(quest) {
+            try SyncQueue.enqueue(
+                envelope, operation: .createOrUpdate, context: context)
+        }
+
+        let pending = try context.fetch(
+            FetchDescriptor<PendingSyncMutation>())
+        XCTAssertEqual(pending.count, 2)
+        XCTAssertEqual(Set(pending.map(\.mutationID)).count, 2)
+        XCTAssertEqual(
+            Set(pending.map(\.entityTypeRaw)),
+            [SyncEntityType.quest.rawValue,
+             SyncEntityType.questSchedule.rawValue])
+    }
+
     func testBackoffIsCappedAndDeterministic() {
         XCTAssertEqual(SyncQueue.backoff(retryCount: 0), 2)
         XCTAssertEqual(SyncQueue.backoff(retryCount: 3), 16)

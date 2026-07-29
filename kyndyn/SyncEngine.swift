@@ -359,7 +359,7 @@ enum SyncSnapshot {
                 "weekdays": value.weekdays.sorted().map(String.init).joined(separator: ","),
                 "startDate": value.startDate.ISO8601Format(),
                 "dueAt": value.dueAt?.ISO8601Format() ?? ""
-            ], mutationID: mutationID, tombstone: value.deletedAt != nil)
+            ], mutationID: UUID(), tombstone: value.deletedAt != nil)
         return [quest, schedule]
     }
 
