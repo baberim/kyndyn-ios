@@ -34,6 +34,8 @@
 	<string>$(KYNDYN_CLOUD_SYNC_CONFIGURED)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.lifestyle</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>kyndyn uses Face ID to protect parent-only family settings and actions.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
