@@ -8,6 +8,10 @@ struct PersonProgress: Equatable {
     let completedCount: Int
 }
 
+enum QuestTemporalStatus: String, Equatable {
+    case today, upcoming, completed, overdue, inactive
+}
+
 enum ProgressionEngine {
     static func calendar(timeZoneIdentifier: String) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -33,10 +37,61 @@ enum ProgressionEngine {
         }
     }
 
+    static func occurrenceDate(for quest: Quest, on date: Date, timeZoneIdentifier: String) -> Date? {
+        let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
+        let today = calendar.startOfDay(for: date)
+        let start = calendar.startOfDay(for: quest.startDate)
+        guard today >= start else { return nil }
+        switch quest.scheduleKind {
+        case .oneTime:
+            return start
+        case .daily:
+            return today
+        case .weekly:
+            for offset in 0...6 {
+                guard let candidate = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+                if candidate >= start && quest.weekdays.contains(calendar.component(.weekday, from: candidate)) {
+                    return candidate
+                }
+            }
+            return nil
+        }
+    }
+
+    static func occurrenceKey(for quest: Quest, on date: Date, timeZoneIdentifier: String) -> String? {
+        occurrenceDate(for: quest, on: date, timeZoneIdentifier: timeZoneIdentifier)
+            .map { dayKey($0, timeZoneIdentifier: timeZoneIdentifier) }
+    }
+
+    static func temporalStatus(for quest: Quest, personID: UUID, completions: [QuestCompletion],
+                               now: Date, timeZoneIdentifier: String) -> QuestTemporalStatus {
+        guard quest.deletedAt == nil, quest.participantIDs.contains(personID) else { return .inactive }
+        let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.startOfDay(for: quest.startDate)
+        if start > today { return .upcoming }
+        guard let key = occurrenceKey(for: quest, on: now, timeZoneIdentifier: timeZoneIdentifier) else {
+            return .upcoming
+        }
+        if completions.contains(where: {
+            $0.questID == quest.id && $0.personID == personID &&
+            $0.occurrenceDay == key && $0.reversedAt == nil
+        }) { return .completed }
+        if let dueAt = quest.dueAt, now > dueAt { return .overdue }
+        if let occurrence = occurrenceDate(for: quest, on: now, timeZoneIdentifier: timeZoneIdentifier),
+           occurrence < today { return .overdue }
+        return .today
+    }
+
     static func overdueDays(for quest: Quest, now: Date, timeZoneIdentifier: String) -> Int {
         let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
         if let dueAt = quest.dueAt, now > dueAt {
             return max(1, calendar.dateComponents([.day], from: dueAt, to: now).day ?? 1)
+        }
+        if quest.scheduleKind == .oneTime {
+            let start = calendar.startOfDay(for: quest.startDate)
+            let today = calendar.startOfDay(for: now)
+            return today > start ? max(1, calendar.dateComponents([.day], from: start, to: today).day ?? 1) : 0
         }
         guard quest.scheduleKind == .weekly else { return 0 }
         let today = calendar.startOfDay(for: now)
@@ -91,4 +146,3 @@ enum ProgressionEngine {
         completions.filter { $0.reversedAt == nil }.reduce(0) { $0 + $1.awardedXP }
     }
 }
-

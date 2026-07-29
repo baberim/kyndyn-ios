@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum RowanSchema {
-    static let version = 1
+    static let version = 2
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -188,8 +188,26 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var selectedPersonID: UUID?
     var notificationsEnabled: Bool
     var reducedCelebrations: Bool
+    var devicePersonID: UUID?
+    var parentSummaryEligible: Bool = false
+    var quietStartHour: Int = 20
+    var quietStartMinute: Int = 0
+    var quietEndHour: Int = 7
+    var quietEndMinute: Int = 0
+    var defaultReminderHour: Int = 16
+    var defaultReminderMinute: Int = 0
+    var showQuestDetailsOnLockScreen: Bool = false
     init() {
-        self.id = UUID(); self.notificationsEnabled = false; self.reducedCelebrations = false
+        self.id = UUID()
+        self.notificationsEnabled = false
+        self.reducedCelebrations = false
+        self.parentSummaryEligible = false
+        self.quietStartHour = 20
+        self.quietStartMinute = 0
+        self.quietEndHour = 7
+        self.quietEndMinute = 0
+        self.defaultReminderHour = 16
+        self.defaultReminderMinute = 0
+        self.showQuestDetailsOnLockScreen = false
     }
 }
-
