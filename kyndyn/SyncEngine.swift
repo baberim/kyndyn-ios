@@ -1387,6 +1387,7 @@ enum AutomaticSyncTrigger: String, Hashable, Sendable {
     case shareAccepted
     case accountRecovery
     case backgroundRefresh
+    case foregroundCatchUp
     case manual
 
     var shouldDebounce: Bool { self == .localMutation }

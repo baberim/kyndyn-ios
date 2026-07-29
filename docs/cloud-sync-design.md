@@ -98,8 +98,10 @@ foreground catch-up path.
 
 iOS may delay or omit silent notifications and background refresh. kyndyn does
 not promise real-time delivery or keep itself alive with timers. Foregrounding
-and relaunch always request a catch-up, and persisted outgoing mutations remain
-available after termination.
+and relaunch always request a catch-up. While visibly active, a bounded
+15-second pulse covers delayed notification delivery; it is cancelled on
+backgrounding and never attempts to extend execution. Persisted outgoing
+mutations remain available after termination.
 
 ## Conflict policy
 

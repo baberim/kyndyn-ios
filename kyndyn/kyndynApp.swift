@@ -143,6 +143,33 @@ final class AutomaticSyncBackgroundBridge {
     }
 }
 
+@MainActor
+final class ForegroundSyncPulse {
+    private let interval: Duration
+    private var task: Task<Void, Never>?
+
+    init(interval: Duration = .seconds(15)) {
+        self.interval = interval
+    }
+
+    func start(coordinator: AutomaticSyncCoordinator) {
+        stop()
+        task = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                coordinator.request(.foregroundCatchUp)
+                await coordinator.waitUntilIdle()
+            }
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+    }
+}
+
 @main struct KyndynApp: App {
     @UIApplicationDelegateAdaptor(CloudShareAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
@@ -156,6 +183,7 @@ final class AutomaticSyncBackgroundBridge {
     private let container: ModelContainer?
     private let storeError: String?
     private let connectivity = ConnectivityRestorationMonitor()
+    private let foregroundSyncPulse = ForegroundSyncPulse()
 
     init() {
         let schema = Schema([
@@ -218,6 +246,8 @@ final class AutomaticSyncBackgroundBridge {
                             AutomaticSyncBackgroundBridge.shared.coordinator =
                                 automaticSync
                             connectivity.start()
+                            foregroundSyncPulse.start(
+                                coordinator: automaticSync)
                             parentAccess.unlockForUITesting()
                             await Task.yield()
                             model.finishedPreparing()
@@ -231,10 +261,13 @@ final class AutomaticSyncBackgroundBridge {
                 switch phase {
                 case .background:
                     parentAccess.didEnterBackground()
+                    foregroundSyncPulse.stop()
                     AutomaticSyncBackgroundBridge.shared.schedule()
                 case .active:
                     parentAccess.didBecomeActive()
                     automaticSync.request(.becameActive)
+                    foregroundSyncPulse.start(
+                        coordinator: automaticSync)
                 default: break
                 }
             }

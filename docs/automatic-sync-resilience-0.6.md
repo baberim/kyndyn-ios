@@ -11,6 +11,7 @@ overlapping CloudKit operations.
 Synchronization is requested after:
 
 - persistence-ready launch and every transition to active;
+- a 15-second catch-up pulse while the app is visibly active;
 - a successful queued local mutation;
 - network connectivity returning;
 - a CloudKit remote-change notification;
@@ -52,8 +53,10 @@ The app never deletes a local store or CloudKit records as recovery.
 
 Apple does not guarantee when—or whether—a silent CloudKit notification or
 background refresh will run. kyndyn therefore does not describe sync as
-real-time. Ordinary foreground use automatically catches up, while background
-delivery is a battery-conscious promptness improvement.
+real-time. Ordinary foreground use automatically catches up at a bounded
+interval when a notification is missed. The pulse stops entirely when the app
+leaves the foreground; background delivery remains a battery-conscious
+promptness improvement controlled by iOS.
 
 The Parent status distinguishes synchronizing, up to date, offline, waiting for
 Apple/network, and needs-attention states. Children do not see CloudKit
