@@ -4,9 +4,14 @@ import XCTest
 final class KyndynUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
-    private func launch(parentUnlocked: Bool = false) -> XCUIApplication {
+    private func launch(
+        parentUnlocked: Bool = false,
+        additionalArguments: [String] = []
+    ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing-reset"] + (parentUnlocked ? ["-ui-testing-parent-unlocked"] : [])
+        app.launchArguments = ["-ui-testing-reset"]
+            + (parentUnlocked ? ["-ui-testing-parent-unlocked"] : [])
+            + additionalArguments
         app.launch()
         XCTAssertTrue(app.buttons["Create a sample household"].waitForExistence(timeout: 8))
         app.buttons["Create a sample household"].tap()
@@ -67,6 +72,26 @@ final class KyndynUITests: XCTestCase {
         app.staticTexts["Family sync"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["cloud-sync-settings"]
             .waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["cloud-configuration-readiness"]
+            .waitForExistence(timeout: 3))
+    }
+
+    func testAdaptiveDashboardSupportsLandscapeDarkModeAndLargeText() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch(additionalArguments: [
+            "-AppleInterfaceStyle", "Dark",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
+        tapTab("Quests", in: app)
+        let questAction = app.buttons["quest-toggle-Make your bed"]
+        XCTAssertTrue(questAction.waitForExistence(timeout: 3))
+        if !questAction.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(questAction.isHittable, "Quest action should remain reachable in the constrained layout")
     }
 
     func testHouseholdPersistsAcrossRelaunch() throws {

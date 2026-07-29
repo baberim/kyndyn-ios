@@ -101,6 +101,53 @@ final class ProgressionEngineTests: XCTestCase {
     }
 }
 
+final class ConfigurationAndAdaptiveLayoutTests: XCTestCase {
+    func testCloudConfigurationFailsClearlyUntilEnabledAndNamed() {
+        XCTAssertEqual(
+            KyndynCloudConfiguration(info: [:]).readiness,
+            .disabled
+        )
+        XCTAssertEqual(
+            KyndynCloudConfiguration(info: [
+                KyndynCloudConfiguration.enabledInfoKey: true
+            ]).readiness,
+            .missingContainerIdentifier
+        )
+        XCTAssertEqual(
+            KyndynCloudConfiguration(info: [
+                KyndynCloudConfiguration.enabledInfoKey: true,
+                KyndynCloudConfiguration.containerInfoKey: "not-a-container"
+            ]).readiness,
+            .invalidContainerIdentifier
+        )
+    }
+
+    func testDevelopmentCloudConfigurationIsExplicit() {
+        let configuration = KyndynCloudConfiguration(info: [
+            KyndynCloudConfiguration.enabledInfoKey: "YES",
+            KyndynCloudConfiguration.containerInfoKey: "iCloud.com.example.kyndyn",
+            KyndynCloudConfiguration.environmentInfoKey: "development"
+        ])
+        XCTAssertEqual(
+            configuration.readiness,
+            .ready(containerIdentifier: "iCloud.com.example.kyndyn",
+                   environment: .development)
+        )
+    }
+
+    func testAdaptiveBreakpointsCoverPhoneSplitViewTabletAndSquare() {
+        XCTAssertEqual(AdaptiveLayout.dashboardColumns(for: 320), 1)
+        XCTAssertEqual(AdaptiveLayout.questColumns(for: 520), 1)
+        XCTAssertEqual(AdaptiveLayout.dashboardColumns(for: 834), 2)
+        XCTAssertEqual(AdaptiveLayout.questColumns(for: 1_024), 2)
+    }
+
+    func testProfilePaletteHasHumanReadableNames() {
+        XCTAssertEqual(ProfilePalette.name(for: "#00A6A6"), "Teal")
+        XCTAssertEqual(ProfilePalette.name(for: "#abcdef"), "Custom")
+    }
+}
+
 final class LifecycleRulesTests: XCTestCase {
     @MainActor func testUpgradedHouseholdGetsMissingDeviceSettings() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)

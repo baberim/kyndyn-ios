@@ -162,12 +162,12 @@ struct UnconfiguredCloudTransport: HouseholdCloudTransport {
 
 enum CloudTransportFactory {
     static func make() -> any HouseholdCloudTransport {
-        guard Bundle.main.object(
-            forInfoDictionaryKey: "kyndynCloudSyncConfigured"
-        ) as? Bool == true else {
+        switch KyndynCloudContainerFactory.make() {
+        case let .success(container):
+            return CloudKitHouseholdTransport(container: container)
+        case .failure:
             return UnconfiguredCloudTransport()
         }
-        return CloudKitHouseholdTransport(container: .default())
     }
 }
 
@@ -230,8 +230,16 @@ enum SyncMergeEngine {
     static func merge(_ lhs: CloudRecordEnvelope,
                       _ rhs: CloudRecordEnvelope) -> MergeResult {
         precondition(lhs.recordName == rhs.recordName)
-        if lhs.tombstone || rhs.tombstone {
-            let winner = lhs.tombstone ? lhs : rhs
+        if lhs.tombstone != rhs.tombstone {
+            if lhs.serverSequence == rhs.serverSequence {
+                let archive = lhs.tombstone ? lhs : rhs
+                return MergeResult(record: archive, conflictedFields: [])
+            }
+            let winner = lhs.serverSequence > rhs.serverSequence ? lhs : rhs
+            return MergeResult(record: winner, conflictedFields: [])
+        }
+        if lhs.tombstone && rhs.tombstone {
+            let winner = lhs.serverSequence >= rhs.serverSequence ? lhs : rhs
             return MergeResult(record: winner, conflictedFields: [])
         }
         var result = lhs
