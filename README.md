@@ -4,7 +4,7 @@ Rowan is a calm, local-first family app for turning everyday responsibilities in
 
 This repository is a new native SwiftUI implementation. It is independent from the Rowan PWA and contains no household runtime data.
 
-## Current milestone — Local Core 0.2
+## Current milestone — Cloud Sync 0.3 foundation
 
 The app provides a locally usable vertical slice:
 
@@ -19,6 +19,10 @@ The app provides a locally usable vertical slice:
 - private, device-local quest reminders with quiet hours and profile targeting;
 - local SwiftData persistence and offline operation;
 - protocol boundaries for sync, notifications, entitlements, and import.
+- optional local-only or CloudKit household modes;
+- additive offline mutation queues and conflict-safe merge rules;
+- resumable owner provisioning and CloudKit share invitation routing;
+- deterministic in-memory multi-device tests that do not require Apple credentials.
 
 ## Open and run
 
@@ -29,6 +33,8 @@ Requirements: Xcode 26 or later and iOS 18 or later.
 3. Build and run.
 
 No Apple Developer account, CloudKit container, server, or secret is needed for local development.
+Live CloudKit is deliberately disabled until the project owner completes
+[`docs/cloudkit-configuration.md`](docs/cloudkit-configuration.md).
 
 ## Tests
 

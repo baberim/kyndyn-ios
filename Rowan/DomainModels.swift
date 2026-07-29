@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum RowanSchema {
-    static let version = 2
+    static let version = 3
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -209,5 +209,167 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.defaultReminderHour = 16
         self.defaultReminderMinute = 0
         self.showQuestDetailsOnLockScreen = false
+    }
+}
+
+// MARK: - Cloud Sync 0.3 local-only metadata
+
+enum HouseholdCloudMode: String, Codable, CaseIterable {
+    case localOnly, preparing, owner, participant, unavailable, accountChanged
+    case paused, recoverableError, needsAttention
+}
+
+enum CloudDatabaseScope: String, Codable {
+    case privateDatabase, sharedDatabase
+}
+
+enum ProvisioningStage: String, Codable, CaseIterable {
+    case none, accountVerified, zoneReady, rootReady, initialUploadComplete
+    case shareReady, roundTripVerified
+}
+
+enum SyncEntityType: String, Codable, CaseIterable {
+    case household, person, quest, questSchedule, questCompletion
+    case rewardGoal, householdSettings
+}
+
+enum SyncOperation: String, Codable {
+    case createOrUpdate, archive
+}
+
+enum LocalSyncStatus: String, Codable {
+    case localOnly, pending, synced, failed, conflicted
+}
+
+enum SyncErrorCategory: String, Codable {
+    case offline, notSignedIn, restricted, accountChanged, accessRevoked
+    case staleChangeToken, serverRejected, incompatibleSchema, malformedShare
+    case transient, unknown
+}
+
+@Model final class HouseholdCloudState {
+    @Attribute(.unique) var householdID: UUID
+    var modeRaw: String = HouseholdCloudMode.localOnly.rawValue
+    var databaseScopeRaw: String = CloudDatabaseScope.privateDatabase.rawValue
+    var provisioningStageRaw: String = ProvisioningStage.none.rawValue
+    var zoneName: String?
+    var rootRecordName: String?
+    var shareRecordName: String?
+    var accountFingerprint: String?
+    var changeToken: Data?
+    var lastSuccessfulSyncAt: Date?
+    var lastErrorCategoryRaw: String?
+    var updatedAt: Date = Date()
+
+    var mode: HouseholdCloudMode {
+        get { HouseholdCloudMode(rawValue: modeRaw) ?? .localOnly }
+        set { modeRaw = newValue.rawValue }
+    }
+    var databaseScope: CloudDatabaseScope {
+        get { CloudDatabaseScope(rawValue: databaseScopeRaw) ?? .privateDatabase }
+        set { databaseScopeRaw = newValue.rawValue }
+    }
+    var provisioningStage: ProvisioningStage {
+        get { ProvisioningStage(rawValue: provisioningStageRaw) ?? .none }
+        set { provisioningStageRaw = newValue.rawValue }
+    }
+
+    init(householdID: UUID) { self.householdID = householdID }
+}
+
+@Model final class SyncRecordMetadata {
+    @Attribute(.unique) var id: String
+    var householdID: UUID
+    var entityID: UUID
+    var entityTypeRaw: String
+    var recordName: String
+    var serverVersion: Int64 = 0
+    var localModifiedAt: Date
+    var lastSuccessfulSyncAt: Date?
+    var statusRaw: String = LocalSyncStatus.localOnly.rawValue
+    var tombstone: Bool = false
+    var originDeviceID: UUID?
+    var lastMutationID: UUID?
+
+    var status: LocalSyncStatus {
+        get { LocalSyncStatus(rawValue: statusRaw) ?? .localOnly }
+        set { statusRaw = newValue.rawValue }
+    }
+
+    init(householdID: UUID, entityID: UUID, entityType: SyncEntityType,
+         modifiedAt: Date = .now) {
+        self.id = "\(entityType.rawValue):\(entityID.uuidString.lowercased())"
+        self.householdID = householdID
+        self.entityID = entityID
+        self.entityTypeRaw = entityType.rawValue
+        self.recordName = SyncIdentity.recordName(type: entityType, id: entityID)
+        self.localModifiedAt = modifiedAt
+    }
+}
+
+@Model final class PendingSyncMutation {
+    @Attribute(.unique) var mutationID: UUID
+    var householdID: UUID
+    var entityID: UUID
+    var entityTypeRaw: String
+    var operationRaw: String
+    var payload: Data
+    var createdAt: Date
+    var nextAttemptAt: Date
+    var retryCount: Int = 0
+    var lastErrorCategoryRaw: String?
+
+    init(mutationID: UUID = UUID(), householdID: UUID, entityID: UUID,
+         entityType: SyncEntityType, operation: SyncOperation, payload: Data,
+         createdAt: Date = .now) {
+        self.mutationID = mutationID
+        self.householdID = householdID
+        self.entityID = entityID
+        self.entityTypeRaw = entityType.rawValue
+        self.operationRaw = operation.rawValue
+        self.payload = payload
+        self.createdAt = createdAt
+        self.nextAttemptAt = createdAt
+    }
+}
+
+@Model final class SyncConflict {
+    @Attribute(.unique) var id: UUID
+    var householdID: UUID
+    var entityID: UUID
+    var entityTypeRaw: String
+    var fieldName: String
+    var localMutationID: UUID
+    var remoteMutationID: UUID
+    var createdAt: Date
+    var resolvedAt: Date?
+
+    init(householdID: UUID, entityID: UUID, entityType: SyncEntityType,
+         fieldName: String, localMutationID: UUID, remoteMutationID: UUID) {
+        self.id = UUID()
+        self.householdID = householdID
+        self.entityID = entityID
+        self.entityTypeRaw = entityType.rawValue
+        self.fieldName = fieldName
+        self.localMutationID = localMutationID
+        self.remoteMutationID = remoteMutationID
+        self.createdAt = .now
+    }
+}
+
+@Model final class PendingShareInvitation {
+    @Attribute(.unique) var id: UUID
+    var shareIdentifier: String
+    var expectedSchemaVersion: Int
+    var receivedAt: Date
+    var stateRaw: String
+
+    init(shareIdentifier: String, expectedSchemaVersion: Int,
+         state: String = "pending") {
+        self.id = UUID()
+        self.shareIdentifier = shareIdentifier
+        self.expectedSchemaVersion = expectedSchemaVersion
+        self.receivedAt = .now
+        self.stateRaw = state
     }
 }

@@ -58,6 +58,17 @@ final class RowanUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Casey"].waitForExistence(timeout: 3))
     }
 
+    func testParentCanReviewLocalOnlyFamilySyncStatus() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        XCTAssertTrue(app.staticTexts["Family sync"].waitForExistence(timeout: 3))
+        app.staticTexts["Family sync"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["cloud-sync-settings"]
+            .waitForExistence(timeout: 3))
+    }
+
     func testHouseholdPersistsAcrossRelaunch() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing-persistence", "-ui-testing-persistence-reset"]

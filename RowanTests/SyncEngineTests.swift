@@ -1,0 +1,417 @@
+import Foundation
+import SwiftData
+import XCTest
+@testable import Rowan
+
+private actor InterruptingTransport: HouseholdCloudTransport {
+    let base: InMemoryCloudTransport
+    var calls = 0
+    var failureCall: Int?
+
+    init(failureCall: Int?) {
+        self.failureCall = failureCall
+        self.base = InMemoryCloudTransport()
+    }
+
+    private func interruptIfNeeded() throws {
+        calls += 1
+        if calls == failureCall {
+            failureCall = nil
+            throw CloudGatewayError.offline
+        }
+    }
+
+    func accountAvailability() async throws -> CloudAccountAvailability {
+        try interruptIfNeeded()
+        return try await base.accountAvailability()
+    }
+    func prepareZone(named name: String, scope: CloudDatabaseScope) async throws {
+        try interruptIfNeeded()
+        try await base.prepareZone(named: name, scope: scope)
+    }
+    func save(records: [CloudRecordEnvelope], zoneName: String,
+              scope: CloudDatabaseScope) async throws -> [CloudRecordEnvelope] {
+        try interruptIfNeeded()
+        return try await base.save(records: records, zoneName: zoneName, scope: scope)
+    }
+    func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      after token: Data?) async throws -> RemoteChangeBatch {
+        try interruptIfNeeded()
+        return try await base.fetchChanges(zoneName: zoneName, scope: scope,
+                                           after: token)
+    }
+    func createShare(rootRecordName: String, zoneName: String,
+                     title: String) async throws -> HouseholdShareDescriptor {
+        try interruptIfNeeded()
+        return try await base.createShare(rootRecordName: rootRecordName,
+                                          zoneName: zoneName, title: title)
+    }
+    func accept(invitation: ShareInvitation) async throws {
+        try interruptIfNeeded()
+        try await base.accept(invitation: invitation)
+    }
+    func participantSummary(shareRecordName: String) async throws -> [String] {
+        try interruptIfNeeded()
+        return try await base.participantSummary(shareRecordName: shareRecordName)
+    }
+}
+
+private actor RecordingNotificationScheduler: NotificationScheduling {
+    private(set) var replacements = 0
+    private(set) var latest: [ReminderCandidate] = []
+    func permissionState() async -> NotificationPermissionState { .authorized }
+    func requestPermission() async -> NotificationPermissionState { .authorized }
+    func replaceRowanReminders(with candidates: [ReminderCandidate]) async throws {
+        replacements += 1
+        latest = candidates
+    }
+}
+
+@MainActor
+final class SyncMetadataAndQueueTests: XCTestCase {
+    private func schema() -> Schema {
+        Schema([
+            Household.self, Person.self, Quest.self, QuestCompletion.self,
+            RewardGoal.self, FamilyBroadcast.self, Companion.self,
+            Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            HouseholdCloudState.self, SyncRecordMetadata.self,
+            PendingSyncMutation.self, SyncConflict.self,
+            PendingShareInvitation.self
+        ])
+    }
+
+    private func container() throws -> ModelContainer {
+        try ModelContainer(for: schema(), configurations:
+            ModelConfiguration(schema: schema(), isStoredInMemoryOnly: true))
+    }
+
+    func testLocalOnlyHouseholdDoesNotQueueOrRequireCloud() throws {
+        let container = try container()
+        let context = container.mainContext
+        let household = Household(name: "Fictional Family", timeZoneIdentifier: "UTC")
+        let person = Person(householdID: household.id, name: "Avery",
+                            role: .parent, colorHex: "#000", companionID: "spark")
+        context.insert(household); context.insert(person)
+        try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person),
+                              operation: .createOrUpdate, context: context)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<PendingSyncMutation>()).isEmpty)
+        XCTAssertEqual(household.name, "Fictional Family")
+    }
+
+    func testEnabledHouseholdQueuesIdempotentPayloadWithoutDeviceSettings() throws {
+        let container = try container()
+        let context = container.mainContext
+        let household = Household(name: "Test Household", timeZoneIdentifier: "UTC")
+        let person = Person(householdID: household.id, name: "Alex",
+                            role: .child, colorHex: "#123", companionID: "spark")
+        let state = HouseholdCloudState(householdID: household.id)
+        state.mode = .owner
+        context.insert(household); context.insert(person); context.insert(state)
+        context.insert(LocalDeviceSettings())
+        try context.save()
+        let envelope = SyncSnapshot.person(person,
+            mutationID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!)
+        try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
+        let mutation = try XCTUnwrap(
+            context.fetch(FetchDescriptor<PendingSyncMutation>()).first)
+        let decoded = try SyncPayloadCodec.decode(mutation.payload)
+        XCTAssertEqual(decoded.recordName, envelope.recordName)
+        XCTAssertEqual(decoded.fields, envelope.fields)
+        XCTAssertEqual(decoded.mutationID, envelope.mutationID)
+        let text = String(data: mutation.payload, encoding: .utf8) ?? ""
+        XCTAssertFalse(text.contains("quietStart"))
+        XCTAssertFalse(text.localizedCaseInsensitiveContains("pin"))
+        XCTAssertEqual(mutation.mutationID, envelope.mutationID)
+    }
+
+    func testBackoffIsCappedAndDeterministic() {
+        XCTAssertEqual(SyncQueue.backoff(retryCount: 0), 2)
+        XCTAssertEqual(SyncQueue.backoff(retryCount: 3), 16)
+        XCTAssertEqual(SyncQueue.backoff(retryCount: 99), 3600)
+    }
+
+    func testAdditiveSchemaOpensLocalCoreDataWithoutCloudRows() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "rowan.store")
+        let oldSchema = Schema([
+            Household.self, Person.self, Quest.self, QuestCompletion.self,
+            RewardGoal.self, FamilyBroadcast.self, Companion.self,
+            Background.self, HouseholdSettings.self, LocalDeviceSettings.self
+        ])
+        do {
+            let old = try ModelContainer(for: oldSchema,
+                configurations: ModelConfiguration(schema: oldSchema, url: url))
+            old.mainContext.insert(Household(
+                name: "Pre 0.3 Fictional", timeZoneIdentifier: "UTC"))
+            try old.mainContext.save()
+        }
+        let migrated = try ModelContainer(for: schema(),
+            configurations: ModelConfiguration(schema: schema(), url: url))
+        XCTAssertEqual(try migrated.mainContext.fetch(
+            FetchDescriptor<Household>()).first?.name, "Pre 0.3 Fictional")
+        XCTAssertTrue(try migrated.mainContext.fetch(
+            FetchDescriptor<HouseholdCloudState>()).isEmpty)
+    }
+}
+
+final class SyncMergeTests: XCTestCase {
+    private let householdID = UUID(uuidString:
+        "11111111-1111-1111-1111-111111111111")!
+    private let entityID = UUID(uuidString:
+        "22222222-2222-2222-2222-222222222222")!
+
+    func testStableIdentityAndNonOverlappingFieldsMerge() {
+        let leftID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let rightID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        var left = CloudRecordEnvelope(type: .person, entityID: entityID,
+            householdID: householdID, fields: ["name": "Avery"],
+            mutationID: leftID, serverSequence: 2)
+        var right = CloudRecordEnvelope(type: .person, entityID: entityID,
+            householdID: householdID, fields: ["colorHex": "#123456"],
+            mutationID: rightID, serverSequence: 3)
+        left.fieldStamps["name"] = FieldStamp(serverSequence: 2, mutationID: leftID)
+        right.fieldStamps["colorHex"] = FieldStamp(serverSequence: 3, mutationID: rightID)
+        let merged = SyncMergeEngine.merge(left, right)
+        XCTAssertEqual(merged.record.fields["name"], "Avery")
+        XCTAssertEqual(merged.record.fields["colorHex"], "#123456")
+        XCTAssertTrue(merged.conflictedFields.isEmpty)
+        XCTAssertEqual(merged.record.recordName,
+            "person-22222222-2222-2222-2222-222222222222")
+    }
+
+    func testSameFieldTieIsDeterministicAndReported() {
+        let lower = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let higher = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        let left = CloudRecordEnvelope(type: .quest, entityID: entityID,
+            householdID: householdID, fields: ["title": "Morning"],
+            mutationID: lower, serverSequence: 4)
+        let right = CloudRecordEnvelope(type: .quest, entityID: entityID,
+            householdID: householdID, fields: ["title": "Before school"],
+            mutationID: higher, serverSequence: 4)
+        let forward = SyncMergeEngine.merge(left, right)
+        let reverse = SyncMergeEngine.merge(right, left)
+        XCTAssertEqual(forward.record.fields["title"], reverse.record.fields["title"])
+        XCTAssertEqual(forward.conflictedFields, ["title"])
+    }
+
+    func testArchiveWinsOverConcurrentEdit() {
+        let edit = CloudRecordEnvelope(type: .person, entityID: entityID,
+            householdID: householdID, fields: ["name": "Edited"])
+        let archive = CloudRecordEnvelope(type: .person, entityID: entityID,
+            householdID: householdID, fields: ["name": "Old"], tombstone: true)
+        XCTAssertTrue(SyncMergeEngine.merge(edit, archive).record.tombstone)
+        XCTAssertTrue(SyncMergeEngine.merge(archive, edit).record.tombstone)
+    }
+}
+
+@MainActor
+final class ACloudProvisioningAndLifecycleTests: XCTestCase {
+    private func fixture() throws -> (ModelContainer, Household,
+        HouseholdCloudState, [CloudRecordEnvelope]) {
+        let schema = Schema([
+            Household.self, Person.self, Quest.self, QuestCompletion.self,
+            RewardGoal.self, FamilyBroadcast.self, Companion.self,
+            Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            HouseholdCloudState.self, SyncRecordMetadata.self,
+            PendingSyncMutation.self, SyncConflict.self,
+            PendingShareInvitation.self
+        ])
+        let container = try ModelContainer(for: schema, configurations:
+            ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+        let household = Household(name: "Provision Test", timeZoneIdentifier: "UTC")
+        let state = HouseholdCloudState(householdID: household.id)
+        container.mainContext.insert(household)
+        container.mainContext.insert(state)
+        try container.mainContext.save()
+        return (container, household, state, [SyncSnapshot.household(household)])
+    }
+
+    func testOwnerProvisioningAndDuplicateAttemptAreIdempotent() async throws {
+        let (container, household, state, records) = try fixture()
+        let transport = InMemoryCloudTransport()
+        let controller = CloudSyncController(transport: transport)
+        await controller.provisionOwner(household: household, records: records,
+            state: state, context: container.mainContext)
+        XCTAssertEqual(state.mode, .owner)
+        XCTAssertEqual(state.provisioningStage, .roundTripVerified)
+        let first = await transport.allRecords(zoneName: state.zoneName!).count
+        await controller.provisionOwner(household: household, records: records,
+            state: state, context: container.mainContext)
+        let second = await transport.allRecords(zoneName: state.zoneName!).count
+        XCTAssertEqual(second, first)
+    }
+
+    func testProvisioningResumesAfterEveryMeaningfulInterruption() async throws {
+        for call in 1...6 {
+            let (container, household, state, records) = try fixture()
+            let transport = InterruptingTransport(failureCall: call)
+            let controller = CloudSyncController(transport: transport)
+            await controller.provisionOwner(household: household, records: records,
+                state: state, context: container.mainContext)
+            XCTAssertNotEqual(state.mode, .owner)
+            await controller.provisionOwner(household: household, records: records,
+                state: state, context: container.mainContext)
+            XCTAssertEqual(state.mode, .owner, "Failed to resume call \(call)")
+        }
+    }
+
+    func testInvitationStatesBeforeOnboardingAndWhileRunning() async {
+        let transport = InMemoryCloudTransport()
+        let router = InvitationRouter(transport: transport)
+        router.receive(ShareInvitation(shareIdentifier: "share", rootRecordName: "root",
+                                      schemaVersion: RowanSchema.version,
+                                      alreadyAccepted: false))
+        XCTAssertEqual(router.state, .pending)
+        await router.accept()
+        XCTAssertEqual(router.state, .joined)
+        router.receive(ShareInvitation(shareIdentifier: "", rootRecordName: "",
+                                      schemaVersion: RowanSchema.version,
+                                      alreadyAccepted: false))
+        XCTAssertEqual(router.state, .malformed)
+        router.receive(ShareInvitation(shareIdentifier: "share", rootRecordName: "root",
+                                      schemaVersion: RowanSchema.version + 1,
+                                      alreadyAccepted: false))
+        XCTAssertEqual(router.state, .incompatible)
+    }
+
+    func testAccountChangePausesWithoutUploading() async throws {
+        let (container, household, state, records) = try fixture()
+        let transport = InMemoryCloudTransport(accountFingerprint: "owner-a")
+        let controller = CloudSyncController(transport: transport)
+        await controller.provisionOwner(household: household, records: records,
+            state: state, context: container.mainContext)
+        await transport.setAvailability(.available(fingerprint: "owner-b"))
+        await controller.synchronize(state: state, context: container.mainContext)
+        XCTAssertEqual(state.mode, .accountChanged)
+    }
+
+    func testOfflineQueueRetriesButPermanentFailureWaitsForAttention() async throws {
+        let (container, household, state, records) = try fixture()
+        let context = container.mainContext
+        state.mode = .owner
+        state.zoneName = SyncIdentity.zoneName(householdID: household.id)
+        state.accountFingerprint = "test-account"
+        try SyncQueue.enqueue(records[0], operation: .createOrUpdate,
+                              context: context)
+        let mutation = try XCTUnwrap(
+            context.fetch(FetchDescriptor<PendingSyncMutation>()).first)
+        let transport = InMemoryCloudTransport()
+        let controller = CloudSyncController(transport: transport)
+        await transport.failNext(.offline)
+        let start = Date(timeIntervalSince1970: 1_000)
+        await controller.synchronize(state: state, context: context, now: start)
+        XCTAssertEqual(mutation.retryCount, 1)
+        XCTAssertGreaterThan(mutation.nextAttemptAt, start)
+        XCTAssertEqual(state.mode, .recoverableError)
+
+        mutation.nextAttemptAt = start
+        state.mode = .owner
+        await transport.failNext(.accessRevoked)
+        await controller.synchronize(state: state, context: context, now: start)
+        XCTAssertEqual(mutation.retryCount, 1)
+        XCTAssertEqual(state.mode, .needsAttention)
+        XCTAssertEqual(mutation.lastErrorCategoryRaw,
+                       SyncErrorCategory.accessRevoked.rawValue)
+    }
+
+    func testRemoteQuestChangesRefreshDeviceLocalReminders() async throws {
+        let (container, household, state, _) = try fixture()
+        let context = container.mainContext
+        let person = Person(householdID: household.id, name: "Avery",
+                            role: .child, colorHex: "#123", companionID: "spark")
+        let settings = LocalDeviceSettings()
+        settings.notificationsEnabled = true
+        settings.devicePersonID = person.id
+        context.insert(settings)
+        let quest = Quest(householdID: household.id, title: "Pack bag", xp: 10,
+                          participantIDs: [person.id], scheduleKind: .daily)
+        let transport = InMemoryCloudTransport()
+        let zone = SyncIdentity.zoneName(householdID: household.id)
+        try await transport.prepareZone(named: zone, scope: .privateDatabase)
+        _ = try await transport.save(records: [
+            SyncSnapshot.person(person)
+        ] + SyncSnapshot.quest(quest), zoneName: zone, scope: .privateDatabase)
+        state.mode = .owner
+        state.zoneName = zone
+        state.accountFingerprint = "test-account"
+        let recorder = RecordingNotificationScheduler()
+        let controller = CloudSyncController(
+            transport: transport, notificationScheduler: recorder)
+        await controller.synchronize(state: state, context: context)
+        let replacementCount = await recorder.replacements
+        let latest = await recorder.latest
+        XCTAssertEqual(replacementCount, 1)
+        XCTAssertFalse(latest.isEmpty)
+    }
+
+    func testStaleChangeTokenFallsBackToFullZoneFetch() async throws {
+        let (container, household, state, records) = try fixture()
+        let transport = InMemoryCloudTransport()
+        let controller = CloudSyncController(transport: transport)
+        await controller.provisionOwner(household: household, records: records,
+            state: state, context: container.mainContext)
+        XCTAssertNotNil(state.changeToken)
+        await transport.expireNextChangeToken()
+        await controller.synchronize(state: state, context: container.mainContext)
+        XCTAssertEqual(state.mode, .owner)
+        XCTAssertNotNil(state.changeToken)
+        XCTAssertNil(state.lastErrorCategoryRaw)
+    }
+}
+
+final class MultiDeviceConvergenceTests: XCTestCase {
+    private struct Replica {
+        var records: [String: CloudRecordEnvelope] = [:]
+
+        mutating func receive(_ delivery: [CloudRecordEnvelope]) {
+            for incoming in delivery {
+                records[incoming.recordName] = records[incoming.recordName].map {
+                    SyncMergeEngine.merge($0, incoming).record
+                } ?? incoming
+            }
+        }
+
+        var activeXP: Int {
+            records.values.filter {
+                $0.type == .questCompletion &&
+                ($0.fields["reversedAt"] ?? "").isEmpty
+            }.reduce(0) { $0 + (Int($1.fields["awardedXP"] ?? "") ?? 0) }
+        }
+    }
+
+    func testTwoStoresConvergeAfterOfflineAndDuplicateReorderedEvents() {
+        let householdID = UUID()
+        let eventID = UUID()
+        let mutationID = UUID()
+        let completion = CloudRecordEnvelope(
+            type: .questCompletion, entityID: eventID,
+            householdID: householdID,
+            fields: ["awardedXP": "10", "reversedAt": ""],
+            mutationID: mutationID, serverSequence: 1)
+        let personEdit = CloudRecordEnvelope(
+            type: .person, entityID: UUID(), householdID: householdID,
+            fields: ["colorHex": "#123456"], serverSequence: 2)
+        var first = Replica()
+        var second = Replica()
+        first.receive([completion, personEdit, completion])
+        second.receive([personEdit, completion])
+        XCTAssertEqual(first.records, second.records)
+        XCTAssertEqual(first.activeXP, 10)
+
+        var undo = completion
+        undo.fields["reversedAt"] = "2026-07-29T16:00:00Z"
+        undo.mutationID = UUID()
+        undo.serverSequence = 3
+        undo.fieldStamps["reversedAt"] = FieldStamp(
+            serverSequence: 3, mutationID: undo.mutationID)
+        first.receive([undo])
+        second.receive([undo, undo])
+        XCTAssertEqual(first.records, second.records)
+        XCTAssertEqual(first.activeXP, 0)
+    }
+}

@@ -15,6 +15,24 @@ Rowan contains family and child data. The default posture is local-first, data-m
 - Logs must not contain names, quest text, tokens, or import payloads.
 - Secrets and signing files are ignored and must be supplied through Xcode/Apple systems.
 
+## Cloud Sync
+
+When explicitly enabled, CloudKit may contain the household, people, quests,
+schedules, completion events, rewards, and shared household policy. The owner
+owns the private-zone records and invited participants access the shared zone
+under Apple's CloudKit permissions.
+
+Rowan PIN material, biometric/authentication state, notification authorization,
+device-profile selection, quiet-hour overrides, scheduled identifiers, view
+preferences, onboarding state, caches, Apple credentials, and change tokens
+remain device-local. Share membership identifies CloudKit access; it does not
+prove Rowan parent authority. Local parent authentication therefore remains
+required.
+
+Privacy-safe diagnostics are limited to operation type, database scope, retry
+count, and redacted error category. They exclude household content, person
+names, quest titles, record payloads, invitation URLs, tokens, and PIN data.
+
 If a parent forgets the Rowan PIN, device-owner authentication can still open Parent security to replace it. If both methods are unavailable, Rowan cannot honestly verify parental identity; there is no email or server reset.
 
 Before release: complete privacy labels, retention/deletion behavior, child-safety review, account/share removal flows, encrypted export policy, independent threat modeling, and an external accessibility audit.

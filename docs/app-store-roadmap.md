@@ -3,7 +3,9 @@
 ## Before beta
 
 - Complete independent security review of local parent authentication and recovery limitations.
-- Implement CloudKit private/shared zones, invitations, conflict tests, and deletion.
+- Configure the authorized CloudKit container, validate private/shared zones and
+  invitations on physical devices, review participant permissions, and deploy
+  the schema only after explicit production approval.
 - Validate notification scheduling and privacy on physical devices.
 - Finish badges, collections, backgrounds, and robust parent editors.
 - Complete migration importer and sanitized fixture tests.

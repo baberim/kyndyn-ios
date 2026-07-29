@@ -107,9 +107,12 @@ enum LifecycleRules {
 
     func createPerson(_ draft: PersonDraft, householdID: UUID, context: ModelContext) throws {
         let name = try LifecycleRules.validate(person: draft)
-        context.insert(Person(householdID: householdID, name: name, role: draft.role,
-                              colorHex: draft.colorHex, companionID: draft.companionID))
+        let person = Person(householdID: householdID, name: name, role: draft.role,
+                            colorHex: draft.colorHex, companionID: draft.companionID)
+        context.insert(person)
         try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
+                              context: context)
         refreshReminders(context: context)
     }
 
@@ -119,11 +122,16 @@ enum LifecycleRules {
         person.colorHex = draft.colorHex
         person.companionID = draft.companionID
         try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
+                              context: context)
         refreshReminders(context: context)
     }
 
     func archivePerson(_ person: Person, people: [Person], quests: [Quest], context: ModelContext) throws {
         guard LifecycleRules.canArchive(person: person, people: people) else { throw RowanValidationError.lastParent }
+        let affectedQuestIDs = Set(quests.filter {
+            $0.deletedAt == nil && $0.participantIDs.contains(person.id)
+        }.map(\.id))
         person.deletedAt = .now
         for quest in quests where quest.deletedAt == nil {
             quest.participantIDs.removeAll { $0 == person.id }
@@ -132,23 +140,38 @@ enum LifecycleRules {
         }
         if selectedPersonID == person.id { selectedPersonID = nil }
         try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .archive,
+                              context: context)
+        for quest in quests where affectedQuestIDs.contains(quest.id) {
+            for envelope in SyncSnapshot.quest(quest) {
+                try SyncQueue.enqueue(envelope,
+                    operation: quest.deletedAt == nil ? .createOrUpdate : .archive,
+                    context: context)
+            }
+        }
         refreshReminders(context: context)
     }
 
     func restorePerson(_ person: Person, context: ModelContext) throws {
         person.deletedAt = nil
         try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
+                              context: context)
         refreshReminders(context: context)
     }
 
     func createQuest(_ draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws {
         let (title, detail) = try LifecycleRules.validate(quest: draft, people: people)
-        context.insert(Quest(householdID: household.id, title: title, detail: detail, xp: draft.xp,
-                             participantIDs: Array(draft.participantIDs),
-                             completionMode: draft.participantIDs.count == 1 ? .individual : draft.completionMode,
-                             scheduleKind: draft.scheduleKind, weekdays: Array(draft.weekdays).sorted(),
-                             startDate: draft.startDate, dueAt: dueAt(draft, household: household)))
+        let quest = Quest(householdID: household.id, title: title, detail: detail, xp: draft.xp,
+                          participantIDs: Array(draft.participantIDs),
+                          completionMode: draft.participantIDs.count == 1 ? .individual : draft.completionMode,
+                          scheduleKind: draft.scheduleKind, weekdays: Array(draft.weekdays).sorted(),
+                          startDate: draft.startDate, dueAt: dueAt(draft, household: household))
+        context.insert(quest)
         try context.save()
+        for envelope in SyncSnapshot.quest(quest) {
+            try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
+        }
         refreshReminders(context: context)
     }
 
@@ -164,18 +187,27 @@ enum LifecycleRules {
         quest.startDate = draft.startDate
         quest.dueAt = dueAt(draft, household: household)
         try context.save()
+        for envelope in SyncSnapshot.quest(quest) {
+            try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
+        }
         refreshReminders(context: context)
     }
 
     func archiveQuest(_ quest: Quest, context: ModelContext) throws {
         quest.deletedAt = .now
         try context.save()
+        for envelope in SyncSnapshot.quest(quest) {
+            try SyncQueue.enqueue(envelope, operation: .archive, context: context)
+        }
         refreshReminders(context: context)
     }
 
     func restoreQuest(_ quest: Quest, context: ModelContext) throws {
         quest.deletedAt = nil
         try context.save()
+        for envelope in SyncSnapshot.quest(quest) {
+            try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
+        }
         refreshReminders(context: context)
     }
 
@@ -193,19 +225,29 @@ enum LifecycleRules {
         guard let occurrence = ProgressionEngine.occurrenceKey(for: quest, on: now, timeZoneIdentifier: household.timeZoneIdentifier) else { return }
         guard !completions.contains(where: { $0.questID == quest.id && $0.personID == personID && $0.occurrenceDay == occurrence && $0.reversedAt == nil }) else { return }
         let overdue = ProgressionEngine.overdueDays(for: quest, now: now, timeZoneIdentifier: household.timeZoneIdentifier)
-        context.insert(QuestCompletion(householdID: household.id, questID: quest.id, personID: personID,
-                                       occurrenceDay: occurrence, completedAt: now,
-                                       awardedXP: ProgressionEngine.effectiveXP(base: quest.xp, overdueDays: overdue)))
+        let completion = QuestCompletion(householdID: household.id, questID: quest.id,
+                                         personID: personID, occurrenceDay: occurrence,
+                                         completedAt: now,
+                                         awardedXP: ProgressionEngine.effectiveXP(
+                                            base: quest.xp, overdueDays: overdue))
+        context.insert(completion)
         try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.completion(completion),
+                              operation: .createOrUpdate, context: context)
     }
 
     func undo(_ quest: Quest, personID: UUID, household: Household, completions: [QuestCompletion], context: ModelContext, now: Date = .now) throws {
         guard let occurrence = ProgressionEngine.occurrenceKey(for: quest, on: now, timeZoneIdentifier: household.timeZoneIdentifier) else { return }
-        completions.filter {
+        let completion = completions.filter {
             $0.questID == quest.id && $0.personID == personID &&
             $0.occurrenceDay == occurrence && $0.reversedAt == nil
-        }.max { $0.completedAt < $1.completedAt }?.reversedAt = now
+        }.max { $0.completedAt < $1.completedAt }
+        completion?.reversedAt = now
         try context.save()
+        if let completion {
+            try SyncQueue.enqueue(SyncSnapshot.completion(completion),
+                                  operation: .createOrUpdate, context: context)
+        }
     }
 
     func refreshReminders(context: ModelContext) {

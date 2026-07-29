@@ -1,8 +1,43 @@
+import CloudKit
 import SwiftUI
 import SwiftData
+import UIKit
+
+@MainActor
+@Observable final class CloudShareInbox {
+    static let shared = CloudShareInbox()
+    private(set) var pending: ShareInvitation?
+
+    func receive(_ metadata: CKShare.Metadata) {
+        pending = ShareInvitation(
+            shareIdentifier: metadata.share.recordID.recordName,
+            rootRecordName: metadata.hierarchicalRootRecordID?.recordName ?? "",
+            zoneName: metadata.hierarchicalRootRecordID?.zoneID.zoneName ?? "",
+            schemaVersion: RowanSchema.version,
+            alreadyAccepted: false
+        )
+    }
+
+    func clear() { pending = nil }
+}
+
+final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
+        Task {
+            await CloudKitShareMetadataVault.shared.store(metadata)
+            await MainActor.run { CloudShareInbox.shared.receive(metadata) }
+        }
+    }
+}
 
 @main struct RowanApp: App {
+    @UIApplicationDelegateAdaptor(CloudShareAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    @State private var cloudSync = CloudSyncController(
+        transport: CloudTransportFactory.make())
+    @State private var invitationRouter = InvitationRouter(
+        transport: CloudTransportFactory.make())
     @StateObject private var parentAccess = ParentAccessController()
     @Environment(\.scenePhase) private var scenePhase
     private let container: ModelContainer?
@@ -12,7 +47,10 @@ import SwiftData
         let schema = Schema([
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
-            Background.self, HouseholdSettings.self, LocalDeviceSettings.self
+            Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            HouseholdCloudState.self, SyncRecordMetadata.self,
+            PendingSyncMutation.self, SyncConflict.self,
+            PendingShareInvitation.self
         ])
         let arguments = ProcessInfo.processInfo.arguments
         let testing = arguments.contains("-ui-testing-reset")
@@ -46,6 +84,8 @@ import SwiftData
                 if let container {
                     RootView()
                         .environment(model)
+                        .environment(cloudSync)
+                        .environment(invitationRouter)
                         .environmentObject(parentAccess)
                         .modelContainer(container)
                         .task {
