@@ -1,0 +1,110 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* RowanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* RowanApp.swift */; };
+		A10000000000000000000002 /* DomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* DomainModels.swift */; };
+		A10000000000000000000003 /* ProgressionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* ProgressionEngine.swift */; };
+		A10000000000000000000004 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* Services.swift */; };
+		A10000000000000000000005 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* AppModel.swift */; };
+		A10000000000000000000006 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* Views.swift */; };
+		A10000000000000000000007 /* spark.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* spark.png */; };
+		A10000000000000000000008 /* orbit.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* orbit.png */; };
+		A10000000000000000000009 /* pixel.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* pixel.png */; };
+		A1000000000000000000000A /* comet.png in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* comet.png */; };
+		A1000000000000000000000B /* bop.png in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* bop.png */; };
+		A1000000000000000000000C /* ProgressionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* ProgressionEngineTests.swift */; };
+		A1000000000000000000000D /* RowanUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* RowanUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = D10000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = E10000000000000000000001; remoteInfo = Rowan; };
+		C10000000000000000000002 = {isa = PBXContainerItemProxy; containerPortal = D10000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = E10000000000000000000001; remoteInfo = Rowan; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* RowanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowanApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* DomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* ProgressionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngine.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* spark.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = spark.png; sourceTree = "<group>"; };
+		B10000000000000000000008 /* orbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = orbit.png; sourceTree = "<group>"; };
+		B10000000000000000000009 /* pixel.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = pixel.png; sourceTree = "<group>"; };
+		B1000000000000000000000A /* comet.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = comet.png; sourceTree = "<group>"; };
+		B1000000000000000000000B /* bop.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bop.png; sourceTree = "<group>"; };
+		B1000000000000000000000C /* ProgressionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngineTests.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* RowanUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowanUITests.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* Rowan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rowan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000F /* RowanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RowanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000010 /* RowanUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RowanUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F10000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		F10000000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		F10000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G10000000000000000000001 = {isa = PBXGroup; children = (G10000000000000000000002 /* Rowan */, G10000000000000000000005 /* RowanTests */, G10000000000000000000006 /* RowanUITests */, G10000000000000000000004 /* Products */); sourceTree = "<group>"; };
+		G10000000000000000000002 /* Rowan */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, G10000000000000000000003 /* Companions */); path = Rowan; sourceTree = "<group>"; };
+		G10000000000000000000003 /* Companions */ = {isa = PBXGroup; children = (B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B1000000000000000000000A, B1000000000000000000000B); path = Resources/Companions; sourceTree = "<group>"; };
+		G10000000000000000000004 /* Products */ = {isa = PBXGroup; children = (B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000010); name = Products; sourceTree = "<group>"; };
+		G10000000000000000000005 /* RowanTests */ = {isa = PBXGroup; children = (B1000000000000000000000C); path = RowanTests; sourceTree = "<group>"; };
+		G10000000000000000000006 /* RowanUITests */ = {isa = PBXGroup; children = (B1000000000000000000000D); path = RowanUITests; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000000000000000000001 /* Rowan */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000001; buildPhases = (I10000000000000000000001, F10000000000000000000001, J10000000000000000000001); buildRules = (); dependencies = (); name = Rowan; productName = Rowan; productReference = B1000000000000000000000E; productType = "com.apple.product-type.application"; };
+		E10000000000000000000002 /* RowanTests */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000002; buildPhases = (I10000000000000000000002, F10000000000000000000002, J10000000000000000000002); buildRules = (); dependencies = (K10000000000000000000001); name = RowanTests; productName = RowanTests; productReference = B1000000000000000000000F; productType = "com.apple.product-type.bundle.unit-test"; };
+		E10000000000000000000003 /* RowanUITests */ = {isa = PBXNativeTarget; buildConfigurationList = H10000000000000000000003; buildPhases = (I10000000000000000000003, F10000000000000000000003, J10000000000000000000003); buildRules = (); dependencies = (K10000000000000000000002); name = RowanUITests; productName = RowanUITests; productReference = B10000000000000000000010; productType = "com.apple.product-type.bundle.ui-testing"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D10000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {E10000000000000000000001 = {CreatedOnToolsVersion = 26.0;}; E10000000000000000000002 = {CreatedOnToolsVersion = 26.0; TestTargetID = E10000000000000000000001;}; E10000000000000000000003 = {CreatedOnToolsVersion = 26.0; TestTargetID = E10000000000000000000001;};};}; buildConfigurationList = H10000000000000000000004; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = G10000000000000000000001; productRefGroup = G10000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (E10000000000000000000001, E10000000000000000000002, E10000000000000000000003); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		J10000000000000000000001 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B); runOnlyForDeploymentPostprocessing = 0; };
+		J10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		J10000000000000000000003 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		I10000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		I10000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000C); runOnlyForDeploymentPostprocessing = 0; };
+		I10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		K10000000000000000000001 = {isa = PBXTargetDependency; target = E10000000000000000000001; targetProxy = C10000000000000000000001; };
+		K10000000000000000000002 = {isa = PBXTargetDependency; target = E10000000000000000000001; targetProxy = C10000000000000000000002; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		L10000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug; };
+		L10000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O";}; name = Release; };
+		L10000000000000000000003 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Rowan; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.Rowan; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Debug; };
+		L10000000000000000000004 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Rowan; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.Rowan; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Release; };
+		L10000000000000000000005 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.RowanTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Rowan.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Rowan";}; name = Debug; };
+		L10000000000000000000006 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.RowanTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Rowan.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Rowan";}; name = Release; };
+		L10000000000000000000007 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.RowanUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = Rowan;}; name = Debug; };
+		L10000000000000000000008 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.rowanfamily.RowanUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = Rowan;}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		H10000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000003, L10000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000005, L10000000000000000000006); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000007, L10000000000000000000008); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (L10000000000000000000001, L10000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = D10000000000000000000001 /* Project object */;
+}
+
