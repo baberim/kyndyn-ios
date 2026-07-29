@@ -1,15 +1,15 @@
-# Rowan Cloud Sync 0.3 design
+# kyndyn Cloud Sync 0.3 design
 
 ## Scope and Apple configuration boundary
 
 Cloud Sync is optional. A Local Core household stays fully usable until an
 authenticated parent explicitly enables family sync. Production use requires an
 Apple Developer team and an iCloud container selected by the project owner.
-Rowan does not contain a guessed container identifier and this milestone does
+kyndyn does not contain a guessed container identifier and this milestone does
 not deploy a development or production schema.
 
 The app target will require the iCloud/CloudKit capability before live testing.
-In Xcode, select **Rowan → Signing & Capabilities**, choose the authorized team,
+In Xcode, select **kyndyn → Signing & Capabilities**, choose the authorized team,
 add **iCloud**, enable **CloudKit**, and select an owner-created container such
 as the final value of `iCloud.<authorized bundle identifier>`. Do not select a
 container belonging to another app. Test in the Development environment first.
@@ -19,23 +19,23 @@ Only the project owner should later deploy the schema in CloudKit Dashboard.
 
 The household owner creates one custom zone in the private database. A
 `Household` root record anchors a `CKShare`; participants read and write the
-shared zone through their shared database. Rowan never treats share membership
-as proof of parent status. Device-local Rowan authentication still gates every
+shared zone through their shared database. kyndyn never treats share membership
+as proof of parent status. Device-local kyndyn authentication still gates every
 parent mutation.
 
 Stable record names are `<type>-<lowercase UUID>`. Relationships use record
 references where CloudKit supports them and the same stable UUID values in the
 portable sync envelope.
 
-| Rowan data | Cloud record | Notes |
+| kyndyn data | Cloud record | Notes |
 | --- | --- | --- |
-| Household | `RowanHousehold` | Root; name, time zone, schema version, archive date |
-| Person | `RowanPerson` | Household reference, role, color, companion, archive date |
-| Quest | `RowanQuest` | Text, XP, assignees, completion mode, archive date |
-| Quest schedule | `RowanQuestSchedule` | One-to-one with quest; recurrence, weekdays, start/deadline |
-| QuestCompletion | `RowanQuestCompletion` | Append-friendly UUID event; reversal is an explicit update |
-| RewardGoal | `RowanRewardGoal` | Goal text/target and archive date |
-| HouseholdSettings | `RowanHouseholdSettings` | Shared household policy only |
+| Household | `kyndynHousehold` | Root; name, time zone, schema version, archive date |
+| Person | `kyndynPerson` | Household reference, role, color, companion, archive date |
+| Quest | `kyndynQuest` | Text, XP, assignees, completion mode, archive date |
+| Quest schedule | `kyndynQuestSchedule` | One-to-one with quest; recurrence, weekdays, start/deadline |
+| QuestCompletion | `kyndynQuestCompletion` | Append-friendly UUID event; reversal is an explicit update |
+| RewardGoal | `kyndynRewardGoal` | Goal text/target and archive date |
+| HouseholdSettings | `kyndynHouseholdSettings` | Shared household policy only |
 
 Companion selection may sync as part of `Person`; companion assets do not.
 `FamilyBroadcast`, weather, calendar, StoreKit, and assistant data are outside
@@ -43,7 +43,7 @@ this milestone.
 
 ## Device-local boundary
 
-These values never enter shared records: Rowan PIN or hash, authentication and
+These values never enter shared records: kyndyn PIN or hash, authentication and
 biometric state, notification authorization, device/profile targeting, quiet
 hour overrides, scheduled notification identifiers, view preferences,
 onboarding presentation, caches, CloudKit credentials, and change tokens.
@@ -102,18 +102,18 @@ step adopts the same deterministic zone and record names rather than creating
 duplicates.
 
 Share acceptance is routed before onboarding. A pending invitation suppresses
-sample-household creation until Rowan validates the schema and imports the
+sample-household creation until kyndyn validates the schema and imports the
 shared root. States distinguish malformed, expired/revoked, unsupported,
 already accepted, and successful invitations. `CKShare` and the system sharing
-experience remain the transport; Rowan does not send custom invitation email.
+experience remain the transport; kyndyn does not send custom invitation email.
 
 CloudKit sharing depends on each participant's Apple ID, iCloud availability,
 parental controls, and account restrictions. A child's Apple family membership
-does not automatically grant Rowan access or Parent-area privileges.
+does not automatically grant kyndyn access or Parent-area privileges.
 
 ## Account and access changes
 
-Rowan distinguishes offline, not signed in, restricted, account changed, access
+kyndyn distinguishes offline, not signed in, restricted, account changed, access
 revoked, and generic sync failure. It never merges households across account
 fingerprints or uploads after an account change without confirmation. Local
 readable data remains available where ownership permits, while uploads pause.

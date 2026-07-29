@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-enum RowanValidationError: LocalizedError, Equatable {
+enum KyndynValidationError: LocalizedError, Equatable {
     case emptyName, nameTooLong, emptyTitle, titleTooLong, detailTooLong
     case invalidXP, noParticipants, noWeekdays, lastParent, archivedParticipant
 
@@ -47,8 +47,8 @@ struct QuestDraft {
 enum LifecycleRules {
     static func validate(person draft: PersonDraft) throws -> String {
         let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { throw RowanValidationError.emptyName }
-        guard name.count <= 40 else { throw RowanValidationError.nameTooLong }
+        guard !name.isEmpty else { throw KyndynValidationError.emptyName }
+        guard name.count <= 40 else { throw KyndynValidationError.nameTooLong }
         return name
     }
 
@@ -60,14 +60,14 @@ enum LifecycleRules {
     static func validate(quest draft: QuestDraft, people: [Person]) throws -> (String, String) {
         let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let detail = draft.detail.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { throw RowanValidationError.emptyTitle }
-        guard title.count <= 80 else { throw RowanValidationError.titleTooLong }
-        guard detail.count <= 300 else { throw RowanValidationError.detailTooLong }
-        guard (1...500).contains(draft.xp) else { throw RowanValidationError.invalidXP }
-        guard !draft.participantIDs.isEmpty else { throw RowanValidationError.noParticipants }
+        guard !title.isEmpty else { throw KyndynValidationError.emptyTitle }
+        guard title.count <= 80 else { throw KyndynValidationError.titleTooLong }
+        guard detail.count <= 300 else { throw KyndynValidationError.detailTooLong }
+        guard (1...500).contains(draft.xp) else { throw KyndynValidationError.invalidXP }
+        guard !draft.participantIDs.isEmpty else { throw KyndynValidationError.noParticipants }
         let active = Set(people.filter { $0.deletedAt == nil }.map(\.id))
-        guard draft.participantIDs.isSubset(of: active) else { throw RowanValidationError.archivedParticipant }
-        if draft.scheduleKind == .weekly && draft.weekdays.isEmpty { throw RowanValidationError.noWeekdays }
+        guard draft.participantIDs.isSubset(of: active) else { throw KyndynValidationError.archivedParticipant }
+        if draft.scheduleKind == .weekly && draft.weekdays.isEmpty { throw KyndynValidationError.noWeekdays }
         return (title, detail)
     }
 }
@@ -86,8 +86,21 @@ enum LifecycleRules {
 
     func finishedPreparing() { isPreparing = false }
 
+    @discardableResult
+    func ensureLocalDeviceSettings(in context: ModelContext) throws
+        -> LocalDeviceSettings {
+        if let existing = try context.fetch(
+            FetchDescriptor<LocalDeviceSettings>()).first {
+            return existing
+        }
+        let settings = LocalDeviceSettings()
+        context.insert(settings)
+        try context.save()
+        return settings
+    }
+
     func seedSample(into context: ModelContext) throws {
-        let household = Household(name: "Rowan Family", timeZoneIdentifier: TimeZone.current.identifier, rewardTitle: "Family Movie Night", rewardGoalXP: 300)
+        let household = Household(name: "kyndyn Family", timeZoneIdentifier: TimeZone.current.identifier, rewardTitle: "Family Movie Night", rewardGoalXP: 300)
         context.insert(household)
         context.insert(HouseholdSettings(householdID: household.id))
         let device = LocalDeviceSettings()
@@ -128,7 +141,7 @@ enum LifecycleRules {
     }
 
     func archivePerson(_ person: Person, people: [Person], quests: [Quest], context: ModelContext) throws {
-        guard LifecycleRules.canArchive(person: person, people: people) else { throw RowanValidationError.lastParent }
+        guard LifecycleRules.canArchive(person: person, people: people) else { throw KyndynValidationError.lastParent }
         let affectedQuestIDs = Set(quests.filter {
             $0.deletedAt == nil && $0.participantIDs.contains(person.id)
         }.map(\.id))
@@ -258,7 +271,7 @@ enum LifecycleRules {
             let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
             let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting,
                                                        household: household, now: .now)
-            try? await notificationScheduler.replaceRowanReminders(with: candidates)
+            try? await notificationScheduler.replaceKyndynReminders(with: candidates)
         }
     }
 }

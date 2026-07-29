@@ -2,7 +2,7 @@
 
 ## Promise
 
-Rowan helps a family answer: what needs to happen today, how is everyone doing, and what are we working toward together?
+kyndyn helps a family answer: what needs to happen today, how is everyone doing, and what are we working toward together?
 
 ## Native v1 core
 

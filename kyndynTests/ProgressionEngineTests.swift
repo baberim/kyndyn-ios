@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import Rowan
+@testable import kyndyn
 
 final class ProgressionEngineTests: XCTestCase {
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
@@ -102,9 +102,25 @@ final class ProgressionEngineTests: XCTestCase {
 }
 
 final class LifecycleRulesTests: XCTestCase {
+    @MainActor func testUpgradedHouseholdGetsMissingDeviceSettings() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Household.self, Person.self, Quest.self, QuestCompletion.self,
+            LocalDeviceSettings.self, configurations: configuration)
+        let context = container.mainContext
+        context.insert(Household(name: "Upgrade Test", timeZoneIdentifier: "UTC"))
+        try context.save()
+        XCTAssertTrue(try context.fetch(
+            FetchDescriptor<LocalDeviceSettings>()).isEmpty)
+        let settings = try AppModel().ensureLocalDeviceSettings(in: context)
+        XCTAssertFalse(settings.notificationsEnabled)
+        XCTAssertEqual(try context.fetch(
+            FetchDescriptor<LocalDeviceSettings>()).count, 1)
+    }
+
     @MainActor func testPersonValidationAndDuplicateNames() throws {
-        XCTAssertThrowsError(try LifecycleRules.validate(person: PersonDraft(name: "   "))) { XCTAssertEqual($0 as? RowanValidationError, .emptyName) }
-        XCTAssertThrowsError(try LifecycleRules.validate(person: PersonDraft(name: String(repeating: "A", count: 41)))) { XCTAssertEqual($0 as? RowanValidationError, .nameTooLong) }
+        XCTAssertThrowsError(try LifecycleRules.validate(person: PersonDraft(name: "   "))) { XCTAssertEqual($0 as? KyndynValidationError, .emptyName) }
+        XCTAssertThrowsError(try LifecycleRules.validate(person: PersonDraft(name: String(repeating: "A", count: 41)))) { XCTAssertEqual($0 as? KyndynValidationError, .nameTooLong) }
         XCTAssertEqual(try LifecycleRules.validate(person: PersonDraft(name: " Avery ")), "Avery")
         XCTAssertEqual(try LifecycleRules.validate(person: PersonDraft(name: "Avery")), "Avery")
     }
@@ -122,10 +138,10 @@ final class LifecycleRulesTests: XCTestCase {
         let householdID = UUID()
         let person = Person(householdID: householdID, name: "Avery", role: .child, colorHex: "#000000", companionID: "spark")
         var draft = QuestDraft(title: "Tidy room", participantIDs: [person.id], scheduleKind: .weekly)
-        XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? RowanValidationError, .noWeekdays) }
+        XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? KyndynValidationError, .noWeekdays) }
         draft.weekdays = [2]
         person.deletedAt = .now
-        XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? RowanValidationError, .archivedParticipant) }
+        XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? KyndynValidationError, .archivedParticipant) }
     }
 
     @MainActor func testArchivePreservesHistoryAndStableIDs() throws {
@@ -227,7 +243,7 @@ final class ReminderRulesTests: XCTestCase {
         let (household, person, quest, settings, now) = fixture()
         let first = ReminderRules.candidates(quests: [quest, quest], people: [person], settings: settings, household: household, now: now)
         XCTAssertEqual(Set(first.map(\.identifier)).count, 1)
-        XCTAssertTrue(first.first?.body.contains("Open Rowan") == true)
+        XCTAssertTrue(first.first?.body.contains("Open kyndyn") == true)
         settings.showQuestDetailsOnLockScreen = true
         XCTAssertEqual(ReminderRules.candidates(quests: [quest], people: [person], settings: settings, household: household, now: now).first?.body, quest.title)
     }

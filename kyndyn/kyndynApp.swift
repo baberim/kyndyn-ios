@@ -13,7 +13,7 @@ import UIKit
             shareIdentifier: metadata.share.recordID.recordName,
             rootRecordName: metadata.hierarchicalRootRecordID?.recordName ?? "",
             zoneName: metadata.hierarchicalRootRecordID?.zoneID.zoneName ?? "",
-            schemaVersion: RowanSchema.version,
+            schemaVersion: KyndynSchema.version,
             alreadyAccepted: false
         )
     }
@@ -31,7 +31,7 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-@main struct RowanApp: App {
+@main struct KyndynApp: App {
     @UIApplicationDelegateAdaptor(CloudShareAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @State private var cloudSync = CloudSyncController(
@@ -57,12 +57,12 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
         do {
             let configuration: ModelConfiguration
             if arguments.contains("-ui-testing-persistence") {
-                let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "RowanPersistenceUITest", directoryHint: .isDirectory)
+                let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "kyndynPersistenceUITest", directoryHint: .isDirectory)
                 if arguments.contains("-ui-testing-persistence-reset") {
                     try? FileManager.default.removeItem(at: directory)
                 }
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "rowan.store"))
+                configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "kyndyn.store"))
             } else {
                 configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: testing)
             }
@@ -80,7 +80,7 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                RowanLaunchBackground()
+                KyndynLaunchBackground()
                 if let container {
                     RootView()
                         .environment(model)
@@ -108,7 +108,7 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-struct RowanLaunchBackground: View {
+struct KyndynLaunchBackground: View {
     var body: some View {
         LinearGradient(
             colors: [Color.purple.opacity(0.20), Color.cyan.opacity(0.10), Color(.systemBackground)],
@@ -126,10 +126,10 @@ struct StoreRecoveryView: View {
             Image(systemName: "leaf.fill")
                 .font(.system(size: 54))
                 .foregroundStyle(.purple)
-            Text("Rowan needs a moment")
+            Text("kyndyn needs a moment")
                 .font(.largeTitle.bold())
                 .multilineTextAlignment(.center)
-            Text("Your family data wasn’t changed. Close and reopen Rowan. If this continues, keep this app installed and contact support before removing any data.")
+            Text("Your family data wasn’t changed. Close and reopen kyndyn. If this continues, keep this app installed and contact support before removing any data.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             if let detail {

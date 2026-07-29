@@ -47,7 +47,7 @@ protocol DeviceAuthenticating: Sendable {
 struct LocalDeviceAuthenticator: DeviceAuthenticating {
     func authenticate(reason: String) async -> ParentAuthenticationResult {
         let context = LAContext()
-        context.localizedCancelTitle = "Use Rowan PIN"
+        context.localizedCancelTitle = "Use kyndyn PIN"
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
             return .unavailable
@@ -62,10 +62,10 @@ struct LocalDeviceAuthenticator: DeviceAuthenticating {
             case .biometryNotAvailable, .passcodeNotSet, .biometryNotEnrolled:
                 return .unavailable
             default:
-                return .failed("Authentication wasn’t completed. You can try again or use the Rowan PIN.")
+                return .failed("Authentication wasn’t completed. You can try again or use the kyndyn PIN.")
             }
         } catch {
-            return .failed("Authentication wasn’t completed. You can try again or use the Rowan PIN.")
+            return .failed("Authentication wasn’t completed. You can try again or use the kyndyn PIN.")
         }
     }
 }
@@ -89,7 +89,7 @@ enum PINValidation {
 }
 
 struct KeychainParentPINStore: ParentPINStoring {
-    private let service = "com.rowanfamily.Rowan.parent-auth"
+    private let service = "com.kyndynfamily.kyndyn.parent-auth"
     private let account = "parent-pin-v1"
     private let rounds = 120_000
 
@@ -165,8 +165,8 @@ enum PINStoreError: LocalizedError {
     case keychain(OSStatus)
     var errorDescription: String? {
         switch self {
-        case .invalidPIN: return "That PIN doesn’t meet Rowan’s security requirements."
-        case .keychain: return "Rowan couldn’t securely save the PIN on this device."
+        case .invalidPIN: return "That PIN doesn’t meet kyndyn’s security requirements."
+        case .keychain: return "kyndyn couldn’t securely save the PIN on this device."
         }
     }
 }
@@ -192,7 +192,7 @@ final class ParentAccessController: ObservableObject {
 
     func authenticate() async {
         handleAuthenticationResult(
-            await authenticator.authenticate(reason: "Open Rowan’s Parent area")
+            await authenticator.authenticate(reason: "Open kyndyn’s Parent area")
         )
     }
 
@@ -201,9 +201,9 @@ final class ParentAccessController: ObservableObject {
         case .authenticated:
             isUnlocked = true; message = nil
         case .userCanceled:
-            message = hasPIN ? "Authentication was canceled. Use your Rowan PIN or try again." : "Authentication was canceled. You can try again."
+            message = hasPIN ? "Authentication was canceled. Use your kyndyn PIN or try again." : "Authentication was canceled. You can try again."
         case .unavailable:
-            message = hasPIN ? "Device authentication isn’t available. Use your Rowan PIN." : "Set a device passcode or configure a Rowan PIN from an authenticated device session."
+            message = hasPIN ? "Device authentication isn’t available. Use your kyndyn PIN." : "Set a device passcode or configure a kyndyn PIN from an authenticated device session."
         case .failed(let text):
             message = text
         }
@@ -212,7 +212,7 @@ final class ParentAccessController: ObservableObject {
     func unlock(pin: String) -> Bool {
         let valid = pinStore.verify(pin)
         isUnlocked = valid
-        message = valid ? nil : "That Rowan PIN didn’t match."
+        message = valid ? nil : "That kyndyn PIN didn’t match."
         return valid
     }
 
@@ -253,7 +253,7 @@ struct ReminderCandidate: Equatable {
 protocol NotificationScheduling: Sendable {
     func permissionState() async -> NotificationPermissionState
     func requestPermission() async -> NotificationPermissionState
-    func replaceRowanReminders(with candidates: [ReminderCandidate]) async throws
+    func replaceKyndynReminders(with candidates: [ReminderCandidate]) async throws
 }
 
 struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
@@ -279,9 +279,9 @@ struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
         }
     }
 
-    func replaceRowanReminders(with candidates: [ReminderCandidate]) async throws {
+    func replaceKyndynReminders(with candidates: [ReminderCandidate]) async throws {
         let pending = await center.pendingNotificationRequests()
-        center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("rowan.") })
+        center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("kyndyn.") })
         for candidate in Dictionary(grouping: candidates, by: \.identifier).compactMap(\.value.first) {
             let content = UNMutableNotificationContent()
             content.title = candidate.title
@@ -317,10 +317,10 @@ enum ReminderRules {
             guard adjusted > now else { return nil }
             let day = ProgressionEngine.dayKey(adjusted, timeZoneIdentifier: household.timeZoneIdentifier)
             return ReminderCandidate(
-                identifier: "rowan.quest.\(quest.id.uuidString).\(profileID.uuidString).\(day)",
+                identifier: "kyndyn.quest.\(quest.id.uuidString).\(profileID.uuidString).\(day)",
                 fireDate: adjusted,
-                title: "A Rowan quest is ready",
-                body: settings.showQuestDetailsOnLockScreen ? quest.title : "Open Rowan to see what’s next.",
+                title: "A kyndyn quest is ready",
+                body: settings.showQuestDetailsOnLockScreen ? quest.title : "Open kyndyn to see what’s next.",
                 questID: quest.id
             )
         }
@@ -331,10 +331,10 @@ enum ReminderRules {
             if adjusted > now {
                 let day = ProgressionEngine.dayKey(adjusted, timeZoneIdentifier: household.timeZoneIdentifier)
                 candidates.append(ReminderCandidate(
-                    identifier: "rowan.parent-summary.\(profileID.uuidString).\(day)",
+                    identifier: "kyndyn.parent-summary.\(profileID.uuidString).\(day)",
                     fireDate: adjusted,
-                    title: "Rowan family check-in",
-                    body: "Open Rowan for a private look at today’s family progress.",
+                    title: "kyndyn family check-in",
+                    body: "Open kyndyn for a private look at today’s family progress.",
                     questID: nil
                 ))
             }

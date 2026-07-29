@@ -2,18 +2,18 @@
 
 ## Launch and persistence
 
-The OS launch storyboard uses Rowan colors in light and dark mode, then transitions immediately to an in-app preparation state. Rowan does not delay launch. SwiftData uses an additive schema change for device reminder preferences. If store creation or migration fails, Rowan does not erase data; a calm recovery screen advises preserving the installation.
+The OS launch storyboard uses kyndyn colors in light and dark mode, then transitions immediately to an in-app preparation state. kyndyn does not delay launch. SwiftData uses an additive schema change for device reminder preferences. If store creation or migration fails, kyndyn does not erase data; a calm recovery screen advises preserving the installation.
 
 iOS controls the time before the process can draw and may still show a cached launch snapshot during simulator boot or app installation.
 
 ## Parent protection
 
 - Parent profiles may use ordinary dashboards without authentication.
-- Opening the Parent tab requires Face ID, Touch ID, device passcode, or an already configured Rowan PIN.
+- Opening the Parent tab requires Face ID, Touch ID, device passcode, or an already configured kyndyn PIN.
 - Every parent mutation is reachable only below that gate.
 - Parent access locks when profiles change and after two minutes in the background.
 - The optional 6–12 digit PIN is salted, slow-hashed, and stored only in this device's Keychain.
-- Device-owner authentication is the only recovery path. Rowan has no email/server identity and makes no stronger recovery claim.
+- Device-owner authentication is the only recovery path. kyndyn has no email/server identity and makes no stronger recovery claim.
 
 ## People lifecycle
 
@@ -35,7 +35,7 @@ Titles are required and limited to 80 characters; notes are limited to 300; XP i
 
 Permission is requested only after a parent taps **Turn on reminders** and reads the explanation. Denial does not affect other features. Each device chooses an active profile, default reminder time, quiet hours, parent-summary eligibility, and lock-screen privacy.
 
-Reminder identifiers contain quest UUID, profile UUID, and occurrence day, preventing duplicates. Rowan replaces its own pending requests after relevant local changes and removes obsolete Rowan requests. Child-profile devices never receive parent summaries. Quest names are hidden on the lock screen by default. There is no remote push or server.
+Reminder identifiers contain quest UUID, profile UUID, and occurrence day, preventing duplicates. kyndyn replaces its own pending requests after relevant local changes and removes obsolete kyndyn requests. Child-profile devices never receive parent summaries. Quest names are hidden on the lock screen by default. There is no remote push or server.
 
 ## Accessibility
 
