@@ -4,6 +4,33 @@ import SwiftData
 private let companionChoices = ["spark", "orbit", "pixel", "comet", "bop"]
 private let colorChoices = ["#6F2DBD", "#007AFF", "#00A6A6", "#34C759", "#F26B5B", "#FF9500"]
 
+enum AdaptiveLayout {
+    static let readableContentMaximum: CGFloat = 1_100
+    static let managementContentMaximum: CGFloat = 900
+
+    static func dashboardColumns(for width: CGFloat) -> Int {
+        width >= 760 ? 2 : 1
+    }
+
+    static func questColumns(for width: CGFloat) -> Int {
+        width >= 700 ? 2 : 1
+    }
+}
+
+enum ProfilePalette {
+    static func name(for hex: String) -> String {
+        switch hex.uppercased() {
+        case "#6F2DBD": return "Purple"
+        case "#007AFF": return "Blue"
+        case "#00A6A6": return "Teal"
+        case "#34C759": return "Green"
+        case "#F26B5B": return "Coral"
+        case "#FF9500": return "Orange"
+        default: return "Custom"
+        }
+    }
+}
+
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
@@ -138,7 +165,7 @@ struct ProfilePickerView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var settings: [LocalDeviceSettings]
-    let columns = [GridItem(.adaptive(minimum: 145), spacing: 18)]
+    let columns = [GridItem(.adaptive(minimum: 160, maximum: 260), spacing: 18)]
 
     var body: some View {
         NavigationStack {
@@ -155,19 +182,43 @@ struct ProfilePickerView: View {
                             try? context.save()
                         } label: {
                             VStack(spacing: 12) {
-                                CompanionArt(id: person.companionID).frame(height: 112)
+                                CompanionArt(id: person.companionID)
+                                    .frame(height: 112)
+                                    .padding(8)
+                                    .background(.background.opacity(0.78), in: Circle())
+                                    .overlay {
+                                        Circle().stroke(
+                                            Color(hex: person.colorHex),
+                                            lineWidth: 5
+                                        )
+                                    }
                                 Text(person.name).font(.title3.bold()).foregroundStyle(.primary)
                                 Text(person.role == .parent ? "Parent" : "Family member").font(.caption).foregroundStyle(.secondary)
+                                Label(ProfilePalette.name(for: person.colorHex),
+                                      systemImage: "paintpalette.fill")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color(hex: person.colorHex))
                             }
                             .frame(maxWidth: .infinity).padding()
-                            .background(Color(hex: person.colorHex).opacity(0.16), in: RoundedRectangle(cornerRadius: 24))
+                            .background(
+                                Color(hex: person.colorHex).opacity(0.18),
+                                in: RoundedRectangle(cornerRadius: 24)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(Color(hex: person.colorHex), lineWidth: 2)
+                            }
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
+                        .accessibilityValue("\(ProfilePalette.name(for: person.colorHex)) profile color")
                         .accessibilityHint("Shows this person’s kyndyn dashboard")
                         .accessibilityIdentifier("profile-\(person.name)")
                     }
-                }.padding()
+                }
+                .padding()
+                .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+                .frame(maxWidth: .infinity)
             }
             .navigationTitle("kyndyn")
         }
@@ -258,31 +309,71 @@ struct DashboardView: View {
                 if let person, let household = households.first {
                     let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                     VStack(spacing: 18) {
-                        HStack {
-                            CompanionArt(id: person.companionID).frame(width: 100, height: 100)
-                            VStack(alignment: .leading) {
-                                Text("Hi, \(person.name)").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                                Text("Small steps count.").foregroundStyle(.secondary)
+                        ViewThatFits(in: .horizontal) {
+                            HStack {
+                                profileArt(person)
+                                greeting(person)
+                                Spacer()
                             }
-                            Spacer()
+                            VStack(spacing: 10) {
+                                profileArt(person)
+                                greeting(person)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
-                        ViewThatFits {
-                            HStack(spacing: 12) { stats(progress) }
-                            VStack(spacing: 12) { stats(progress) }
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 145), spacing: 12)],
+                            spacing: 12
+                        ) {
+                            stats(progress)
                         }
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text(household.rewardTitle).font(.headline)
-                                Spacer()
-                                Text("\(ProgressionEngine.familyXP(completions)) / \(household.rewardGoalXP) XP").font(.subheadline.monospacedDigit())
+                            ViewThatFits(in: .horizontal) {
+                                HStack {
+                                    Text(household.rewardTitle).font(.headline)
+                                    Spacer()
+                                    rewardProgress(household)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(household.rewardTitle).font(.headline)
+                                    rewardProgress(household)
+                                }
                             }
                             ProgressView(value: min(Double(ProgressionEngine.familyXP(completions)), Double(household.rewardGoalXP)), total: Double(household.rewardGoalXP))
                         }.card()
                         QuestListView(compact: true)
-                    }.padding()
+                    }
+                    .padding()
+                    .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+                    .frame(maxWidth: .infinity)
                 }
             }.navigationTitle("Today")
         }
+    }
+
+    private func profileArt(_ person: Person) -> some View {
+        CompanionArt(id: person.companionID)
+            .frame(width: 100, height: 100)
+            .padding(7)
+            .background(Color(hex: person.colorHex).opacity(0.18), in: Circle())
+            .overlay {
+                Circle().stroke(Color(hex: person.colorHex), lineWidth: 5)
+            }
+            .accessibilityHint("\(ProfilePalette.name(for: person.colorHex)) profile")
+    }
+
+    private func greeting(_ person: Person) -> some View {
+        VStack(alignment: .leading) {
+            Text("Hi, \(person.name)")
+                .font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text("Small steps count.").foregroundStyle(.secondary)
+        }
+    }
+
+    private func rewardProgress(_ household: Household) -> some View {
+        Text("\(ProgressionEngine.familyXP(completions)) / \(household.rewardGoalXP) XP")
+            .font(.subheadline.monospacedDigit())
     }
 
     @ViewBuilder private func stats(_ progress: PersonProgress) -> some View {
@@ -323,36 +414,106 @@ struct QuestListView: View {
             if visible.isEmpty {
                 ContentUnavailableView("All clear", systemImage: "checkmark.circle", description: Text("No quests are waiting for you today."))
             }
-            ForEach(visible, id: \.0.id) { quest, status in QuestRow(quest: quest, status: status) }
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 300, maximum: 540), spacing: 12)],
+                alignment: .leading,
+                spacing: 12
+            ) {
+                ForEach(visible, id: \.0.id) { quest, status in
+                    QuestRow(quest: quest, status: status)
+                }
+            }
         }
+        .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private func QuestRow(quest: Quest, status: QuestTemporalStatus) -> some View {
         if let household = households.first, let personID = app.selectedPersonID {
             let done = status == .completed
-            HStack(spacing: 14) {
-                Button {
-                    do {
-                        if done { try app.undo(quest, personID: personID, household: household, completions: completions, context: context) }
-                        else { try app.complete(quest, personID: personID, household: household, completions: completions, context: context) }
-                    } catch { app.errorMessage = error.localizedDescription }
-                } label: {
-                    Image(systemName: done ? "checkmark.circle.fill" : "circle").font(.title).foregroundStyle(done ? .green : .purple)
-                        .frame(minWidth: 44, minHeight: 44)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 14) {
+                    completionButton(
+                        quest: quest, done: done, personID: personID,
+                        household: household
+                    )
+                    questDetails(quest: quest, status: status, done: done)
+                    Spacer()
+                    xpLabel(quest: quest, done: done, household: household)
                 }
-                .accessibilityLabel(done ? "Undo \(quest.title)" : "Complete \(quest.title)")
-                .accessibilityHint(done ? "Reverses this occurrence and recalculates progress" : "Records this occurrence as complete")
-                .accessibilityIdentifier("quest-toggle-\(quest.title)")
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(quest.title).font(.headline).strikethrough(done)
-                    if !quest.detail.isEmpty { Text(quest.detail).font(.subheadline).foregroundStyle(.secondary) }
-                    Text(statusLabel(status, quest: quest)).font(.caption).foregroundStyle(status == .overdue ? .orange : .secondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        completionButton(
+                            quest: quest, done: done, personID: personID,
+                            household: household
+                        )
+                        questDetails(quest: quest, status: status, done: done)
+                    }
+                    xpLabel(quest: quest, done: done, household: household)
                 }
-                Spacer()
-                Text("+\(done ? quest.xp : ProgressionEngine.effectiveXP(base: quest.xp, overdueDays: ProgressionEngine.overdueDays(for: quest, now: .now, timeZoneIdentifier: household.timeZoneIdentifier))) XP")
-                    .font(.subheadline.bold()).foregroundStyle(.purple)
             }.card()
         }
+    }
+
+    private func completionButton(
+        quest: Quest, done: Bool, personID: UUID, household: Household
+    ) -> some View {
+        Button {
+            do {
+                if done {
+                    try app.undo(
+                        quest, personID: personID, household: household,
+                        completions: completions, context: context
+                    )
+                } else {
+                    try app.complete(
+                        quest, personID: personID, household: household,
+                        completions: completions, context: context
+                    )
+                }
+            } catch {
+                app.errorMessage = error.localizedDescription
+            }
+        } label: {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                .font(.title)
+                .foregroundStyle(done ? .green : .purple)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(done ? "Undo \(quest.title)" : "Complete \(quest.title)")
+        .accessibilityHint(done
+            ? "Reverses this occurrence and recalculates progress"
+            : "Records this occurrence as complete")
+        .accessibilityIdentifier("quest-toggle-\(quest.title)")
+    }
+
+    private func questDetails(
+        quest: Quest, status: QuestTemporalStatus, done: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(quest.title).font(.headline).strikethrough(done)
+            if !quest.detail.isEmpty {
+                Text(quest.detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+            Text(statusLabel(status, quest: quest))
+                .font(.caption)
+                .foregroundStyle(status == .overdue ? .orange : .secondary)
+        }
+    }
+
+    private func xpLabel(
+        quest: Quest, done: Bool, household: Household
+    ) -> some View {
+        let value = done ? quest.xp : ProgressionEngine.effectiveXP(
+            base: quest.xp,
+            overdueDays: ProgressionEngine.overdueDays(
+                for: quest, now: .now,
+                timeZoneIdentifier: household.timeZoneIdentifier
+            )
+        )
+        return Text("+\(value) XP")
+            .font(.subheadline.bold())
+            .foregroundStyle(.purple)
     }
 
     private func statusLabel(_ status: QuestTemporalStatus, quest: Quest) -> String {
@@ -384,7 +545,10 @@ struct ParentAreaView: View {
                 Section {
                     Button("Lock Parent area", systemImage: "lock.fill") { access.lock() }
                 }
-            }.navigationTitle("Parent")
+            }
+            .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+            .frame(maxWidth: .infinity)
+            .navigationTitle("Parent")
         }
     }
 }
@@ -480,12 +644,17 @@ struct PersonEditorView: View {
                 }
             }
             Section("Color") {
+                Text("This accent appears around the person’s companion and profile card. Their name and companion always identify them too.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 54))]) {
                     ForEach(colorChoices, id: \.self) { color in
                         Button { draft.colorHex = color } label: {
                             Circle().fill(Color(hex: color)).frame(width: 42, height: 42)
                                 .overlay { if draft.colorHex == color { Image(systemName: "checkmark").foregroundStyle(.white).bold() } }
-                        }.accessibilityLabel("Profile color \(color)").accessibilityValue(draft.colorHex == color ? "Selected" : "")
+                        }
+                        .accessibilityLabel("\(ProfilePalette.name(for: color)) profile color")
+                        .accessibilityValue(draft.colorHex == color ? "Selected" : "Not selected")
                     }
                 }
             }
@@ -711,6 +880,7 @@ struct CloudSyncSettingsView: View {
     @Query private var cloudStates: [HouseholdCloudState]
     @Query private var pending: [PendingSyncMutation]
     @State private var confirmEnable = false
+    private let configuration = KyndynCloudConfiguration()
 
     private var household: Household? { households.first }
     private var state: HouseholdCloudState? {
@@ -730,6 +900,15 @@ struct CloudSyncSettingsView: View {
                 }
                 if let date = state?.lastSuccessfulSyncAt {
                     LabeledContent("Last updated", value: date.formatted())
+                }
+                if case .ready = configuration.readiness {
+                    EmptyView()
+                } else {
+                    Label(configuration.readiness.developmentMessage,
+                          systemImage: "wrench.and.screwdriver")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("cloud-configuration-readiness")
                 }
             }
             Section("What family sync does") {
@@ -758,7 +937,7 @@ struct CloudSyncSettingsView: View {
                         Button("Enable family sync", systemImage: "icloud.and.arrow.up") {
                             confirmEnable = true
                         }
-                        .disabled(sync.isWorking)
+                        .disabled(sync.isWorking || !configurationIsReady)
                     }
                 } footer: {
                     Text("Live family sync requires the authorized Apple Developer team and iCloud container. Until configured, kyndyn stays safely local-only.")
@@ -792,6 +971,11 @@ struct CloudSyncSettingsView: View {
         case .recoverableError: return "Will retry"
         case .needsAttention: return "Needs attention"
         }
+    }
+
+    private var configurationIsReady: Bool {
+        if case .ready = configuration.readiness { return true }
+        return false
     }
 
     private func ensureState() {
@@ -1008,3 +1192,11 @@ private extension String {
         }
     }
 }
+
+#if DEBUG
+#Preview("Compact square onboarding") {
+    OnboardingView()
+        .environment(AppModel())
+        .frame(width: 520, height: 520)
+}
+#endif

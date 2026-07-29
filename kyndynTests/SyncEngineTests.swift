@@ -207,6 +207,26 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertTrue(SyncMergeEngine.merge(edit, archive).record.tombstone)
         XCTAssertTrue(SyncMergeEngine.merge(archive, edit).record.tombstone)
     }
+
+    func testLaterExplicitRestoreWinsButConcurrentArchiveWins() {
+        var archive = CloudRecordEnvelope(
+            type: .quest, entityID: entityID, householdID: householdID,
+            fields: ["title": "Archived"], serverSequence: 5,
+            tombstone: true
+        )
+        var restore = CloudRecordEnvelope(
+            type: .quest, entityID: entityID, householdID: householdID,
+            fields: ["title": "Restored"], serverSequence: 6,
+            tombstone: false
+        )
+        XCTAssertFalse(SyncMergeEngine.merge(archive, restore).record.tombstone)
+        XCTAssertFalse(SyncMergeEngine.merge(restore, archive).record.tombstone)
+
+        restore.serverSequence = 5
+        archive.serverSequence = 5
+        XCTAssertTrue(SyncMergeEngine.merge(archive, restore).record.tombstone)
+        XCTAssertTrue(SyncMergeEngine.merge(restore, archive).record.tombstone)
+    }
 }
 
 @MainActor
@@ -411,5 +431,58 @@ final class MultiDeviceConvergenceTests: XCTestCase {
         second.receive([undo, undo])
         XCTAssertEqual(first.records, second.records)
         XCTAssertEqual(first.activeXP, 0)
+    }
+
+    func testOwnerAndParticipantConvergeOnExactOccurrenceUndoAndEdits() {
+        let householdID = UUID()
+        let personID = UUID()
+        let questID = UUID()
+        let eventID = UUID()
+        let completion = CloudRecordEnvelope(
+            type: .questCompletion,
+            entityID: eventID,
+            householdID: householdID,
+            fields: [
+                "questID": questID.uuidString,
+                "personID": personID.uuidString,
+                "occurrenceDay": "2026-07-29",
+                "awardedXP": "15",
+                "reversedAt": ""
+            ],
+            serverSequence: 3
+        )
+        let ownerEdit = CloudRecordEnvelope(
+            type: .quest, entityID: questID, householdID: householdID,
+            fields: ["title": "Pack tomorrow’s bag"], serverSequence: 4
+        )
+        let participantEdit = CloudRecordEnvelope(
+            type: .person, entityID: personID, householdID: householdID,
+            fields: ["colorHex": "#00A6A6"], serverSequence: 5
+        )
+        var exactUndo = completion
+        exactUndo.fields["reversedAt"] = "2026-07-29T18:00:00Z"
+        exactUndo.serverSequence = 6
+        exactUndo.mutationID = UUID()
+        exactUndo.fieldStamps["reversedAt"] = FieldStamp(
+            serverSequence: 6, mutationID: exactUndo.mutationID
+        )
+
+        var owner = Replica()
+        var participant = Replica()
+        owner.receive([completion, ownerEdit, participantEdit, exactUndo])
+        participant.receive([
+            participantEdit, completion, completion, exactUndo, ownerEdit
+        ])
+
+        XCTAssertEqual(owner.records, participant.records)
+        XCTAssertEqual(owner.activeXP, 0)
+        XCTAssertEqual(
+            owner.records[completion.recordName]?.fields["occurrenceDay"],
+            "2026-07-29"
+        )
+        XCTAssertEqual(
+            owner.records[ownerEdit.recordName]?.fields["title"],
+            "Pack tomorrow’s bag"
+        )
     }
 }

@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Cloud Sync 0.3 foundation
+## Current milestone — Apple Multi-Device Readiness 0.4
 
 The app provides a locally usable vertical slice:
 
@@ -23,6 +23,10 @@ The app provides a locally usable vertical slice:
 - additive offline mutation queues and conflict-safe merge rules;
 - resumable owner provisioning and CloudKit share invitation routing;
 - deterministic in-memory multi-device tests that do not require Apple credentials.
+- centralized, fail-safe Apple/CloudKit configuration readiness;
+- responsive profile, dashboard, quest, and Parent-area presentation across
+  compact and regular widths;
+- visible, named profile-color accents that supplement names and companions.
 
 ## Open and run
 

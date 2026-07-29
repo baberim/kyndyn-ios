@@ -2,7 +2,9 @@
 
 ## Platform
 
-Swift 6, SwiftUI, Swift concurrency, SwiftData, iOS/iPadOS 18+. The app is iPhone-first and uses adaptive navigation and grids on iPad.
+Swift 6, SwiftUI, Swift concurrency, SwiftData, iOS/iPadOS 18+. The app uses
+capability- and container-driven layouts across iPhone and iPad rather than
+assuming a phone-shaped screen.
 
 ## Boundaries
 
@@ -10,6 +12,8 @@ Swift 6, SwiftUI, Swift concurrency, SwiftData, iOS/iPadOS 18+. The app is iPhon
 - `ProgressionEngine.swift`: pure recurrence, due-date, completion, XP, level, streak, and family progress projections.
 - `AppModel.swift`: main-actor application orchestration and SwiftData writes.
 - `Services.swift`: LocalAuthentication, Keychain PIN storage, UserNotifications, and protocols/test substitutes for device and future services.
+- `AppConfiguration.swift`: validates centralized CloudKit build settings before
+  any live Apple container is instantiated.
 - `Views.swift`: presentation only.
 
 ## Data principles
@@ -21,6 +25,23 @@ The schema version is currently `3`. Household time zones are stored as IANA ide
 ## CloudKit direction
 
 SwiftData remains the immediate local source. `HouseholdCloudTransport` isolates CloudKit account, zone, record, change-token, share, invitation, and participant operations. `CloudSyncController` owns resumable provisioning and incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own deterministic merge/application. Production uses an owner private custom zone shared through `CKShare`; tests use an actor-backed in-memory transport. No generic kyndyn-hosted family database is introduced.
+
+## Adaptive layout principles
+
+- Respond to available container width and SwiftUI capabilities, never a device
+  model name.
+- Cap readable and management content so iPad does not become a stretched phone
+  layout.
+- Let profile and quest grids add columns only when their content retains useful
+  minimum widths.
+- Use `ViewThatFits`, adaptive grids, wrapping text, and minimum 44-point actions
+  so narrow Split View, landscape, and large Dynamic Type remain usable.
+- Treat a compact square window as another constrained container, not a separate
+  product target.
+- Keep recurrence, progression, sync, and persistence logic independent from
+  presentation size.
+- Support identity with names and companions; profile color is a supplemental,
+  accessible accent and never the sole cue.
 
 ## Entitlements and notifications
 
