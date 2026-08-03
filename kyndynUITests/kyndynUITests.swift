@@ -116,6 +116,39 @@ final class KyndynUITests: XCTestCase {
             .waitForExistence(timeout: 3))
     }
 
+    func testParentCanEditAndRestartFamilyReward() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        let familyReward = app.staticTexts["Family reward"]
+        XCTAssertTrue(familyReward.waitForExistence(timeout: 3))
+        familyReward.tap()
+
+        let title = app.textFields["Reward name"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        title.tap()
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                              count: 40))
+        title.typeText("Fictional Aquarium Trip")
+
+        let target = app.textFields["Goal XP"]
+        target.tap()
+        target.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                               count: 10))
+        target.typeText("450")
+        app.buttons["Save changes"].tap()
+        XCTAssertTrue(app.staticTexts["Family reward updated."]
+            .waitForExistence(timeout: 3))
+
+        app.buttons["Start as a new reward"].tap()
+        XCTAssertTrue(app.alerts["Start a new family reward?"]
+            .waitForExistence(timeout: 3))
+        app.alerts.buttons["Start at 0 XP"].tap()
+        XCTAssertTrue(app.staticTexts["New reward started at 0 XP."]
+            .waitForExistence(timeout: 3))
+    }
+
     func testAdaptiveDashboardSupportsLandscapeDarkModeAndLargeText() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
