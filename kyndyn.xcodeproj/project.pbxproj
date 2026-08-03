@@ -26,6 +26,7 @@
 		A10000000000000000000011 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SyncEngineTests.swift */; };
 		A10000000000000000000012 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* AppConfiguration.swift */; };
 		A10000000000000000000013 /* HouseholdTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* HouseholdTransfer.swift */; };
+		A10000000000000000000014 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* DesignSystem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 		B10000000000000000000015 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000017 /* HouseholdTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdTransfer.swift; sourceTree = "<group>"; };
+		B10000000000000000000018 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		FA2129B2301A79F000756983 /* kyndyn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = kyndyn.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -119,6 +121,7 @@
 				B10000000000000000000004 /* Services.swift */,
 				B10000000000000000000005 /* AppModel.swift */,
 				B10000000000000000000006 /* Views.swift */,
+				B10000000000000000000018 /* DesignSystem.swift */,
 				B10000000000000000000013 /* SyncEngine.swift */,
 				B10000000000000000000017 /* HouseholdTransfer.swift */,
 				G10000000000000000000007 /* Resources */,
@@ -318,6 +321,7 @@
 				A10000000000000000000004 /* Services.swift in Sources */,
 				A10000000000000000000005 /* AppModel.swift in Sources */,
 				A10000000000000000000006 /* Views.swift in Sources */,
+				A10000000000000000000014 /* DesignSystem.swift in Sources */,
 				A10000000000000000000010 /* SyncEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -395,7 +399,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
@@ -419,7 +423,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;

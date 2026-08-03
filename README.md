@@ -41,6 +41,8 @@ The app provides a locally usable vertical slice:
   today, completed today, and upcoming work;
 - parent-managed family rewards with editable XP targets and a history-safe
   start-new-reward reset;
+- a reusable native visual system with adaptive light/dark surfaces, consistent
+  quest states, and balanced Home presentation;
 - full-card completion and exact undo with deterministic occurrence identity,
   immediate XP feedback, and recent family activity;
 - device-local per-quest reminder timing that respects completion state, quiet
