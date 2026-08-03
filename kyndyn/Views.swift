@@ -42,6 +42,7 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
+            KyndynScreenBackground()
             Group {
                 if shareInbox.pending != nil ||
                     pendingInvitations.contains(where: { $0.stateRaw == "pending" }) {
@@ -65,7 +66,7 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .tint(.purple)
+        .tint(KyndynTheme.brand)
         .task {
             if deviceSettings.isEmpty, !households.isEmpty {
                 _ = try? app.ensureLocalDeviceSettings(in: context)
@@ -511,7 +512,7 @@ struct DashboardView: View {
                         } else if let person {
                             let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                             VStack(spacing: 18) {
-                        ViewThatFits(in: .horizontal) {
+                                ViewThatFits(in: .horizontal) {
                             HStack {
                                 profileArt(person)
                                 greeting(person)
@@ -521,12 +522,17 @@ struct DashboardView: View {
                                 profileArt(person)
                                 greeting(person)
                                     .multilineTextAlignment(.center)
-                            }
-                        }
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 145), spacing: 12)],
-                            spacing: 12
-                        ) {
+                                    }
+                                }
+                                .kyndynCard(
+                                    tint: Color(hex: person.colorHex),
+                                    raised: true)
+                                LazyVGrid(
+                                    columns: Array(
+                                        repeating: GridItem(.flexible(), spacing: 10),
+                                        count: 3),
+                                    spacing: 12
+                                ) {
                             stats(progress)
                         }
                         VStack(alignment: .leading, spacing: 10) {
@@ -545,7 +551,7 @@ struct DashboardView: View {
                                         value: min(Double(rewardXP(household)),
                                                    Double(rewardTarget(household))),
                                         total: Double(rewardTarget(household)))
-                        }.card()
+                                }.kyndynCard(tint: KyndynTheme.purple)
                         QuestListView(compact: true, includeUpcoming: true)
                         recentActivity(household: household, personID: person.id)
                             }
@@ -555,7 +561,9 @@ struct DashboardView: View {
                         }
                     }
                 }
-            }.navigationTitle("Today")
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Today")
         }
     }
 
@@ -582,6 +590,9 @@ struct DashboardView: View {
         }
         .pickerStyle(.segmented)
         .frame(maxWidth: 420)
+        .padding(5)
+        .background(.thinMaterial, in: RoundedRectangle(
+            cornerRadius: 12, style: .continuous))
         .accessibilityIdentifier("dashboard-view-picker")
     }
 
@@ -595,7 +606,7 @@ struct DashboardView: View {
                                Double(rewardTarget(household))),
                     total: Double(rewardTarget(household)))
                 rewardProgress(household)
-            }.card()
+            }.kyndynCard(tint: KyndynTheme.purple)
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 280, maximum: 540), spacing: 12)],
                 spacing: 12
@@ -672,7 +683,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
         }
         .buttonStyle(.plain)
-        .card()
+        .kyndynCard(tint: Color(hex: member.colorHex))
         .accessibilityLabel("\(member.name), \(waiting.count) waiting, \(completed) completed today, \(progress.xp) XP")
         .accessibilityHint("Shows \(member.name)’s dashboard")
     }
@@ -707,7 +718,7 @@ struct DashboardView: View {
                     }
                 }
             }
-        }.card()
+        }.kyndynCard()
     }
 
     private func profileArt(_ person: Person) -> some View {
@@ -787,7 +798,15 @@ struct QuestListView: View {
 
     var body: some View {
         Group {
-            if compact { content } else { NavigationStack { ScrollView { content.padding() }.navigationTitle("Today’s quests") } }
+            if compact {
+                content
+            } else {
+                NavigationStack {
+                    ScrollView { content.padding() }
+                        .background(KyndynScreenBackground())
+                        .navigationTitle("Today’s quests")
+                }
+            }
         }.errorAlert(app: app)
     }
 
@@ -801,9 +820,9 @@ struct QuestListView: View {
                     id: \.rawValue) { status in
                 let items = visible.filter { $0.1 == status }
                 if !items.isEmpty {
-                    Text(sectionTitle(status)).font(.headline)
-                        .foregroundStyle(status == .overdue ? .orange : .secondary)
-                        .accessibilityAddTraits(.isHeader)
+                    KyndynSectionHeader(
+                        title: sectionTitle(status), count: items.count,
+                        tint: statusTint(status))
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 300, maximum: 540), spacing: 12)],
                         alignment: .leading, spacing: 12
@@ -838,7 +857,7 @@ struct QuestListView: View {
                     Spacer()
                     xpLabel(quest: quest, done: done, household: household)
                 }
-                .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72,
+                .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 96,
                        alignment: .leading)
             }
             .buttonStyle(.plain)
@@ -850,8 +869,11 @@ struct QuestListView: View {
             .accessibilityHint(done
                 ? "Reverses this occurrence and recalculates progress"
                 : "Records this occurrence as complete")
+            .accessibilityValue(quest.completionMode == .sharedAll
+                ? "Shared family check-in" : "Individual check-in")
             .accessibilityIdentifier("quest-toggle-\(quest.title)")
-            .card()
+            .kyndynCard(tint: statusTint(status),
+                        raised: status == .overdue)
         }
     }
 
@@ -904,15 +926,23 @@ struct QuestListView: View {
         quest: Quest, status: QuestTemporalStatus, done: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(quest.title).font(.headline).strikethrough(done)
-                .lineLimit(2)
+            HStack(spacing: 6) {
+                Text(quest.title).font(.headline).strikethrough(done)
+                    .lineLimit(2)
+                if quest.completionMode == .sharedAll {
+                    Image(systemName: "person.2.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(KyndynTheme.purple)
+                        .accessibilityHidden(true)
+                }
+            }
             if !quest.detail.isEmpty {
                 Text(quest.detail).font(.subheadline).foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Text(statusLabel(status, quest: quest))
-                .font(.caption)
-                .foregroundStyle(status == .overdue ? .orange : .secondary)
+            KyndynStatusPill(
+                text: statusLabel(status, quest: quest),
+                systemImage: statusIcon(status), tint: statusTint(status))
                 .lineLimit(1)
         }
     }
@@ -940,14 +970,13 @@ struct QuestListView: View {
             .fixedSize()
     }
 
-    private func statusLabel(_ status: QuestTemporalStatus, quest: Quest) -> String {
-        let mode = quest.completionMode == .sharedAll ? "Shared check-in" : "Individual"
+    private func statusLabel(_ status: QuestTemporalStatus, quest _: Quest) -> String {
         switch status {
-        case .overdue: return "Overdue · \(mode)"
+        case .overdue: return "Overdue"
         case .completed: return "Completed · tap to undo"
-        case .today: return "Due today · \(mode)"
-        case .upcoming: return "Upcoming · \(mode)"
-        default: return mode
+        case .today: return "Due today"
+        case .upcoming: return "Upcoming"
+        default: return "Not active"
         }
     }
 
@@ -958,6 +987,25 @@ struct QuestListView: View {
         case .completed: return "Completed today"
         case .upcoming: return "Upcoming"
         case .inactive: return ""
+        }
+    }
+
+    private func statusTint(_ status: QuestTemporalStatus) -> Color {
+        switch status {
+        case .overdue: return KyndynTheme.amber
+        case .today: return KyndynTheme.blue
+        case .completed: return KyndynTheme.green
+        case .upcoming, .inactive: return .secondary
+        }
+    }
+
+    private func statusIcon(_ status: QuestTemporalStatus) -> String {
+        switch status {
+        case .overdue: return "exclamationmark.circle.fill"
+        case .today: return "sun.max.fill"
+        case .completed: return "checkmark.circle.fill"
+        case .upcoming: return "calendar"
+        case .inactive: return "circle"
         }
     }
 }
@@ -1951,15 +1999,23 @@ struct StatCard: View {
             Text(value).font(.title2.bold()).monospacedDigit()
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity).card()
+        .frame(maxWidth: .infinity)
+        .kyndynCard(tint: tint)
         .accessibilityElement(children: .ignore).accessibilityLabel("\(label), \(value)")
+    }
+
+    private var tint: Color {
+        switch label {
+        case "XP": return KyndynTheme.purple
+        case "Level": return KyndynTheme.blue
+        default: return KyndynTheme.pink
+        }
     }
 }
 
 extension View {
     func card() -> some View {
-        padding(16).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-            .overlay { RoundedRectangle(cornerRadius: 18).stroke(.primary.opacity(0.08)) }
+        kyndynCard()
     }
     func errorAlert(app: AppModel) -> some View {
         alert("kyndyn couldn’t save that", isPresented: Binding(get: { app.errorMessage != nil }, set: { if !$0 { app.errorMessage = nil } })) {
