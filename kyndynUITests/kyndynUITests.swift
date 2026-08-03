@@ -166,10 +166,9 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Create a sample household"]
             .waitForExistence(timeout: 8))
         app.buttons["Create a sample household"].tap()
-        tapTab("Switch", in: app)
-        let household = app.buttons["profile-whole-household"]
-        XCTAssertTrue(household.waitForExistence(timeout: 3))
-        household.tap()
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.waitForExistence(timeout: 3))
+        everyone.tap()
         XCTAssertTrue(app.staticTexts["Everyone’s day"]
             .waitForExistence(timeout: 5))
         app.terminate()
@@ -180,5 +179,11 @@ final class KyndynUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Everyone’s day"]
             .waitForExistence(timeout: 8))
+
+        app.buttons["My day"].tap()
+        XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        XCTAssertTrue(app.staticTexts["Hi, Maya"].waitForExistence(timeout: 5))
     }
 }

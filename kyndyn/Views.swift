@@ -343,6 +343,7 @@ struct ImportReviewView: View {
 struct ProfilePickerView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var settings: [LocalDeviceSettings]
     let columns = [GridItem(.adaptive(minimum: 160, maximum: 260), spacing: 18)]
@@ -355,36 +356,16 @@ struct ProfilePickerView: View {
                     Text("Choose your profile to see the right quests.").foregroundStyle(.secondary)
                 }.padding(.vertical, 28)
                 LazyVGrid(columns: columns, spacing: 18) {
-                    Button {
-                        app.selectedPersonID = nil
-                        if let setting = settings.first {
-                            setting.selectedPersonID = nil
-                            setting.showsHouseholdDashboard = true
-                        }
-                        try? context.save()
-                    } label: {
-                        VStack(spacing: 12) {
-                            Image(systemName: "house.and.flag.fill")
-                                .font(.system(size: 58))
-                                .frame(height: 112)
-                            Text("Whole household").font(.title3.bold())
-                            Text("See everyone’s day").font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity).padding()
-                        .background(.purple.opacity(0.12),
-                                    in: RoundedRectangle(cornerRadius: 24))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("profile-whole-household")
                     ForEach(people.filter { $0.deletedAt == nil }) { person in
                         Button {
                             app.selectedPersonID = person.id
+                            app.selectedTab = 0
                             if let setting = settings.first {
                                 setting.selectedPersonID = person.id
                                 setting.showsHouseholdDashboard = false
                             }
                             try? context.save()
+                            dismiss()
                         } label: {
                             VStack(spacing: 12) {
                                 CompanionArt(id: person.companionID)
@@ -508,6 +489,7 @@ struct ParentAuthenticationView: View {
 
 struct DashboardView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var completions: [QuestCompletion]
@@ -518,12 +500,16 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                if let household = households.first,
-                   deviceSettings.first?.showsHouseholdDashboard == true {
-                    householdDashboard(household)
-                } else if let person, let household = households.first {
-                    let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
-                    VStack(spacing: 18) {
+                if let household = households.first {
+                    VStack(spacing: 16) {
+                        dashboardModePicker
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                        if deviceSettings.first?.showsHouseholdDashboard == true {
+                            householdDashboard(household)
+                        } else if let person {
+                            let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                            VStack(spacing: 18) {
                         ViewThatFits(in: .horizontal) {
                             HStack {
                                 profileArt(person)
@@ -558,31 +544,46 @@ struct DashboardView: View {
                         }.card()
                         QuestListView(compact: true, includeUpcoming: true)
                         recentActivity(household: household, personID: person.id)
+                            }
+                            .padding()
+                            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+                            .frame(maxWidth: .infinity)
+                        }
                     }
-                    .padding()
-                    .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
-                    .frame(maxWidth: .infinity)
                 }
             }.navigationTitle("Today")
         }
     }
 
-    private func householdDashboard(_ household: Household) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Everyone’s day").font(.largeTitle.bold())
-                        .accessibilityAddTraits(.isHeader)
-                    Text(household.name).foregroundStyle(.secondary)
+    private var dashboardModePicker: some View {
+        Picker("Dashboard view", selection: Binding(
+            get: { deviceSettings.first?.showsHouseholdDashboard == true },
+            set: { showsEveryone in
+                guard let setting = deviceSettings.first else { return }
+                setting.showsHouseholdDashboard = showsEveryone
+                if !showsEveryone, app.selectedPersonID == nil {
+                    let fallback = people.first {
+                        $0.id == setting.selectedPersonID && $0.deletedAt == nil
+                    } ?? people.first {
+                        $0.id == setting.devicePersonID && $0.deletedAt == nil
+                    } ?? people.first { $0.deletedAt == nil }
+                    app.selectedPersonID = fallback?.id
+                    setting.selectedPersonID = fallback?.id
                 }
-                Spacer()
-                NavigationLink {
-                    ProfilePickerView()
-                } label: {
-                    Label("Choose person", systemImage: "person.crop.circle")
-                }
-                .buttonStyle(.bordered)
+                try? context.save()
             }
+        )) {
+            Text("My day").tag(false)
+            Text("Everyone").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 420)
+        .accessibilityIdentifier("dashboard-view-picker")
+    }
+
+    private func householdDashboard(_ household: Household) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            householdHeading(household)
             VStack(alignment: .leading, spacing: 10) {
                 Text(household.rewardTitle).font(.headline)
                 ProgressView(
@@ -591,23 +592,12 @@ struct DashboardView: View {
                     total: Double(household.rewardGoalXP))
                 rewardProgress(household)
             }.card()
-            ForEach(people.filter { $0.deletedAt == nil }) { member in
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Circle().fill(Color(hex: member.colorHex))
-                            .frame(width: 14, height: 14)
-                        Text(member.name).font(.title2.bold())
-                        Spacer()
-                        let progress = ProgressionEngine.progress(
-                            personID: member.id, completions: completions,
-                            now: .now,
-                            timeZoneIdentifier: household.timeZoneIdentifier)
-                        Text("\(progress.xp) XP")
-                            .font(.subheadline.bold().monospacedDigit())
-                    }
-                    QuestListView(compact: true, personID: member.id,
-                                  includeUpcoming: true,
-                                  showsCompactHeading: false)
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 280, maximum: 540), spacing: 12)],
+                spacing: 12
+            ) {
+                ForEach(people.filter { $0.deletedAt == nil }) { member in
+                    householdMemberSummary(member, household: household)
                 }
             }
             recentActivity(household: household, personID: nil)
@@ -615,6 +605,72 @@ struct DashboardView: View {
         .padding()
         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
         .frame(maxWidth: .infinity)
+    }
+
+    private func householdHeading(_ household: Household) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Everyone’s day").font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text(household.name).foregroundStyle(.secondary)
+        }
+    }
+
+    private func householdMemberSummary(
+        _ member: Person, household: Household
+    ) -> some View {
+        let memberQuests = quests.compactMap { quest -> (Quest, QuestTemporalStatus)? in
+            let status = ProgressionEngine.temporalStatus(
+                for: quest, personID: member.id, completions: completions,
+                now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+            return status == .inactive ? nil : (quest, status)
+        }
+        let waiting = memberQuests.filter { $0.1 == .overdue || $0.1 == .today }
+        let completed = memberQuests.filter { $0.1 == .completed }.count
+        let progress = ProgressionEngine.progress(
+            personID: member.id, completions: completions, now: .now,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+
+        return Button {
+            app.selectedPersonID = member.id
+            app.selectedTab = 0
+            if let setting = deviceSettings.first {
+                setting.selectedPersonID = member.id
+                setting.showsHouseholdDashboard = false
+            }
+            try? context.save()
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Circle().fill(Color(hex: member.colorHex))
+                        .frame(width: 14, height: 14)
+                    Text(member.name).font(.headline)
+                    Spacer()
+                    Text("\(progress.xp) XP")
+                        .font(.subheadline.bold().monospacedDigit())
+                }
+                HStack(spacing: 16) {
+                    Label("\(waiting.count) waiting", systemImage: "circle.dashed")
+                    Label("\(completed) done", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+                .font(.subheadline)
+                if let next = waiting.first {
+                    Text(next.0.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("All clear for today")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+        }
+        .buttonStyle(.plain)
+        .card()
+        .accessibilityLabel("\(member.name), \(waiting.count) waiting, \(completed) completed today, \(progress.xp) XP")
+        .accessibilityHint("Shows \(member.name)’s dashboard")
     }
 
     private func recentActivity(household: Household, personID: UUID?) -> some View {
@@ -756,21 +812,14 @@ struct QuestListView: View {
                 toggle(quest: quest, done: done, personID: personID,
                        household: household)
             } label: {
-                ViewThatFits(in: .horizontal) {
                 HStack(spacing: 14) {
                     completionIcon(quest: quest, done: done)
                     questDetails(quest: quest, status: status, done: done)
                     Spacer()
                     xpLabel(quest: quest, done: done, household: household)
                 }
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        completionIcon(quest: quest, done: done)
-                        questDetails(quest: quest, status: status, done: done)
-                    }
-                    xpLabel(quest: quest, done: done, household: household)
-                }
-                }
+                .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72,
+                       alignment: .leading)
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
@@ -836,12 +885,15 @@ struct QuestListView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(quest.title).font(.headline).strikethrough(done)
+                .lineLimit(2)
             if !quest.detail.isEmpty {
                 Text(quest.detail).font(.subheadline).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Text(statusLabel(status, quest: quest))
                 .font(.caption)
                 .foregroundStyle(status == .overdue ? .orange : .secondary)
+                .lineLimit(1)
         }
     }
 
@@ -865,6 +917,7 @@ struct QuestListView: View {
         return Text("+\(value) XP")
             .font(.subheadline.bold())
             .foregroundStyle(.purple)
+            .fixedSize()
     }
 
     private func statusLabel(_ status: QuestTemporalStatus, quest: Quest) -> String {

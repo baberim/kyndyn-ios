@@ -2,11 +2,11 @@
 
 ## Everyday workflow
 
-The Home tab remembers either one selected family member or the whole-household
-view on this device. Person mode shows that profile's XP, level, streak, reward
-progress, grouped quest states, and recent completions. Household mode groups
-the same daily states under every active person and provides a quick path back
-to profile selection.
+The Home tab remembers both the selected family member and whether this device
+last showed **My day** or **Everyone**. Person mode shows that profile's XP,
+level, streak, reward progress, grouped quest states, and recent completions.
+Everyone mode provides compact daily summaries for every active person without
+treating the household as another profile.
 
 Quest cards are complete tap targets. A successful check-in is visible in
 SwiftData immediately, displays the exact effective XP, and queues CloudKit work
@@ -48,8 +48,9 @@ Debug remains in Development. Production and Development data do not mix.
 
 ## TestFlight — What to Test
 
-- Switch between a person and **Whole household**, relaunch, and confirm the
-  chosen view remains active.
+- Switch between **My day** and **Everyone**, relaunch, and confirm the view
+  persists. Use the profile selector to change people and confirm it returns to
+  that person's Home view.
 - Confirm Overdue, Due today, Completed today, and Upcoming sections read
   correctly for one-time, daily, weekly, and every-other-week quests.
 - Tap anywhere on a quest card, verify immediate XP feedback, then undo it.
