@@ -42,7 +42,9 @@ private struct KyndynCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(16)
+            .padding(.vertical, 16)
+            .padding(.trailing, 16)
+            .padding(.leading, tint == nil ? 16 : 24)
             .background {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(colorScheme == .dark
@@ -59,8 +61,8 @@ private struct KyndynCardModifier: ViewModifier {
                     Capsule()
                         .fill(tint)
                         .frame(width: 4)
-                        .padding(.vertical, 13)
-                        .padding(.leading, 5)
+                        .padding(.vertical, 16)
+                        .padding(.leading, 10)
                         .accessibilityHidden(true)
                 }
             }

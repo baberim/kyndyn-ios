@@ -11,6 +11,8 @@ a reusable native Kyndyn visual foundation.
   translucent cards with restrained status-color edges.
 - Profile colors remain identity accents. Blue, green, and amber communicate
   due, completed, and overdue states consistently.
+- The active profile's selected color now drives the native interactive tint,
+  including the selected tab. Kyndyn purple remains the no-profile fallback.
 - Typography remains Dynamic Type driven and controls remain standard SwiftUI
   controls for accessibility and expected iOS behavior.
 
@@ -22,6 +24,8 @@ a reusable native Kyndyn visual foundation.
   section counts, and consistent overdue/due/completed/upcoming accents.
 - Shared card styling is reusable by later Parent, onboarding, profile, and data
   management polish passes.
+- Card accent rails are inset from the outer edge with additional content
+  spacing so color remains an accent instead of crowding labels and controls.
 
 ## Behavior and data impact
 

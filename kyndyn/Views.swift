@@ -40,6 +40,16 @@ struct RootView: View {
     @Query private var pendingInvitations: [PendingShareInvitation]
     @State private var shareInbox = CloudShareInbox.shared
 
+    private var activeAccent: Color {
+        guard let selectedID = app.selectedPersonID,
+              let selected = people.first(where: {
+                  $0.id == selectedID && $0.deletedAt == nil
+              }) else {
+            return KyndynTheme.brand
+        }
+        return Color(hex: selected.colorHex)
+    }
+
     var body: some View {
         ZStack {
             KyndynScreenBackground()
@@ -66,7 +76,7 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .tint(KyndynTheme.brand)
+        .tint(activeAccent)
         .task {
             if deviceSettings.isEmpty, !households.isEmpty {
                 _ = try? app.ensureLocalDeviceSettings(in: context)
