@@ -4,6 +4,14 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+private final class SendableBackgroundRefreshTask: @unchecked Sendable {
+    let value: BGAppRefreshTask
+
+    init(_ value: BGAppRefreshTask) {
+        self.value = value
+    }
+}
+
 @MainActor
 @Observable final class CloudShareInbox {
     static let shared = CloudShareInbox()
@@ -33,15 +41,22 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         application.registerForRemoteNotifications()
         BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: Self.refreshIdentifier, using: nil
-        ) { task in
-            guard let refreshTask = task as? BGAppRefreshTask else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-            AutomaticSyncBackgroundBridge.shared.handle(refreshTask)
-        }
+            forTaskWithIdentifier: Self.refreshIdentifier,
+            using: nil,
+            launchHandler: Self.handleBackgroundRefresh
+        )
         return true
+    }
+
+    nonisolated private static func handleBackgroundRefresh(_ task: BGTask) {
+        guard let refreshTask = task as? BGAppRefreshTask else {
+            task.setTaskCompleted(success: false)
+            return
+        }
+        let sendableTask = SendableBackgroundRefreshTask(refreshTask)
+        Task { @MainActor in
+            AutomaticSyncBackgroundBridge.shared.handle(sendableTask.value)
+        }
     }
 
     func application(

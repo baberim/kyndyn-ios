@@ -500,6 +500,7 @@ struct ParentAuthenticationView: View {
 
 struct DashboardView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
     @Query private var people: [Person]
@@ -571,6 +572,10 @@ struct DashboardView: View {
                         }
                     }
                 }
+            }
+            .refreshable {
+                automaticSync.request(.manual)
+                await automaticSync.waitUntilIdle()
             }
             .background(KyndynScreenBackground())
             .navigationTitle("Today")
@@ -781,6 +786,7 @@ struct DashboardView: View {
 
 struct QuestListView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
@@ -813,6 +819,10 @@ struct QuestListView: View {
             } else {
                 NavigationStack {
                     ScrollView { content.padding() }
+                        .refreshable {
+                            automaticSync.request(.manual)
+                            await automaticSync.waitUntilIdle()
+                        }
                         .background(KyndynScreenBackground())
                         .navigationTitle("Today’s quests")
                 }
