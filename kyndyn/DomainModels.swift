@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 3
+    static let version = 5
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -29,6 +29,8 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var deletedAt: Date?
     var rewardTitle: String
     var rewardGoalXP: Int
+    // Local diagnostic classification only. Never included in CloudKit records.
+    var isSample: Bool = false
 
     init(id: UUID = UUID(), name: String, timeZoneIdentifier: String, rewardTitle: String = "Family Adventure", rewardGoalXP: Int = 300) {
         self.id = id
@@ -38,6 +40,23 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.createdAt = .now
         self.rewardTitle = rewardTitle
         self.rewardGoalXP = rewardGoalXP
+    }
+}
+
+@Model final class HouseholdImportReceipt {
+    @Attribute(.unique) var fingerprint: String
+    var householdID: UUID
+    var sourceKind: String
+    var sourceVersion: Int
+    var importedAt: Date
+
+    init(fingerprint: String, householdID: UUID, sourceKind: String,
+         sourceVersion: Int, importedAt: Date = .now) {
+        self.fingerprint = fingerprint
+        self.householdID = householdID
+        self.sourceKind = sourceKind
+        self.sourceVersion = sourceVersion
+        self.importedAt = importedAt
     }
 }
 
@@ -77,6 +96,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var participantIDs: [UUID]
     var scheduleKindRaw: String
     var weekdays: [Int]
+    var repeatIntervalWeeks: Int = 1
     var startDate: Date
     var dueAt: Date?
     var createdAt: Date
@@ -91,7 +111,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         set { scheduleKindRaw = newValue.rawValue }
     }
 
-    init(id: UUID = UUID(), householdID: UUID, title: String, detail: String = "", xp: Int, participantIDs: [UUID], completionMode: QuestCompletionMode = .individual, scheduleKind: ScheduleKind = .oneTime, weekdays: [Int] = [], startDate: Date = .now, dueAt: Date? = nil) {
+    init(id: UUID = UUID(), householdID: UUID, title: String, detail: String = "", xp: Int, participantIDs: [UUID], completionMode: QuestCompletionMode = .individual, scheduleKind: ScheduleKind = .oneTime, weekdays: [Int] = [], repeatIntervalWeeks: Int = 1, startDate: Date = .now, dueAt: Date? = nil) {
         self.id = id
         self.householdID = householdID
         self.title = title
@@ -101,6 +121,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.completionModeRaw = participantIDs.count == 1 ? QuestCompletionMode.individual.rawValue : completionMode.rawValue
         self.scheduleKindRaw = scheduleKind.rawValue
         self.weekdays = weekdays
+        self.repeatIntervalWeeks = repeatIntervalWeeks
         self.startDate = startDate
         self.dueAt = dueAt
         self.createdAt = .now

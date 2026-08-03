@@ -356,11 +356,19 @@ enum SyncSnapshot {
         let schedule = CloudRecordEnvelope(type: .questSchedule, entityID: value.id,
             householdID: value.householdID, fields: [
                 "questID": value.id.uuidString, "kind": value.scheduleKindRaw,
-                "weekdays": value.weekdays.sorted().map(String.init).joined(separator: ","),
+                "weekdays": encodedWeekdays(value),
                 "startDate": value.startDate.ISO8601Format(),
                 "dueAt": value.dueAt?.ISO8601Format() ?? ""
             ], mutationID: UUID(), tombstone: value.deletedAt != nil)
         return [quest, schedule]
+    }
+
+    private static func encodedWeekdays(_ quest: Quest) -> String {
+        var values = quest.weekdays.sorted().map(String.init)
+        if quest.scheduleKind == .weekly && quest.repeatIntervalWeeks > 1 {
+            values.append("interval=\(quest.repeatIntervalWeeks)")
+        }
+        return values.joined(separator: ",")
     }
 
     static func completion(_ value: QuestCompletion,
@@ -872,7 +880,13 @@ enum SyncRemoteApplier {
                 )).first {
                     quest.scheduleKindRaw =
                         record.fields["kind"] ?? quest.scheduleKindRaw
-                    quest.weekdays = intList(record.fields["weekdays"])
+                    let encodedWeekdays = record.fields["weekdays"] ?? ""
+                    quest.weekdays = intList(encodedWeekdays)
+                    quest.repeatIntervalWeeks = encodedWeekdays
+                        .split(separator: ",")
+                        .first(where: { $0.hasPrefix("interval=") })
+                        .flatMap { Int($0.dropFirst("interval=".count)) }
+                        .map { max(1, $0) } ?? 1
                     quest.startDate = date(record.fields["startDate"])
                         ?? quest.startDate
                     quest.dueAt = date(record.fields["dueAt"])

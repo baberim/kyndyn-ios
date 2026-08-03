@@ -41,6 +41,28 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Complete Make your bed"].waitForExistence(timeout: 3))
     }
 
+    func testRealFamilySetupCreatesNoSampleRecords() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing-reset",
+            "-ui-testing-cloud-unconfigured"
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["Set up my family"]
+            .waitForExistence(timeout: 8))
+        app.buttons["Set up my family"].tap()
+        let household = app.textFields["Household name"]
+        XCTAssertTrue(household.waitForExistence(timeout: 3))
+        household.tap(); household.typeText("Fictional Pilot Family")
+        let parent = app.textFields["Parent name"]
+        parent.tap(); parent.typeText("Taylor")
+        app.buttons["Create family"].tap()
+        XCTAssertTrue(app.staticTexts["Hi, Taylor"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Maya"].exists)
+        XCTAssertFalse(app.staticTexts["Leo"].exists)
+        XCTAssertFalse(app.staticTexts["Zoe"].exists)
+    }
+
     func testParentAreaRequiresAuthentication() throws {
         let app = launch()
         tapTab("Switch", in: app)
@@ -64,6 +86,21 @@ final class KyndynUITests: XCTestCase {
         name.tap(); name.typeText("Casey")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Casey"].waitForExistence(timeout: 3))
+    }
+
+    func testProfileColorSelectionDoesNotFallThroughToOrange() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        app.staticTexts["People"].tap()
+        app.buttons["Add"].tap()
+        let teal = app.buttons["profile-color-#00A6A6"]
+        XCTAssertTrue(teal.waitForExistence(timeout: 3))
+        teal.tap()
+        XCTAssertEqual(teal.value as? String, "Selected")
+        XCTAssertEqual(app.buttons["profile-color-#FF9500"].value as? String,
+                       "Not selected")
     }
 
     func testParentCanReviewLocalOnlyFamilySyncStatus() throws {

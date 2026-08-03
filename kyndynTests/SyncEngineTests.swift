@@ -512,6 +512,18 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         XCTAssertEqual(replacementCount, 1)
     }
 
+    func testQuestScheduleSnapshotCarriesEveryOtherWeekInterval() async throws {
+        let householdID = UUID()
+        let quest = Quest(
+            householdID: householdID, title: "Monday handoff", xp: 10,
+            participantIDs: [UUID()], scheduleKind: .weekly,
+            weekdays: [2], repeatIntervalWeeks: 2)
+        let schedule = try XCTUnwrap(SyncSnapshot.quest(quest).first {
+            $0.type == .questSchedule
+        })
+        XCTAssertEqual(schedule.fields["weekdays"], "2,interval=2")
+    }
+
     func testStaleChangeTokenFallsBackToFullZoneFetch() async throws {
         let (container, household, state, records) = try fixture()
         let transport = InMemoryCloudTransport()

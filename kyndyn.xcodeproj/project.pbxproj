@@ -25,6 +25,7 @@
 		A10000000000000000000010 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* SyncEngine.swift */; };
 		A10000000000000000000011 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SyncEngineTests.swift */; };
 		A10000000000000000000012 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* AppConfiguration.swift */; };
+		A10000000000000000000013 /* HouseholdTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* HouseholdTransfer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 		B10000000000000000000014 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B10000000000000000000017 /* HouseholdTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdTransfer.swift; sourceTree = "<group>"; };
 		FA2129B2301A79F000756983 /* kyndyn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = kyndyn.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -118,6 +120,7 @@
 				B10000000000000000000005 /* AppModel.swift */,
 				B10000000000000000000006 /* Views.swift */,
 				B10000000000000000000013 /* SyncEngine.swift */,
+				B10000000000000000000017 /* HouseholdTransfer.swift */,
 				G10000000000000000000007 /* Resources */,
 				G10000000000000000000003 /* Resources/Companions */,
 			);
@@ -309,6 +312,7 @@
 			files = (
 				A10000000000000000000001 /* kyndynApp.swift in Sources */,
 				A10000000000000000000012 /* AppConfiguration.swift in Sources */,
+				A10000000000000000000013 /* HouseholdTransfer.swift in Sources */,
 				A10000000000000000000002 /* DomainModels.swift in Sources */,
 				A10000000000000000000003 /* ProgressionEngine.swift in Sources */,
 				A10000000000000000000004 /* Services.swift in Sources */,
@@ -386,18 +390,18 @@
 		L10000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.6.0;
-				APS_ENVIRONMENT = development;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -410,18 +414,18 @@
 		L10000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
-				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = "";
+				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
-				KYNDYN_CLOUD_SYNC_CONFIGURED = NO;
-				MARKETING_VERSION = 0.6.0;
-				APS_ENVIRONMENT = production;
+				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

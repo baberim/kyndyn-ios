@@ -1,11 +1,12 @@
 # CloudKit development configuration
 
-The project owner authorized Development CloudKit validation in 0.5. The app
+The project owner authorized CloudKit validation in 0.5. The app
 uses:
 
 - app bundle identifier `com.kyndynfamily.kyndyn`;
 - iCloud container `iCloud.com.kyndynfamily.kyndyn`;
-- CloudKit Development environment only.
+- CloudKit Development for Debug builds and CloudKit Production for archived
+  Release/TestFlight builds.
 
 No Apple Developer Team identifier, profile, certificate, or credential is
 committed. Select the authorized team locally in Xcode when signing a physical
@@ -13,9 +14,9 @@ device build.
 
 The Xcode project centralizes three build settings:
 
-- `KYNDYN_CLOUD_SYNC_CONFIGURED` — `YES` for Debug and `NO` for Release;
-- `KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER` — the authorized container for Debug
-  and blank for Release;
+- `KYNDYN_CLOUD_SYNC_CONFIGURED` — `YES` for both Debug and Release;
+- `KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER` — the authorized container for both
+  configurations;
 - `KyndynCloudKitEnvironment` — generated as `development` for Debug and
   `production` for Release, for diagnostics and configuration review.
 
@@ -35,8 +36,8 @@ failure.
    background declarations, but Xcode must refresh the signed development
    profile for the locally selected team.
 4. Confirm the generated entitlements contain the same container identifier.
-   Development builds must use Apple’s Development environment. Do not manually
-   enable a production environment or deploy a production schema.
+   Debug builds use Apple’s Development environment. Archived/TestFlight builds
+   use Production.
 5. Build to two physical devices signed into different permitted iCloud test
    accounts. Use the CloudKit **Development** environment.
 6. On device A, authenticate as a kyndyn parent, open **Parent → Family sync**,
@@ -52,5 +53,8 @@ failure.
    invitation URLs, or derived counters were uploaded.
 
 Development schema records were initialized by live fictional-data validation.
-No production schema was deployed. Do not deploy to Production without a
-separate explicit project-owner approval and privacy/release review.
+Before uploading the next TestFlight build, review the Development schema in
+CloudKit Dashboard and deploy that schema to Production. Deploying the schema
+does not copy Development records or fictional test data. Validate the uploaded
+build with a fresh fictional Production household before relying on it for a
+real-family pilot.
