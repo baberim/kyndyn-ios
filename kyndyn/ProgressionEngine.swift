@@ -33,8 +33,21 @@ enum ProgressionEngine {
         switch quest.scheduleKind {
         case .oneTime: return calendar.isDate(date, inSameDayAs: quest.startDate)
         case .daily: return true
-        case .weekly: return quest.weekdays.contains(calendar.component(.weekday, from: date))
+        case .weekly:
+            return quest.weekdays.contains(calendar.component(.weekday, from: date))
+                && isActiveWeek(for: quest, date: date, calendar: calendar)
         }
+    }
+
+    private static func isActiveWeek(for quest: Quest, date: Date, calendar: Calendar) -> Bool {
+        let interval = max(1, quest.repeatIntervalWeeks)
+        guard interval > 1 else { return true }
+        guard let anchor = calendar.dateInterval(of: .weekOfYear, for: quest.startDate)?.start,
+              let candidate = calendar.dateInterval(of: .weekOfYear, for: date)?.start else {
+            return false
+        }
+        let weeks = calendar.dateComponents([.weekOfYear], from: anchor, to: candidate).weekOfYear ?? 0
+        return weeks >= 0 && weeks.isMultiple(of: interval)
     }
 
     static func occurrenceDate(for quest: Quest, on date: Date, timeZoneIdentifier: String) -> Date? {
@@ -48,9 +61,10 @@ enum ProgressionEngine {
         case .daily:
             return today
         case .weekly:
-            for offset in 0...6 {
+            let searchDays = max(6, max(1, quest.repeatIntervalWeeks) * 7 + 6)
+            for offset in 0...searchDays {
                 guard let candidate = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
-                if candidate >= start && quest.weekdays.contains(calendar.component(.weekday, from: candidate)) {
+                if candidate >= start && isScheduled(quest, on: candidate, timeZoneIdentifier: timeZoneIdentifier) {
                     return candidate
                 }
             }
@@ -76,7 +90,14 @@ enum ProgressionEngine {
         if completions.contains(where: {
             $0.questID == quest.id && $0.personID == personID &&
             $0.occurrenceDay == key && $0.reversedAt == nil
-        }) { return .completed }
+        }) {
+            if quest.scheduleKind == .weekly,
+               quest.repeatIntervalWeeks > 1,
+               !isActiveWeek(for: quest, date: today, calendar: calendar) {
+                return .upcoming
+            }
+            return .completed
+        }
         if let dueAt = quest.dueAt, now > dueAt { return .overdue }
         if let occurrence = occurrenceDate(for: quest, on: now, timeZoneIdentifier: timeZoneIdentifier),
            occurrence < today { return .overdue }
@@ -95,9 +116,10 @@ enum ProgressionEngine {
         }
         guard quest.scheduleKind == .weekly else { return 0 }
         let today = calendar.startOfDay(for: now)
-        for offset in 0...7 {
+        let searchDays = max(7, max(1, quest.repeatIntervalWeeks) * 7 + 6)
+        for offset in 0...searchDays {
             guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
-            if quest.weekdays.contains(calendar.component(.weekday, from: date)) { return offset }
+            if isScheduled(quest, on: date, timeZoneIdentifier: timeZoneIdentifier) { return offset }
         }
         return 0
     }

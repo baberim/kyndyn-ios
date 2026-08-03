@@ -88,6 +88,21 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Casey"].waitForExistence(timeout: 3))
     }
 
+    func testProfileColorSelectionDoesNotFallThroughToOrange() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        app.staticTexts["People"].tap()
+        app.buttons["Add"].tap()
+        let teal = app.buttons["profile-color-#00A6A6"]
+        XCTAssertTrue(teal.waitForExistence(timeout: 3))
+        teal.tap()
+        XCTAssertEqual(teal.value as? String, "Selected")
+        XCTAssertEqual(app.buttons["profile-color-#FF9500"].value as? String,
+                       "Not selected")
+    }
+
     func testParentCanReviewLocalOnlyFamilySyncStatus() throws {
         let app = launch(parentUnlocked: true)
         tapTab("Switch", in: app)

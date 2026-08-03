@@ -66,6 +66,7 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var participantIDs: [UUID]
         var scheduleKind: ScheduleKind
         var weekdays: [Int]
+        var repeatIntervalWeeks: Int? = nil
         var startDate: Date
         var dueAt: Date?
         var createdAt: Date
@@ -160,6 +161,7 @@ enum HouseholdTransferCodec {
                       completionMode: $0.completionMode,
                       participantIDs: $0.participantIDs,
                       scheduleKind: $0.scheduleKind, weekdays: $0.weekdays,
+                      repeatIntervalWeeks: $0.repeatIntervalWeeks,
                       startDate: $0.startDate, dueAt: $0.dueAt,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
@@ -244,6 +246,7 @@ enum HouseholdTransferCodec {
                 && !$0.participantIDs.isEmpty
                 && Set($0.participantIDs).isSubset(of: personIDs)
                 && Set($0.weekdays).isSubset(of: Set(1...7))
+                && (1...2).contains($0.repeatIntervalWeeks ?? 1)
         }) else {
             throw HouseholdTransferError.malformed("A quest or assignment is invalid.")
         }
@@ -306,6 +309,7 @@ enum HouseholdRestoreService {
                 participantIDs: value.participantIDs,
                 completionMode: value.completionMode,
                 scheduleKind: value.scheduleKind, weekdays: value.weekdays,
+                repeatIntervalWeeks: value.repeatIntervalWeeks ?? 1,
                 startDate: value.startDate, dueAt: value.dueAt)
             quest.createdAt = value.createdAt
             quest.deletedAt = value.deletedAt
@@ -616,6 +620,7 @@ enum RowanTransferConverter {
                 id: id, title: title, detail: detail, xp: sourceQuest.xp ?? 10,
                 completionMode: mode, participantIDs: assignments,
                 scheduleKind: recurrence.kind, weekdays: recurrence.weekdays,
+                repeatIntervalWeeks: 1,
                 startDate: start, dueAt: due, createdAt: start,
                 deletedAt: sourceQuest.active == false ? .now : nil))
         }

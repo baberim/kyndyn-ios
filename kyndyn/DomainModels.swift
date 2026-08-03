@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 4
+    static let version = 5
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -96,6 +96,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var participantIDs: [UUID]
     var scheduleKindRaw: String
     var weekdays: [Int]
+    var repeatIntervalWeeks: Int = 1
     var startDate: Date
     var dueAt: Date?
     var createdAt: Date
@@ -110,7 +111,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         set { scheduleKindRaw = newValue.rawValue }
     }
 
-    init(id: UUID = UUID(), householdID: UUID, title: String, detail: String = "", xp: Int, participantIDs: [UUID], completionMode: QuestCompletionMode = .individual, scheduleKind: ScheduleKind = .oneTime, weekdays: [Int] = [], startDate: Date = .now, dueAt: Date? = nil) {
+    init(id: UUID = UUID(), householdID: UUID, title: String, detail: String = "", xp: Int, participantIDs: [UUID], completionMode: QuestCompletionMode = .individual, scheduleKind: ScheduleKind = .oneTime, weekdays: [Int] = [], repeatIntervalWeeks: Int = 1, startDate: Date = .now, dueAt: Date? = nil) {
         self.id = id
         self.householdID = householdID
         self.title = title
@@ -120,6 +121,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.completionModeRaw = participantIDs.count == 1 ? QuestCompletionMode.individual.rawValue : completionMode.rawValue
         self.scheduleKindRaw = scheduleKind.rawValue
         self.weekdays = weekdays
+        self.repeatIntervalWeeks = repeatIntervalWeeks
         self.startDate = startDate
         self.dueAt = dueAt
         self.createdAt = .now

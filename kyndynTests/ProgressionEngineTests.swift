@@ -78,6 +78,64 @@ final class ProgressionEngineTests: XCTestCase {
                        ProgressionEngine.dayKey(monday, timeZoneIdentifier: household.timeZoneIdentifier))
     }
 
+    @MainActor func testEveryOtherWeekUsesStartWeekAsAnchor() throws {
+        let (_, household, _, quest) = try models()
+        quest.scheduleKind = .weekly
+        quest.weekdays = [2]
+        quest.repeatIntervalWeeks = 2
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        quest.startDate = calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 3, hour: 9))!
+        let firstMonday = quest.startDate
+        let skippedMonday = calendar.date(byAdding: .day, value: 7,
+                                           to: firstMonday)!
+        let nextMonday = calendar.date(byAdding: .day, value: 14,
+                                        to: firstMonday)!
+
+        XCTAssertTrue(ProgressionEngine.isScheduled(
+            quest, on: firstMonday,
+            timeZoneIdentifier: household.timeZoneIdentifier))
+        XCTAssertFalse(ProgressionEngine.isScheduled(
+            quest, on: skippedMonday,
+            timeZoneIdentifier: household.timeZoneIdentifier))
+        XCTAssertTrue(ProgressionEngine.isScheduled(
+            quest, on: nextMonday,
+            timeZoneIdentifier: household.timeZoneIdentifier))
+        XCTAssertEqual(ProgressionEngine.occurrenceKey(
+            for: quest, on: skippedMonday,
+            timeZoneIdentifier: household.timeZoneIdentifier),
+            ProgressionEngine.dayKey(firstMonday,
+                timeZoneIdentifier: household.timeZoneIdentifier))
+
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: quest.participantIDs[0],
+            occurrenceDay: ProgressionEngine.dayKey(firstMonday,
+                timeZoneIdentifier: household.timeZoneIdentifier),
+            completedAt: firstMonday, awardedXP: quest.xp)
+        XCTAssertEqual(ProgressionEngine.temporalStatus(
+            for: quest, personID: quest.participantIDs[0],
+            completions: [completion], now: skippedMonday,
+            timeZoneIdentifier: household.timeZoneIdentifier), .upcoming)
+    }
+
+    @MainActor func testEveryOtherWeekRemainsAnchoredAcrossDST() throws {
+        let (_, household, _, quest) = try models()
+        quest.scheduleKind = .weekly
+        quest.weekdays = [2]
+        quest.repeatIntervalWeeks = 2
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        quest.startDate = calendar.date(from: DateComponents(
+            year: 2026, month: 3, day: 2, hour: 9))!
+        let afterDST = calendar.date(from: DateComponents(
+            year: 2026, month: 3, day: 16, hour: 9))!
+        XCTAssertTrue(ProgressionEngine.isScheduled(
+            quest, on: afterDST,
+            timeZoneIdentifier: household.timeZoneIdentifier))
+    }
+
     @MainActor func testMidnightUsesHouseholdNotUTC() throws {
         let (_, household, _, quest) = try models()
         let date = ISO8601DateFormatter().date(from: "2026-07-29T02:30:00Z")!
@@ -252,7 +310,8 @@ final class HouseholdTransferTests: XCTestCase {
             colorHex: "#6F2DBD", companionID: "spark")
         let quest = Quest(
             householdID: household.id, title: "Sort art supplies",
-            xp: 17, participantIDs: [parent.id], scheduleKind: .daily)
+            xp: 17, participantIDs: [parent.id], scheduleKind: .weekly,
+            weekdays: [2], repeatIntervalWeeks: 2)
         let event = QuestCompletion(
             householdID: household.id, questID: quest.id,
             personID: parent.id, occurrenceDay: "2026-07-27",
@@ -276,6 +335,9 @@ final class HouseholdTransferTests: XCTestCase {
         XCTAssertEqual(restoredEvents.map(\.id), [event.id])
         XCTAssertEqual(restoredEvents.first?.awardedXP, 13)
         XCTAssertNotNil(restoredEvents.first?.reversedAt)
+        let restoredQuest = try destination.mainContext.fetch(
+            FetchDescriptor<Quest>()).first
+        XCTAssertEqual(restoredQuest?.repeatIntervalWeeks, 2)
         XCTAssertEqual(ProgressionEngine.familyXP(restoredEvents), 0)
         XCTAssertEqual(try destination.mainContext.fetch(
             FetchDescriptor<HouseholdImportReceipt>()).count, 1)

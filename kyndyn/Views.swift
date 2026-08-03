@@ -936,8 +936,10 @@ struct PersonEditorView: View {
                             Circle().fill(Color(hex: color)).frame(width: 42, height: 42)
                                 .overlay { if draft.colorHex == color { Image(systemName: "checkmark").foregroundStyle(.white).bold() } }
                         }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("\(ProfilePalette.name(for: color)) profile color")
                         .accessibilityValue(draft.colorHex == color ? "Selected" : "Not selected")
+                        .accessibilityIdentifier("profile-color-\(color)")
                     }
                 }
             }
@@ -1027,7 +1029,8 @@ struct QuestManagementLabel: View {
         switch quest.scheduleKind {
         case .oneTime: return "One time"
         case .daily: return "Daily"
-        case .weekly: return "Selected weekdays"
+        case .weekly:
+            return quest.repeatIntervalWeeks == 2 ? "Every other week" : "Selected weekdays"
         }
     }
 }
@@ -1048,6 +1051,7 @@ struct QuestEditorView: View {
             value.title = quest.title; value.detail = quest.detail; value.xp = quest.xp
             value.participantIDs = Set(quest.participantIDs); value.completionMode = quest.completionMode
             value.scheduleKind = quest.scheduleKind; value.weekdays = Set(quest.weekdays)
+            value.repeatIntervalWeeks = quest.repeatIntervalWeeks
             value.startDate = quest.startDate
             if let due = quest.dueAt { value.hasDueDate = true; value.dueDate = due; value.hasDueTime = true; value.dueTime = due }
         }
@@ -1090,7 +1094,18 @@ struct QuestEditorView: View {
                     Text("Selected weekdays").tag(ScheduleKind.weekly)
                 }
                 DatePicker("Starts", selection: $draft.startDate, displayedComponents: .date)
-                if draft.scheduleKind == .weekly { WeekdayPicker(selection: $draft.weekdays) }
+                if draft.scheduleKind == .weekly {
+                    Picker("Frequency", selection: $draft.repeatIntervalWeeks) {
+                        Text("Every week").tag(1)
+                        Text("Every other week").tag(2)
+                    }
+                    WeekdayPicker(selection: $draft.weekdays)
+                    if draft.repeatIntervalWeeks == 2 {
+                        Text("The week containing the start date is the first active week.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             Section("Deadline") {
                 Toggle("Add due date", isOn: $draft.hasDueDate)

@@ -37,6 +37,7 @@ struct QuestDraft {
     var completionMode: QuestCompletionMode = .individual
     var scheduleKind: ScheduleKind = .oneTime
     var weekdays = Set<Int>()
+    var repeatIntervalWeeks = 1
     var startDate = Date()
     var hasDueDate = false
     var dueDate = Date()
@@ -257,6 +258,7 @@ enum LifecycleRules {
                           participantIDs: Array(draft.participantIDs),
                           completionMode: draft.participantIDs.count == 1 ? .individual : draft.completionMode,
                           scheduleKind: draft.scheduleKind, weekdays: Array(draft.weekdays).sorted(),
+                          repeatIntervalWeeks: draft.repeatIntervalWeeks,
                           startDate: draft.startDate, dueAt: dueAt(draft, household: household))
         context.insert(quest)
         try context.save()
@@ -275,6 +277,7 @@ enum LifecycleRules {
         quest.completionMode = draft.participantIDs.count == 1 ? .individual : draft.completionMode
         quest.scheduleKind = draft.scheduleKind
         quest.weekdays = Array(draft.weekdays).sorted()
+        quest.repeatIntervalWeeks = draft.repeatIntervalWeeks
         quest.startDate = draft.startDate
         quest.dueAt = dueAt(draft, household: household)
         try context.save()
