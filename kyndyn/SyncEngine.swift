@@ -765,15 +765,20 @@ struct ProvisioningPreview: Equatable {
         _ records: [CloudRecordEnvelope], context: ModelContext
     ) async {
         guard records.contains(where: {
-            [.person, .quest, .questSchedule].contains($0.type)
+            [.person, .quest, .questSchedule, .questCompletion].contains($0.type)
         }), let household = try? context.fetch(FetchDescriptor<Household>()).first,
               let settings = try? context.fetch(
                 FetchDescriptor<LocalDeviceSettings>()).first else { return }
         let quests = (try? context.fetch(FetchDescriptor<Quest>())) ?? []
         let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+        let completions = (try? context.fetch(
+            FetchDescriptor<QuestCompletion>())) ?? []
+        let reminders = (try? context.fetch(
+            FetchDescriptor<LocalQuestReminder>())) ?? []
         let candidates = ReminderRules.candidates(
             quests: quests, people: people, settings: settings,
-            household: household, now: .now)
+            household: household, completions: completions,
+            reminderPreferences: reminders, now: .now)
         try? await notificationScheduler.replaceKyndynReminders(with: candidates)
     }
 

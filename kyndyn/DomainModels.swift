@@ -218,6 +218,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var defaultReminderHour: Int = 16
     var defaultReminderMinute: Int = 0
     var showQuestDetailsOnLockScreen: Bool = false
+    var showsHouseholdDashboard: Bool = false
     init() {
         self.id = UUID()
         self.notificationsEnabled = false
@@ -230,6 +231,23 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.defaultReminderHour = 16
         self.defaultReminderMinute = 0
         self.showQuestDetailsOnLockScreen = false
+        self.showsHouseholdDashboard = false
+    }
+}
+
+/// Per-device reminder choice for a shared quest. This model never enters
+/// CloudKit or household backups.
+@Model final class LocalQuestReminder {
+    @Attribute(.unique) var questID: UUID
+    var isEnabled: Bool
+    var hour: Int
+    var minute: Int
+
+    init(questID: UUID, isEnabled: Bool, hour: Int, minute: Int) {
+        self.questID = questID
+        self.isEnabled = isEnabled
+        self.hour = hour
+        self.minute = minute
     }
 }
 

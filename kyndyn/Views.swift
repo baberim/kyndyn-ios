@@ -48,7 +48,8 @@ struct RootView: View {
                     InvitationLandingView()
                 } else if households.isEmpty {
                     OnboardingView()
-                } else if app.selectedPersonID == nil {
+                } else if app.selectedPersonID == nil &&
+                            deviceSettings.first?.showsHouseholdDashboard != true {
                     ProfilePickerView()
                 } else {
                     MainView()
@@ -354,10 +355,35 @@ struct ProfilePickerView: View {
                     Text("Choose your profile to see the right quests.").foregroundStyle(.secondary)
                 }.padding(.vertical, 28)
                 LazyVGrid(columns: columns, spacing: 18) {
+                    Button {
+                        app.selectedPersonID = nil
+                        if let setting = settings.first {
+                            setting.selectedPersonID = nil
+                            setting.showsHouseholdDashboard = true
+                        }
+                        try? context.save()
+                    } label: {
+                        VStack(spacing: 12) {
+                            Image(systemName: "house.and.flag.fill")
+                                .font(.system(size: 58))
+                                .frame(height: 112)
+                            Text("Whole household").font(.title3.bold())
+                            Text("See everyone’s day").font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity).padding()
+                        .background(.purple.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 24))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("profile-whole-household")
                     ForEach(people.filter { $0.deletedAt == nil }) { person in
                         Button {
                             app.selectedPersonID = person.id
-                            if let setting = settings.first { setting.selectedPersonID = person.id }
+                            if let setting = settings.first {
+                                setting.selectedPersonID = person.id
+                                setting.showsHouseholdDashboard = false
+                            }
                             try? context.save()
                         } label: {
                             VStack(spacing: 12) {
@@ -408,14 +434,19 @@ struct MainView: View {
     @Environment(AppModel.self) private var app
     @EnvironmentObject private var parentAccess: ParentAccessController
     @Query private var people: [Person]
+    @Query private var deviceSettings: [LocalDeviceSettings]
     private var selected: Person? { people.first { $0.id == app.selectedPersonID } }
+    private var devicePerson: Person? {
+        people.first { $0.id == deviceSettings.first?.devicePersonID }
+    }
 
     var body: some View {
         @Bindable var app = app
         TabView(selection: $app.selectedTab) {
             DashboardView().tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
             QuestListView().tabItem { Label("Quests", systemImage: "checklist") }.tag(1)
-            if selected?.role == .parent {
+            if selected?.role == .parent ||
+                (selected == nil && devicePerson?.role == .parent) {
                 Group {
                     if parentAccess.isUnlocked { ParentAreaView() }
                     else { ParentAuthenticationView() }
@@ -480,12 +511,17 @@ struct DashboardView: View {
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var completions: [QuestCompletion]
+    @Query private var deviceSettings: [LocalDeviceSettings]
+    @Query private var quests: [Quest]
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                if let person, let household = households.first {
+                if let household = households.first,
+                   deviceSettings.first?.showsHouseholdDashboard == true {
+                    householdDashboard(household)
+                } else if let person, let household = households.first {
                     let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                     VStack(spacing: 18) {
                         ViewThatFits(in: .horizontal) {
@@ -520,7 +556,8 @@ struct DashboardView: View {
                             }
                             ProgressView(value: min(Double(ProgressionEngine.familyXP(completions)), Double(household.rewardGoalXP)), total: Double(household.rewardGoalXP))
                         }.card()
-                        QuestListView(compact: true)
+                        QuestListView(compact: true, includeUpcoming: true)
+                        recentActivity(household: household, personID: person.id)
                     }
                     .padding()
                     .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
@@ -528,6 +565,89 @@ struct DashboardView: View {
                 }
             }.navigationTitle("Today")
         }
+    }
+
+    private func householdDashboard(_ household: Household) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Everyone’s day").font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader)
+                    Text(household.name).foregroundStyle(.secondary)
+                }
+                Spacer()
+                NavigationLink {
+                    ProfilePickerView()
+                } label: {
+                    Label("Choose person", systemImage: "person.crop.circle")
+                }
+                .buttonStyle(.bordered)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(household.rewardTitle).font(.headline)
+                ProgressView(
+                    value: min(Double(ProgressionEngine.familyXP(completions)),
+                               Double(household.rewardGoalXP)),
+                    total: Double(household.rewardGoalXP))
+                rewardProgress(household)
+            }.card()
+            ForEach(people.filter { $0.deletedAt == nil }) { member in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Circle().fill(Color(hex: member.colorHex))
+                            .frame(width: 14, height: 14)
+                        Text(member.name).font(.title2.bold())
+                        Spacer()
+                        let progress = ProgressionEngine.progress(
+                            personID: member.id, completions: completions,
+                            now: .now,
+                            timeZoneIdentifier: household.timeZoneIdentifier)
+                        Text("\(progress.xp) XP")
+                            .font(.subheadline.bold().monospacedDigit())
+                    }
+                    QuestListView(compact: true, personID: member.id,
+                                  includeUpcoming: true,
+                                  showsCompactHeading: false)
+                }
+            }
+            recentActivity(household: household, personID: nil)
+        }
+        .padding()
+        .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func recentActivity(household: Household, personID: UUID?) -> some View {
+        let recent = completions.filter {
+            $0.reversedAt == nil && (personID == nil || $0.personID == personID)
+        }.sorted { $0.completedAt > $1.completedAt }.prefix(5)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Recent activity").font(.title2.bold())
+                .accessibilityAddTraits(.isHeader)
+            if recent.isEmpty {
+                Text("Completed quests will appear here.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(recent)) { event in
+                    HStack(alignment: .firstTextBaseline) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading) {
+                            Text(quests.first { $0.id == event.questID }?.title
+                                 ?? "Completed quest")
+                            if personID == nil {
+                                Text(people.first { $0.id == event.personID }?.name
+                                     ?? "Family member")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Text("+\(event.awardedXP) XP")
+                            .font(.subheadline.bold()).foregroundStyle(.purple)
+                    }
+                }
+            }
+        }.card()
     }
 
     private func profileArt(_ person: Person) -> some View {
@@ -569,12 +689,20 @@ struct QuestListView: View {
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
     var compact = false
+    var personID: UUID? = nil
+    var includeUpcoming = false
+    var showsCompactHeading = true
+    @State private var inFlight = Set<String>()
+    @State private var earnedFeedback: String?
+
+    private var selectedPersonID: UUID? { personID ?? app.selectedPersonID }
 
     private var visible: [(Quest, QuestTemporalStatus)] {
-        guard let household = households.first, let personID = app.selectedPersonID else { return [] }
+        guard let household = households.first, let personID = selectedPersonID else { return [] }
         return quests.compactMap {
             let status = ProgressionEngine.temporalStatus(for: $0, personID: personID, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
-            return status == .inactive || status == .upcoming ? nil : ($0, status)
+            return status == .inactive || (!includeUpcoming && status == .upcoming)
+                ? nil : ($0, status)
         }.sorted { lhs, rhs in
             let order: [QuestTemporalStatus: Int] = [.overdue: 0, .today: 1, .completed: 2]
             return order[lhs.1, default: 9] < order[rhs.1, default: 9]
@@ -589,18 +717,32 @@ struct QuestListView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if compact { Text("Your quests").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader) }
+            if compact && showsCompactHeading { Text("Quests").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader) }
             if visible.isEmpty {
                 ContentUnavailableView("All clear", systemImage: "checkmark.circle", description: Text("No quests are waiting for you today."))
             }
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 300, maximum: 540), spacing: 12)],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                ForEach(visible, id: \.0.id) { quest, status in
-                    QuestRow(quest: quest, status: status)
+            ForEach([QuestTemporalStatus.overdue, .today, .completed, .upcoming],
+                    id: \.rawValue) { status in
+                let items = visible.filter { $0.1 == status }
+                if !items.isEmpty {
+                    Text(sectionTitle(status)).font(.headline)
+                        .foregroundStyle(status == .overdue ? .orange : .secondary)
+                        .accessibilityAddTraits(.isHeader)
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 300, maximum: 540), spacing: 12)],
+                        alignment: .leading, spacing: 12
+                    ) {
+                        ForEach(items, id: \.0.id) { quest, itemStatus in
+                            QuestRow(quest: quest, status: itemStatus)
+                        }
+                    }
                 }
+            }
+            if let earnedFeedback {
+                Label(earnedFeedback, systemImage: "sparkles")
+                    .font(.headline).foregroundStyle(.purple)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityIdentifier("quest-xp-feedback")
             }
         }
         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
@@ -608,62 +750,85 @@ struct QuestListView: View {
     }
 
     @ViewBuilder private func QuestRow(quest: Quest, status: QuestTemporalStatus) -> some View {
-        if let household = households.first, let personID = app.selectedPersonID {
+        if let household = households.first, let personID = selectedPersonID {
             let done = status == .completed
-            ViewThatFits(in: .horizontal) {
+            Button {
+                toggle(quest: quest, done: done, personID: personID,
+                       household: household)
+            } label: {
+                ViewThatFits(in: .horizontal) {
                 HStack(spacing: 14) {
-                    completionButton(
-                        quest: quest, done: done, personID: personID,
-                        household: household
-                    )
+                    completionIcon(quest: quest, done: done)
                     questDetails(quest: quest, status: status, done: done)
                     Spacer()
                     xpLabel(quest: quest, done: done, household: household)
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top, spacing: 12) {
-                        completionButton(
-                            quest: quest, done: done, personID: personID,
-                            household: household
-                        )
+                        completionIcon(quest: quest, done: done)
                         questDetails(quest: quest, status: status, done: done)
                     }
                     xpLabel(quest: quest, done: done, household: household)
                 }
-            }.card()
+                }
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .disabled(status == .upcoming ||
+                      inFlight.contains(actionKey(quest, personID)))
+            .accessibilityLabel(status == .upcoming ? "Upcoming \(quest.title)" :
+                (done ? "Undo \(quest.title)" : "Complete \(quest.title)"))
+            .accessibilityHint(done
+                ? "Reverses this occurrence and recalculates progress"
+                : "Records this occurrence as complete")
+            .accessibilityIdentifier("quest-toggle-\(quest.title)")
+            .card()
         }
     }
 
-    private func completionButton(
-        quest: Quest, done: Bool, personID: UUID, household: Household
-    ) -> some View {
-        Button {
-            do {
-                if done {
-                    try app.undo(
-                        quest, personID: personID, household: household,
-                        completions: completions, context: context
-                    )
-                } else {
-                    try app.complete(
-                        quest, personID: personID, household: household,
-                        completions: completions, context: context
-                    )
+    private func completionIcon(quest: Quest, done: Bool) -> some View {
+        Image(systemName: done ? "checkmark.circle.fill" : "circle")
+            .font(.title)
+            .foregroundStyle(done ? .green : .purple)
+            .frame(minWidth: 44, minHeight: 44)
+            .accessibilityHidden(true)
+    }
+
+    private func actionKey(_ quest: Quest, _ personID: UUID) -> String {
+        "\(quest.id.uuidString):\(personID.uuidString)"
+    }
+
+    private func toggle(quest: Quest, done: Bool, personID: UUID,
+                        household: Household) {
+        let key = actionKey(quest, personID)
+        guard !inFlight.contains(key) else { return }
+        inFlight.insert(key)
+        do {
+            if done {
+                try app.undo(quest, personID: personID, household: household,
+                             completions: completions, context: context)
+            } else {
+                try app.complete(quest, personID: personID,
+                                 household: household,
+                                 completions: completions, context: context)
+                let earned = ProgressionEngine.effectiveXP(
+                    base: quest.xp,
+                    overdueDays: ProgressionEngine.overdueDays(
+                        for: quest, now: .now,
+                        timeZoneIdentifier: household.timeZoneIdentifier))
+                withAnimation(.easeOut(duration: 0.2)) {
+                    earnedFeedback = "Earned +\(earned) XP"
                 }
-            } catch {
-                app.errorMessage = error.localizedDescription
             }
-        } label: {
-            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                .font(.title)
-                .foregroundStyle(done ? .green : .purple)
-                .frame(minWidth: 44, minHeight: 44)
+        } catch { app.errorMessage = error.localizedDescription }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(650))
+            inFlight.remove(key)
+            if !done {
+                try? await Task.sleep(for: .milliseconds(900))
+                withAnimation { earnedFeedback = nil }
+            }
         }
-        .accessibilityLabel(done ? "Undo \(quest.title)" : "Complete \(quest.title)")
-        .accessibilityHint(done
-            ? "Reverses this occurrence and recalculates progress"
-            : "Records this occurrence as complete")
-        .accessibilityIdentifier("quest-toggle-\(quest.title)")
     }
 
     private func questDetails(
@@ -683,7 +848,14 @@ struct QuestListView: View {
     private func xpLabel(
         quest: Quest, done: Bool, household: Household
     ) -> some View {
-        let value = done ? quest.xp : ProgressionEngine.effectiveXP(
+        let occurrence = ProgressionEngine.occurrenceKey(
+            for: quest, on: .now,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let awarded = completions.first {
+            $0.questID == quest.id && $0.occurrenceDay == occurrence &&
+            $0.personID == selectedPersonID && $0.reversedAt == nil
+        }?.awardedXP
+        let value = done ? (awarded ?? quest.xp) : ProgressionEngine.effectiveXP(
             base: quest.xp,
             overdueDays: ProgressionEngine.overdueDays(
                 for: quest, now: .now,
@@ -700,7 +872,19 @@ struct QuestListView: View {
         switch status {
         case .overdue: return "Overdue · \(mode)"
         case .completed: return "Completed · tap to undo"
+        case .today: return "Due today · \(mode)"
+        case .upcoming: return "Upcoming · \(mode)"
         default: return mode
+        }
+    }
+
+    private func sectionTitle(_ status: QuestTemporalStatus) -> String {
+        switch status {
+        case .overdue: return "Overdue"
+        case .today: return "Due today"
+        case .completed: return "Completed today"
+        case .upcoming: return "Upcoming"
+        case .inactive: return ""
         }
     }
 }
@@ -990,7 +1174,11 @@ struct QuestManagementView: View {
                 Section("Archived quests") {
                     ForEach(quests.filter { $0.deletedAt != nil }) { quest in
                         HStack {
-                            QuestManagementLabel(quest: quest)
+                            NavigationLink {
+                                QuestEditorView(quest: quest)
+                            } label: {
+                                QuestManagementLabel(quest: quest)
+                            }
                             Spacer()
                             Button("Restore") {
                                 do { try app.restoreQuest(quest, context: context) }
@@ -1041,8 +1229,12 @@ struct QuestEditorView: View {
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
     @Query(sort: \Person.createdAt) private var people: [Person]
+    @Query private var deviceSettings: [LocalDeviceSettings]
+    @Query private var reminderPreferences: [LocalQuestReminder]
     let quest: Quest?
     @State private var draft: QuestDraft
+    @State private var loadedReminder = false
+    @State private var confirmArchive = false
 
     init(quest: Quest?) {
         self.quest = quest
@@ -1116,12 +1308,79 @@ struct QuestEditorView: View {
                     if let household = households.first { Text("Uses \(household.timeZoneIdentifier).").font(.caption).foregroundStyle(.secondary) }
                 }
             }
+            Section("Reminder on this device") {
+                Toggle("Remind me about this quest",
+                       isOn: $draft.reminderEnabled)
+                if draft.reminderEnabled {
+                    DatePicker("Reminder time", selection: $draft.reminderTime,
+                               displayedComponents: .hourAndMinute)
+                    if deviceSettings.first?.notificationsEnabled != true {
+                        Text("Turn on quest reminders in Parent → Reminders to receive this alert.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text("This choice stays on this device and is not included in family sync or backups.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if quest != nil {
                 Section {
                     Text("Edits apply to current and future appearances. Existing completion records and previously awarded XP are not changed.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Section("Quest status") {
+                    if quest?.deletedAt == nil {
+                        Button("Archive quest", role: .destructive) {
+                            confirmArchive = true
+                        }
+                    } else if let quest {
+                        Button("Restore quest") {
+                            do {
+                                try app.restoreQuest(quest, context: context)
+                                dismiss()
+                            } catch {
+                                app.errorMessage = error.localizedDescription
+                            }
+                        }
+                    }
+                    Text("Archiving hides future appearances but keeps completion history and XP records.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
+        }
+        .task {
+            guard !loadedReminder,
+                  let household = households.first else { return }
+            loadedReminder = true
+            let calendar = ProgressionEngine.calendar(
+                timeZoneIdentifier: household.timeZoneIdentifier)
+            if let quest, let preference = reminderPreferences.first(where: {
+                $0.questID == quest.id
+            }) {
+                draft.reminderEnabled = preference.isEnabled
+                draft.reminderTime = calendar.date(
+                    from: DateComponents(hour: preference.hour,
+                                         minute: preference.minute)) ?? .now
+            } else if let setting = deviceSettings.first {
+                draft.reminderEnabled = quest != nil &&
+                    setting.notificationsEnabled
+                draft.reminderTime = calendar.date(from: DateComponents(
+                    hour: setting.defaultReminderHour,
+                    minute: setting.defaultReminderMinute)) ?? .now
+            }
+        }
+        .confirmationDialog("Archive this quest?",
+                            isPresented: $confirmArchive,
+                            titleVisibility: .visible) {
+            Button("Archive", role: .destructive) {
+                guard let quest else { return }
+                do {
+                    try app.archiveQuest(quest, context: context)
+                    dismiss()
+                } catch { app.errorMessage = error.localizedDescription }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Completion history and awarded XP stay intact.")
         }
         .navigationTitle(quest == nil ? "New quest" : "Edit quest")
         .navigationBarTitleDisplayMode(.inline)
@@ -1399,6 +1658,8 @@ struct NotificationSettingsView: View {
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+    @Query private var reminderPreferences: [LocalQuestReminder]
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: NotificationPermissionState = .notDetermined
     @State private var explanation = false
@@ -1471,7 +1732,10 @@ struct NotificationSettingsView: View {
     private func reschedule() async {
         guard let setting = settings.first, let household = households.first else { return }
         if people.first(where: { $0.id == setting.devicePersonID })?.role != .parent { setting.parentSummaryEligible = false }
-        let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting, household: household, now: .now)
+        let candidates = ReminderRules.candidates(
+            quests: quests, people: people, settings: setting,
+            household: household, completions: completions,
+            reminderPreferences: reminderPreferences, now: .now)
         do { try await scheduler.replaceKyndynReminders(with: candidates) }
         catch { app.errorMessage = "kyndyn couldn’t update reminders. Your quests are unchanged." }
     }
