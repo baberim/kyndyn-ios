@@ -6,7 +6,7 @@ final class ProgressionEngineTests: XCTestCase {
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: Household.self, Person.self, Quest.self, QuestCompletion.self, LocalDeviceSettings.self, configurations: configuration)
+        let container = try ModelContainer(for: Household.self, Person.self, Quest.self, QuestCompletion.self, LocalDeviceSettings.self, LocalQuestReminder.self, configurations: configuration)
         let household = Household(name: "Fictional Test Family", timeZoneIdentifier: "America/New_York")
         let person = Person(householdID: household.id, name: "Avery", role: .child, colorHex: "#000000", companionID: "spark")
         let quest = Quest(householdID: household.id, title: "Test quest", xp: 10, participantIDs: [person.id], scheduleKind: .daily)
@@ -34,6 +34,40 @@ final class ProgressionEngineTests: XCTestCase {
         try model.undo(quest, personID: person.id, household: household, completions: events, context: context, now: now)
         XCTAssertEqual(ProgressionEngine.familyXP(events), 0)
         XCTAssertNotNil(events.first?.reversedAt)
+    }
+
+    @MainActor func testRapidCompletionWithStaleQueryCannotDuplicateXP() throws {
+        let (container, household, person, quest) = try models()
+        let context = container.mainContext
+        context.insert(household); context.insert(person); context.insert(quest)
+        let model = AppModel()
+        let now = ISO8601DateFormatter().date(
+            from: "2026-07-28T14:00:00Z")!
+        try model.complete(quest, personID: person.id, household: household,
+                           completions: [], context: context, now: now)
+        try model.complete(quest, personID: person.id, household: household,
+                           completions: [], context: context, now: now)
+        let events = try context.fetch(FetchDescriptor<QuestCompletion>())
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.id, CompletionIdentity.id(
+            questID: quest.id, personID: person.id,
+            occurrenceDay: "2026-07-28"))
+        XCTAssertEqual(ProgressionEngine.familyXP(events), quest.xp)
+    }
+
+    func testCompletionIdentityConvergesAcrossDevices() {
+        let questID = UUID()
+        let personID = UUID()
+        XCTAssertEqual(
+            CompletionIdentity.id(questID: questID, personID: personID,
+                                  occurrenceDay: "2026-08-03"),
+            CompletionIdentity.id(questID: questID, personID: personID,
+                                  occurrenceDay: "2026-08-03"))
+        XCTAssertNotEqual(
+            CompletionIdentity.id(questID: questID, personID: personID,
+                                  occurrenceDay: "2026-08-03"),
+            CompletionIdentity.id(questID: questID, personID: personID,
+                                  occurrenceDay: "2026-08-04"))
     }
 
     @MainActor func testIndividualAndSharedParticipantsHaveSeparateEvents() throws {
@@ -225,7 +259,8 @@ final class LifecycleRulesTests: XCTestCase {
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: Household.self, Person.self, Quest.self, QuestCompletion.self,
-            LocalDeviceSettings.self, configurations: configuration)
+            LocalDeviceSettings.self, LocalQuestReminder.self,
+            configurations: configuration)
         let context = container.mainContext
         context.insert(Household(name: "Upgrade Test", timeZoneIdentifier: "UTC"))
         try context.save()
@@ -292,7 +327,8 @@ final class HouseholdTransferTests: XCTestCase {
         return try ModelContainer(
             for: Household.self, Person.self, Quest.self,
             QuestCompletion.self, RewardGoal.self, HouseholdSettings.self,
-            LocalDeviceSettings.self, HouseholdImportReceipt.self,
+            LocalDeviceSettings.self, LocalQuestReminder.self,
+            HouseholdImportReceipt.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
             configurations: configuration)
@@ -547,5 +583,59 @@ final class ReminderRulesTests: XCTestCase {
         let calendar = ProgressionEngine.calendar(timeZoneIdentifier: household.timeZoneIdentifier)
         XCTAssertEqual(calendar.component(.hour, from: candidate.fireDate), 7)
         XCTAssertEqual(calendar.component(.day, from: candidate.fireDate), 29)
+    }
+
+    @MainActor func testPerQuestReminderCanUpdateAndCancel() {
+        let (household, person, quest, settings, now) = fixture()
+        let preference = LocalQuestReminder(
+            questID: quest.id, isEnabled: true, hour: 18, minute: 30)
+        var candidate = ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, reminderPreferences: [preference],
+            now: now).first
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        XCTAssertEqual(calendar.component(.hour,
+                                          from: candidate!.fireDate), 18)
+        XCTAssertEqual(calendar.component(.minute,
+                                          from: candidate!.fireDate), 30)
+        preference.hour = 19
+        candidate = ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, reminderPreferences: [preference],
+            now: now).first
+        XCTAssertEqual(calendar.component(.hour,
+                                          from: candidate!.fireDate), 19)
+        preference.isEnabled = false
+        XCTAssertTrue(ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, reminderPreferences: [preference],
+            now: now).isEmpty)
+    }
+
+    @MainActor func testCompletionCancelsOccurrenceReminder() {
+        let (household, person, quest, settings, now) = fixture()
+        let occurrence = ProgressionEngine.occurrenceKey(
+            for: quest, on: now,
+            timeZoneIdentifier: household.timeZoneIdentifier)!
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: occurrence,
+            completedAt: now, awardedXP: quest.xp)
+        XCTAssertTrue(ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, completions: [completion], now: now).isEmpty)
+        completion.reversedAt = now
+        XCTAssertEqual(ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, completions: [completion], now: now).count, 1)
+    }
+
+    @MainActor func testCandidateRetainsHouseholdTimeZone() {
+        let (household, person, quest, settings, now) = fixture()
+        XCTAssertEqual(ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, now: now).first?.timeZoneIdentifier,
+            "America/New_York")
     }
 }

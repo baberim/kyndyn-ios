@@ -154,4 +154,31 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Create a sample household"].exists)
     }
+
+    func testWholeHouseholdModePersistsAcrossRelaunch() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing-persistence",
+            "-ui-testing-persistence-reset",
+            "-ui-testing-cloud-unconfigured"
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["Create a sample household"]
+            .waitForExistence(timeout: 8))
+        app.buttons["Create a sample household"].tap()
+        tapTab("Switch", in: app)
+        let household = app.buttons["profile-whole-household"]
+        XCTAssertTrue(household.waitForExistence(timeout: 3))
+        household.tap()
+        XCTAssertTrue(app.staticTexts["Everyone’s day"]
+            .waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing-persistence",
+            "-ui-testing-cloud-unconfigured"
+        ]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Everyone’s day"]
+            .waitForExistence(timeout: 8))
+    }
 }

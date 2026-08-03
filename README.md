@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Automatic Sync and Resilience 0.6
+## Current milestone — Daily Family Use 0.8
 
 The app provides a locally usable vertical slice:
 
@@ -37,6 +37,12 @@ The app provides a locally usable vertical slice:
   changes, connectivity recovery, CloudKit hints, and share acceptance;
 - idempotent private/shared zone subscriptions and best-effort background
   refresh, with manual refresh retained as a recovery control.
+- persistent person or whole-household daily views grouped into overdue, due
+  today, completed today, and upcoming work;
+- full-card completion and exact undo with deterministic occurrence identity,
+  immediate XP feedback, and recent family activity;
+- device-local per-quest reminder timing that respects completion state, quiet
+  hours, archive state, and the household time zone.
 
 ## Open and run
 
@@ -50,7 +56,8 @@ No Apple Developer account, CloudKit container, server, or secret is needed for
 local-only development and deterministic tests. Live Debug synchronization uses
 the authorized Development container documented in
 [`docs/cloudkit-configuration.md`](docs/cloudkit-configuration.md). Release
-builds remain fail-safe and do not enable live sync.
+archives use the authorized Production CloudKit container while Debug builds
+use Development.
 
 The complete native identity was renamed for this milestone. Because the bundle
 identifier changed, iOS treats this as a new development app; see
@@ -66,5 +73,5 @@ xcodebuild test -project kyndyn.xcodeproj -scheme kyndyn -destination 'platform=
 
 The simulator can approve or reject notification permission. For LocalAuthentication, use **Features → Face ID** in Simulator to toggle enrollment and matching. A device passcode prompt may appear instead depending on simulator state.
 
-See [`docs/automatic-sync-resilience-0.6.md`](docs/automatic-sync-resilience-0.6.md)
-for synchronization behavior, Apple background limitations, and validation.
+See [`docs/daily-family-use-0.8.md`](docs/daily-family-use-0.8.md) for the daily
+workflow, local reminder boundary, TestFlight notes, and validation checklist.
