@@ -337,6 +337,7 @@ struct ReminderCandidate: Equatable {
     let title: String
     let body: String
     let questID: UUID?
+    let timeZoneIdentifier: String
 }
 
 protocol NotificationScheduling: Sendable {
@@ -376,7 +377,12 @@ struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
             content.title = candidate.title
             content.body = candidate.body
             content.sound = .default
-            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: candidate.fireDate)
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: candidate.timeZoneIdentifier)
+                ?? .current
+            let components = calendar.dateComponents(
+                [.timeZone, .year, .month, .day, .hour, .minute],
+                from: candidate.fireDate)
             try await center.add(UNNotificationRequest(
                 identifier: candidate.identifier,
                 content: content,
@@ -388,7 +394,10 @@ struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
 
 enum ReminderRules {
     static func candidates(quests: [Quest], people: [Person], settings: LocalDeviceSettings,
-                           household: Household, now: Date) -> [ReminderCandidate] {
+                           household: Household,
+                           completions: [QuestCompletion] = [],
+                           reminderPreferences: [LocalQuestReminder] = [],
+                           now: Date) -> [ReminderCandidate] {
         guard settings.notificationsEnabled, let profileID = settings.devicePersonID else { return [] }
         let calendar = ProgressionEngine.calendar(timeZoneIdentifier: household.timeZoneIdentifier)
         let activePersonIDs = Set(people.filter { $0.deletedAt == nil }.map(\.id))
@@ -398,8 +407,19 @@ enum ReminderRules {
             $0.deletedAt == nil && $0.participantIDs.contains(profileID) &&
             ProgressionEngine.isScheduled($0, on: now, timeZoneIdentifier: household.timeZoneIdentifier)
         }.compactMap { quest -> ReminderCandidate? in
-            let preferred = quest.dueAt ?? calendar.date(bySettingHour: settings.defaultReminderHour,
-                                                         minute: settings.defaultReminderMinute,
+            let preference = reminderPreferences.first { $0.questID == quest.id }
+            if let preference, !preference.isEnabled { return nil }
+            guard let occurrence = ProgressionEngine.occurrenceKey(
+                for: quest, on: now,
+                timeZoneIdentifier: household.timeZoneIdentifier),
+                  !completions.contains(where: {
+                      $0.questID == quest.id && $0.personID == profileID &&
+                      $0.occurrenceDay == occurrence && $0.reversedAt == nil
+                  }) else { return nil }
+            let hour = preference?.hour ?? settings.defaultReminderHour
+            let minute = preference?.minute ?? settings.defaultReminderMinute
+            let preferred = quest.dueAt ?? calendar.date(bySettingHour: hour,
+                                                         minute: minute,
                                                          second: 0, of: start)
             guard let preferred else { return nil }
             let adjusted = adjustForQuietHours(preferred, settings: settings, calendar: calendar)
@@ -410,7 +430,8 @@ enum ReminderRules {
                 fireDate: adjusted,
                 title: "A kyndyn quest is ready",
                 body: settings.showQuestDetailsOnLockScreen ? quest.title : "Open kyndyn to see what’s next.",
-                questID: quest.id
+                questID: quest.id,
+                timeZoneIdentifier: household.timeZoneIdentifier
             )
         }
         if settings.parentSummaryEligible,
@@ -424,7 +445,8 @@ enum ReminderRules {
                     fireDate: adjusted,
                     title: "kyndyn family check-in",
                     body: "Open kyndyn for a private look at today’s family progress.",
-                    questID: nil
+                    questID: nil,
+                    timeZoneIdentifier: household.timeZoneIdentifier
                 ))
             }
         }

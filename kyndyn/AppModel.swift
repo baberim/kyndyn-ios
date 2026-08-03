@@ -1,10 +1,12 @@
 import Foundation
+import CryptoKit
 import SwiftData
 import SwiftUI
 
 enum KyndynValidationError: LocalizedError, Equatable {
     case emptyName, nameTooLong, emptyTitle, titleTooLong, detailTooLong
     case invalidXP, noParticipants, noWeekdays, lastParent, archivedParticipant
+    case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +20,9 @@ enum KyndynValidationError: LocalizedError, Equatable {
         case .noWeekdays: return "Choose at least one weekday."
         case .lastParent: return "Add or promote another active parent before archiving the last parent."
         case .archivedParticipant: return "Archived people can’t receive new quest assignments."
+        case .emptyRewardTitle: return "Enter a family reward."
+        case .rewardTitleTooLong: return "Keep family rewards to 80 characters or fewer."
+        case .invalidRewardTarget: return "The family XP goal must be between 1 and 1,000,000."
         }
     }
 }
@@ -43,6 +48,21 @@ struct QuestDraft {
     var dueDate = Date()
     var hasDueTime = false
     var dueTime = Date()
+    var reminderEnabled = false
+    var reminderTime = Date()
+}
+
+enum CompletionIdentity {
+    static func id(questID: UUID, personID: UUID, occurrenceDay: String) -> UUID {
+        let value = "com.kyndynfamily.completion.v1:\(questID.uuidString.lowercased()):\(personID.uuidString.lowercased()):\(occurrenceDay)"
+        var bytes = Array(SHA256.hash(data: Data(value.utf8)).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x50
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
 }
 
 struct HouseholdSetupDraft {
@@ -172,6 +192,8 @@ enum LifecycleRules {
             throw HouseholdTransferError.malformed(
                 "Turn off or resolve family sharing before removing this sample. Cloud data is never silently deleted.")
         }
+        let questIDs = Set(try context.fetch(FetchDescriptor<Quest>())
+            .filter { $0.householdID == household.id }.map(\.id))
         try context.fetch(FetchDescriptor<Person>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<Quest>())
@@ -182,6 +204,8 @@ enum LifecycleRules {
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<HouseholdSettings>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<LocalQuestReminder>())
+            .filter { questIDs.contains($0.questID) }.forEach(context.delete)
         try context.fetch(FetchDescriptor<HouseholdCloudState>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<SyncRecordMetadata>())
@@ -252,7 +276,8 @@ enum LifecycleRules {
         refreshReminders(context: context)
     }
 
-    func createQuest(_ draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws {
+    @discardableResult
+    func createQuest(_ draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws -> Quest {
         let (title, detail) = try LifecycleRules.validate(quest: draft, people: people)
         let quest = Quest(householdID: household.id, title: title, detail: detail, xp: draft.xp,
                           participantIDs: Array(draft.participantIDs),
@@ -265,7 +290,10 @@ enum LifecycleRules {
         for envelope in SyncSnapshot.quest(quest) {
             try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
         }
+        try updateReminder(for: quest, draft: draft, household: household,
+                           context: context)
         refreshReminders(context: context)
+        return quest
     }
 
     func updateQuest(_ quest: Quest, draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws {
@@ -284,6 +312,8 @@ enum LifecycleRules {
         for envelope in SyncSnapshot.quest(quest) {
             try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
         }
+        try updateReminder(for: quest, draft: draft, household: household,
+                           context: context)
         refreshReminders(context: context)
     }
 
@@ -305,6 +335,64 @@ enum LifecycleRules {
         refreshReminders(context: context)
     }
 
+    func saveFamilyReward(
+        title rawTitle: String, targetXP: Int, resetProgress: Bool,
+        household: Household, goals: [RewardGoal], context: ModelContext,
+        now: Date = .now
+    ) throws {
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw KyndynValidationError.emptyRewardTitle }
+        guard title.count <= 80 else {
+            throw KyndynValidationError.rewardTitleTooLong
+        }
+        guard (1...1_000_000).contains(targetXP) else {
+            throw KyndynValidationError.invalidRewardTarget
+        }
+
+        let active = goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil
+        }
+        var archived = [RewardGoal]()
+        let goal: RewardGoal
+        if resetProgress {
+            for value in active {
+                value.deletedAt = now
+                archived.append(value)
+            }
+            goal = RewardGoal(
+                householdID: household.id, title: title, targetXP: targetXP)
+            goal.createdAt = now
+            context.insert(goal)
+        } else if let existing = ProgressionEngine.currentRewardGoal(
+            active, householdID: household.id) {
+            existing.title = title
+            existing.targetXP = targetXP
+            goal = existing
+        } else {
+            goal = RewardGoal(
+                householdID: household.id, title: title, targetXP: targetXP)
+            // Adopting the explicit RewardGoal model must not erase progress
+            // earned by an existing household.
+            goal.createdAt = household.createdAt
+            context.insert(goal)
+        }
+
+        household.rewardTitle = title
+        household.rewardGoalXP = targetXP
+        try context.save()
+        for value in archived {
+            try SyncQueue.enqueue(
+                SyncSnapshot.reward(value), operation: .archive,
+                context: context)
+        }
+        try SyncQueue.enqueue(
+            SyncSnapshot.reward(goal), operation: .createOrUpdate,
+            context: context)
+        try SyncQueue.enqueue(
+            SyncSnapshot.household(household), operation: .createOrUpdate,
+            context: context)
+    }
+
     private func dueAt(_ draft: QuestDraft, household: Household) -> Date? {
         guard draft.hasDueDate else { return nil }
         let calendar = ProgressionEngine.calendar(timeZoneIdentifier: household.timeZoneIdentifier)
@@ -314,12 +402,53 @@ enum LifecycleRules {
         return calendar.date(from: date)
     }
 
+    private func updateReminder(for quest: Quest, draft: QuestDraft,
+                                household: Household,
+                                context: ModelContext) throws {
+        let existing = try context.fetch(FetchDescriptor<LocalQuestReminder>())
+            .first { $0.questID == quest.id }
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let components = calendar.dateComponents([.hour, .minute],
+                                                  from: draft.reminderTime)
+        let value = existing ?? LocalQuestReminder(
+            questID: quest.id, isEnabled: draft.reminderEnabled,
+            hour: components.hour ?? 16, minute: components.minute ?? 0)
+        value.isEnabled = draft.reminderEnabled
+        value.hour = components.hour ?? 16
+        value.minute = components.minute ?? 0
+        if existing == nil { context.insert(value) }
+        try context.save()
+    }
+
     func complete(_ quest: Quest, personID: UUID, household: Household, completions: [QuestCompletion], context: ModelContext, now: Date = .now) throws {
         guard quest.deletedAt == nil, quest.participantIDs.contains(personID) else { return }
         guard let occurrence = ProgressionEngine.occurrenceKey(for: quest, on: now, timeZoneIdentifier: household.timeZoneIdentifier) else { return }
-        guard !completions.contains(where: { $0.questID == quest.id && $0.personID == personID && $0.occurrenceDay == occurrence && $0.reversedAt == nil }) else { return }
+        let completionID = CompletionIdentity.id(
+            questID: quest.id, personID: personID, occurrenceDay: occurrence)
+        let stored = try context.fetch(FetchDescriptor<QuestCompletion>())
+        if let existing = stored.first(where: {
+            $0.id == completionID ||
+            ($0.questID == quest.id && $0.personID == personID &&
+             $0.occurrenceDay == occurrence)
+        }) {
+            guard existing.reversedAt != nil else { return }
+            existing.completedAt = now
+            existing.awardedXP = ProgressionEngine.effectiveXP(
+                base: quest.xp,
+                overdueDays: ProgressionEngine.overdueDays(
+                    for: quest, now: now,
+                    timeZoneIdentifier: household.timeZoneIdentifier))
+            existing.reversedAt = nil
+            try context.save()
+            try SyncQueue.enqueue(SyncSnapshot.completion(existing),
+                                  operation: .createOrUpdate, context: context)
+            refreshReminders(context: context)
+            return
+        }
         let overdue = ProgressionEngine.overdueDays(for: quest, now: now, timeZoneIdentifier: household.timeZoneIdentifier)
-        let completion = QuestCompletion(householdID: household.id, questID: quest.id,
+        let completion = QuestCompletion(id: completionID,
+                                         householdID: household.id, questID: quest.id,
                                          personID: personID, occurrenceDay: occurrence,
                                          completedAt: now,
                                          awardedXP: ProgressionEngine.effectiveXP(
@@ -328,11 +457,13 @@ enum LifecycleRules {
         try context.save()
         try SyncQueue.enqueue(SyncSnapshot.completion(completion),
                               operation: .createOrUpdate, context: context)
+        refreshReminders(context: context)
     }
 
     func undo(_ quest: Quest, personID: UUID, household: Household, completions: [QuestCompletion], context: ModelContext, now: Date = .now) throws {
         guard let occurrence = ProgressionEngine.occurrenceKey(for: quest, on: now, timeZoneIdentifier: household.timeZoneIdentifier) else { return }
-        let completion = completions.filter {
+        let stored = try context.fetch(FetchDescriptor<QuestCompletion>())
+        let completion = stored.filter {
             $0.questID == quest.id && $0.personID == personID &&
             $0.occurrenceDay == occurrence && $0.reversedAt == nil
         }.max { $0.completedAt < $1.completedAt }
@@ -342,6 +473,7 @@ enum LifecycleRules {
             try SyncQueue.enqueue(SyncSnapshot.completion(completion),
                                   operation: .createOrUpdate, context: context)
         }
+        refreshReminders(context: context)
     }
 
     func refreshReminders(context: ModelContext) {
@@ -350,8 +482,15 @@ enum LifecycleRules {
                   let setting = try? context.fetch(FetchDescriptor<LocalDeviceSettings>()).first else { return }
             let quests = (try? context.fetch(FetchDescriptor<Quest>())) ?? []
             let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+            let completions = (try? context.fetch(
+                FetchDescriptor<QuestCompletion>())) ?? []
+            let reminders = (try? context.fetch(
+                FetchDescriptor<LocalQuestReminder>())) ?? []
             let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting,
-                                                       household: household, now: .now)
+                                                       household: household,
+                                                       completions: completions,
+                                                       reminderPreferences: reminders,
+                                                       now: .now)
             try? await notificationScheduler.replaceKyndynReminders(with: candidates)
         }
     }

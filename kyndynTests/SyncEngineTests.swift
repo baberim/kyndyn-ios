@@ -79,6 +79,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
             Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            LocalQuestReminder.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
             PendingShareInvitation.self
@@ -380,6 +381,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
             Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            LocalQuestReminder.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
             PendingShareInvitation.self

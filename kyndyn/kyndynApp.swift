@@ -190,6 +190,7 @@ final class ForegroundSyncPulse {
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
             Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            LocalQuestReminder.self,
             HouseholdImportReceipt.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
