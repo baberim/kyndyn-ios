@@ -167,4 +167,26 @@ enum ProgressionEngine {
     static func familyXP(_ completions: [QuestCompletion]) -> Int {
         completions.filter { $0.reversedAt == nil }.reduce(0) { $0 + $1.awardedXP }
     }
+
+    static func currentRewardGoal(
+        _ goals: [RewardGoal], householdID: UUID
+    ) -> RewardGoal? {
+        goals.filter {
+            $0.householdID == householdID && $0.deletedAt == nil
+        }.max {
+            if $0.createdAt != $1.createdAt {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+    }
+
+    static func rewardXP(
+        _ completions: [QuestCompletion], goal: RewardGoal?
+    ) -> Int {
+        completions.filter { completion in
+            guard completion.reversedAt == nil else { return false }
+            return goal.map { completion.completedAt >= $0.createdAt } ?? true
+        }.reduce(0) { $0 + $1.awardedXP }
+    }
 }

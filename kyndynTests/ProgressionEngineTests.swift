@@ -6,7 +6,11 @@ final class ProgressionEngineTests: XCTestCase {
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: Household.self, Person.self, Quest.self, QuestCompletion.self, LocalDeviceSettings.self, LocalQuestReminder.self, configurations: configuration)
+        let container = try ModelContainer(
+            for: Household.self, Person.self, Quest.self, QuestCompletion.self,
+            RewardGoal.self, LocalDeviceSettings.self, LocalQuestReminder.self,
+            HouseholdCloudState.self, SyncRecordMetadata.self,
+            PendingSyncMutation.self, configurations: configuration)
         let household = Household(name: "Fictional Test Family", timeZoneIdentifier: "America/New_York")
         let person = Person(householdID: household.id, name: "Avery", role: .child, colorHex: "#000000", companionID: "spark")
         let quest = Quest(householdID: household.id, title: "Test quest", xp: 10, participantIDs: [person.id], scheduleKind: .daily)
@@ -68,6 +72,50 @@ final class ProgressionEngineTests: XCTestCase {
                                   occurrenceDay: "2026-08-03"),
             CompletionIdentity.id(questID: questID, personID: personID,
                                   occurrenceDay: "2026-08-04"))
+    }
+
+    @MainActor func testFamilyRewardResetStartsNewCounterWithoutRemovingXP()
+        throws {
+        let (container, household, person, quest) = try models()
+        let context = container.mainContext
+        let formatter = ISO8601DateFormatter()
+        let before = formatter.date(from: "2026-08-01T12:00:00Z")!
+        let resetAt = formatter.date(from: "2026-08-02T12:00:00Z")!
+        let after = formatter.date(from: "2026-08-03T12:00:00Z")!
+        household.createdAt = before.addingTimeInterval(-100)
+        let first = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-08-01",
+            completedAt: before, awardedXP: 20)
+        let second = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-08-03",
+            completedAt: after, awardedXP: 30)
+        context.insert(household); context.insert(person); context.insert(quest)
+        context.insert(first); context.insert(second)
+
+        let model = AppModel()
+        try model.saveFamilyReward(
+            title: "Fictional Campout", targetXP: 250,
+            resetProgress: false, household: household, goals: [],
+            context: context, now: before)
+        var goals = try context.fetch(FetchDescriptor<RewardGoal>())
+        XCTAssertEqual(ProgressionEngine.rewardXP([first, second],
+                                                  goal: goals.first), 50)
+
+        try model.saveFamilyReward(
+            title: "Fictional Pizza Night", targetXP: 100,
+            resetProgress: true, household: household, goals: goals,
+            context: context, now: resetAt)
+        goals = try context.fetch(FetchDescriptor<RewardGoal>())
+        let active = goals.first { $0.deletedAt == nil }
+        XCTAssertEqual(active?.title, "Fictional Pizza Night")
+        XCTAssertEqual(active?.targetXP, 100)
+        XCTAssertEqual(ProgressionEngine.rewardXP([first, second], goal: active), 30)
+        XCTAssertEqual(ProgressionEngine.familyXP([first, second]), 50)
+        XCTAssertNotNil(goals.first { $0.deletedAt != nil })
+        XCTAssertEqual(household.rewardTitle, "Fictional Pizza Night")
+        XCTAssertEqual(household.rewardGoalXP, 100)
     }
 
     @MainActor func testIndividualAndSharedParticipantsHaveSeparateEvents() throws {

@@ -493,6 +493,7 @@ struct DashboardView: View {
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var completions: [QuestCompletion]
+    @Query private var goals: [RewardGoal]
     @Query private var deviceSettings: [LocalDeviceSettings]
     @Query private var quests: [Quest]
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
@@ -531,16 +532,19 @@ struct DashboardView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
-                                    Text(household.rewardTitle).font(.headline)
+                                            Text(rewardTitle(household)).font(.headline)
                                     Spacer()
                                     rewardProgress(household)
                                 }
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(household.rewardTitle).font(.headline)
+                                            Text(rewardTitle(household)).font(.headline)
                                     rewardProgress(household)
                                 }
                             }
-                            ProgressView(value: min(Double(ProgressionEngine.familyXP(completions)), Double(household.rewardGoalXP)), total: Double(household.rewardGoalXP))
+                                    ProgressView(
+                                        value: min(Double(rewardXP(household)),
+                                                   Double(rewardTarget(household))),
+                                        total: Double(rewardTarget(household)))
                         }.card()
                         QuestListView(compact: true, includeUpcoming: true)
                         recentActivity(household: household, personID: person.id)
@@ -585,11 +589,11 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 16) {
             householdHeading(household)
             VStack(alignment: .leading, spacing: 10) {
-                Text(household.rewardTitle).font(.headline)
+                Text(rewardTitle(household)).font(.headline)
                 ProgressView(
-                    value: min(Double(ProgressionEngine.familyXP(completions)),
-                               Double(household.rewardGoalXP)),
-                    total: Double(household.rewardGoalXP))
+                    value: min(Double(rewardXP(household)),
+                               Double(rewardTarget(household))),
+                    total: Double(rewardTarget(household)))
                 rewardProgress(household)
             }.card()
             LazyVGrid(
@@ -727,8 +731,24 @@ struct DashboardView: View {
     }
 
     private func rewardProgress(_ household: Household) -> some View {
-        Text("\(ProgressionEngine.familyXP(completions)) / \(household.rewardGoalXP) XP")
+        Text("\(rewardXP(household)) / \(rewardTarget(household)) XP")
             .font(.subheadline.monospacedDigit())
+    }
+
+    private func currentReward(_ household: Household) -> RewardGoal? {
+        ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
+    }
+
+    private func rewardTitle(_ household: Household) -> String {
+        currentReward(household)?.title ?? household.rewardTitle
+    }
+
+    private func rewardTarget(_ household: Household) -> Int {
+        max(1, currentReward(household)?.targetXP ?? household.rewardGoalXP)
+    }
+
+    private func rewardXP(_ household: Household) -> Int {
+        ProgressionEngine.rewardXP(completions, goal: currentReward(household))
     }
 
     @ViewBuilder private func stats(_ progress: PersonProgress) -> some View {
@@ -961,6 +981,9 @@ struct ParentAreaView: View {
                 Section {
                     NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
                     NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
+                    NavigationLink { FamilyRewardSettingsView() } label: {
+                        Label("Family reward", systemImage: "gift.fill")
+                    }
                     NavigationLink { CloudSyncSettingsView() } label: {
                         Label("Family sync", systemImage: "icloud")
                     }
@@ -977,6 +1000,115 @@ struct ParentAreaView: View {
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .navigationTitle("Parent")
+        }
+    }
+}
+
+struct FamilyRewardSettingsView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @Query private var completions: [QuestCompletion]
+    @Query private var goals: [RewardGoal]
+    @State private var rewardTitle = ""
+    @State private var targetText = ""
+    @State private var confirmNewReward = false
+    @State private var statusMessage: String?
+
+    private var household: Household? { households.first }
+    private var currentGoal: RewardGoal? {
+        guard let household else { return nil }
+        return ProgressionEngine.currentRewardGoal(
+            goals, householdID: household.id)
+    }
+    private var currentXP: Int {
+        ProgressionEngine.rewardXP(completions, goal: currentGoal)
+    }
+    private var savedTarget: Int {
+        max(1, currentGoal?.targetXP ?? household?.rewardGoalXP ?? 1)
+    }
+
+    var body: some View {
+        Form {
+            Section("Current progress") {
+                LabeledContent("Reward",
+                    value: currentGoal?.title ?? household?.rewardTitle ?? "Family reward")
+                LabeledContent("Family XP", value: "\(currentXP) / \(savedTarget) XP")
+                ProgressView(
+                    value: min(Double(currentXP), Double(savedTarget)),
+                    total: Double(savedTarget))
+                if currentXP >= savedTarget {
+                    Label("Reward ready!", systemImage: "party.popper.fill")
+                        .foregroundStyle(.purple)
+                } else {
+                    Text("\(savedTarget - currentXP) XP remaining")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Reward and goal") {
+                TextField("Reward name", text: $rewardTitle)
+                    .textInputAutocapitalization(.sentences)
+                TextField("Goal XP", text: $targetText)
+                    .keyboardType(.numberPad)
+                Button("Save changes", systemImage: "checkmark.circle") {
+                    save(resetProgress: false)
+                }
+                .disabled(!canSave)
+            }
+
+            Section("Next reward") {
+                Button("Start as a new reward", systemImage: "arrow.counterclockwise") {
+                    confirmNewReward = true
+                }
+                .disabled(!canSave)
+                Text("Starts the reward above at 0 family XP. Everyone keeps their profile XP, levels, streaks, and complete quest history.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+
+            if let statusMessage {
+                Section {
+                    Label(statusMessage, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .navigationTitle("Family reward")
+        .task { loadCurrentValues() }
+        .alert("Start a new family reward?", isPresented: $confirmNewReward) {
+            Button("Start at 0 XP") { save(resetProgress: true) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This resets only the shared reward counter. Profile XP and quest history stay intact.")
+        }
+        .errorAlert(app: app)
+    }
+
+    private var parsedTarget: Int? { Int(targetText) }
+    private var canSave: Bool {
+        !rewardTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        rewardTitle.count <= 80 &&
+        parsedTarget.map { (1...1_000_000).contains($0) } == true
+    }
+
+    private func loadCurrentValues() {
+        rewardTitle = currentGoal?.title ?? household?.rewardTitle ?? ""
+        targetText = String(currentGoal?.targetXP ?? household?.rewardGoalXP ?? 300)
+    }
+
+    private func save(resetProgress: Bool) {
+        guard let household, let target = parsedTarget else { return }
+        do {
+            try app.saveFamilyReward(
+                title: rewardTitle, targetXP: target,
+                resetProgress: resetProgress, household: household,
+                goals: goals, context: context)
+            statusMessage = resetProgress
+                ? "New reward started at 0 XP."
+                : "Family reward updated."
+            loadCurrentValues()
+        } catch {
+            app.errorMessage = error.localizedDescription
         }
     }
 }

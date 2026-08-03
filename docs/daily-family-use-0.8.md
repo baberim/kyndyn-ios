@@ -13,6 +13,19 @@ SwiftData immediately, displays the exact effective XP, and queues CloudKit work
 without blocking interaction. Completion identity is deterministic for the
 quest, person, and occurrence day, so rapid taps, retries, reordered delivery,
 and two-device completion converge on one event. Undo updates that exact event.
+
+## Family rewards
+
+The protected Parent area can change the current family reward name and XP
+target without resetting progress, or start the entered reward as a new goal at
+0 XP. A reset creates a new active `RewardGoal` whose creation date is the
+progress boundary. It never edits or deletes `QuestCompletion` history, so
+profile XP, levels, streaks, and completed-quest history remain unchanged.
+
+Reward progress is derived from active completion events on or after the active
+goal's boundary. Archived goals remain available in backups and CloudKit, and
+the existing `RewardGoal` record shape is unchanged; no production schema
+deployment is required for this behavior.
 Individual and shared-all quests continue to maintain one event per participant.
 
 Parent quest management edits title, notes, XP, assignees, completion mode,
@@ -56,6 +69,9 @@ Debug remains in Development. Production and Development data do not mix.
 - Tap anywhere on a quest card, verify immediate XP feedback, then undo it.
 - Rapidly tap a quest and confirm XP is awarded only once.
 - Edit all quest fields, archive and restore it, then confirm its history stays.
+- In Parent → Family reward, change the reward and XP target, save without a
+  reset, then start a new reward and confirm only the family reward counter
+  returns to 0 XP.
 - Enable a device reminder, choose a quest time, change quiet hours, complete
   and undo the quest, and confirm stale alerts are replaced or canceled.
 - With two Production TestFlight devices, edit and complete offline, reconnect,

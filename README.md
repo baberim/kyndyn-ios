@@ -39,6 +39,8 @@ The app provides a locally usable vertical slice:
   refresh, with manual refresh retained as a recovery control.
 - persistent person or whole-household daily views grouped into overdue, due
   today, completed today, and upcoming work;
+- parent-managed family rewards with editable XP targets and a history-safe
+  start-new-reward reset;
 - full-card completion and exact undo with deterministic occurrence identity,
   immediate XP feedback, and recent family activity;
 - device-local per-quest reminder timing that respects completion state, quiet

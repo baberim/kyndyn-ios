@@ -6,6 +6,7 @@ import SwiftUI
 enum KyndynValidationError: LocalizedError, Equatable {
     case emptyName, nameTooLong, emptyTitle, titleTooLong, detailTooLong
     case invalidXP, noParticipants, noWeekdays, lastParent, archivedParticipant
+    case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,9 @@ enum KyndynValidationError: LocalizedError, Equatable {
         case .noWeekdays: return "Choose at least one weekday."
         case .lastParent: return "Add or promote another active parent before archiving the last parent."
         case .archivedParticipant: return "Archived people can’t receive new quest assignments."
+        case .emptyRewardTitle: return "Enter a family reward."
+        case .rewardTitleTooLong: return "Keep family rewards to 80 characters or fewer."
+        case .invalidRewardTarget: return "The family XP goal must be between 1 and 1,000,000."
         }
     }
 }
@@ -329,6 +333,64 @@ enum LifecycleRules {
             try SyncQueue.enqueue(envelope, operation: .createOrUpdate, context: context)
         }
         refreshReminders(context: context)
+    }
+
+    func saveFamilyReward(
+        title rawTitle: String, targetXP: Int, resetProgress: Bool,
+        household: Household, goals: [RewardGoal], context: ModelContext,
+        now: Date = .now
+    ) throws {
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw KyndynValidationError.emptyRewardTitle }
+        guard title.count <= 80 else {
+            throw KyndynValidationError.rewardTitleTooLong
+        }
+        guard (1...1_000_000).contains(targetXP) else {
+            throw KyndynValidationError.invalidRewardTarget
+        }
+
+        let active = goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil
+        }
+        var archived = [RewardGoal]()
+        let goal: RewardGoal
+        if resetProgress {
+            for value in active {
+                value.deletedAt = now
+                archived.append(value)
+            }
+            goal = RewardGoal(
+                householdID: household.id, title: title, targetXP: targetXP)
+            goal.createdAt = now
+            context.insert(goal)
+        } else if let existing = ProgressionEngine.currentRewardGoal(
+            active, householdID: household.id) {
+            existing.title = title
+            existing.targetXP = targetXP
+            goal = existing
+        } else {
+            goal = RewardGoal(
+                householdID: household.id, title: title, targetXP: targetXP)
+            // Adopting the explicit RewardGoal model must not erase progress
+            // earned by an existing household.
+            goal.createdAt = household.createdAt
+            context.insert(goal)
+        }
+
+        household.rewardTitle = title
+        household.rewardGoalXP = targetXP
+        try context.save()
+        for value in archived {
+            try SyncQueue.enqueue(
+                SyncSnapshot.reward(value), operation: .archive,
+                context: context)
+        }
+        try SyncQueue.enqueue(
+            SyncSnapshot.reward(goal), operation: .createOrUpdate,
+            context: context)
+        try SyncQueue.enqueue(
+            SyncSnapshot.household(household), operation: .createOrUpdate,
+            context: context)
     }
 
     private func dueAt(_ draft: QuestDraft, household: Household) -> Date? {
