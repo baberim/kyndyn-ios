@@ -16,8 +16,17 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="K" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="mark">
+                                <rect key="frame" x="156.5" y="328" width="80" height="80"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="80" id="markWidth"/>
+                                    <constraint firstAttribute="height" constant="80" id="markHeight"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" weight="heavy" pointSize="62"/>
+                                <color key="textColor" systemColor="systemPurpleColor"/>
+                            </label>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="kyndyn" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="title">
-                                <rect key="frame" x="126.66666666666667" y="402.66666666666669" width="139.66666666666663" height="47.666666666666686"/>
+                                <rect key="frame" x="126.66666666666667" y="426" width="139.66666666666663" height="47.666666666666686"/>
                                 <fontDescription key="fontDescription" type="system" weight="bold" pointSize="40"/>
                                 <color key="textColor" systemColor="systemPurpleColor"/>
                             </label>
@@ -26,7 +35,9 @@
                         <color key="backgroundColor" name="LaunchBackground"/>
                         <constraints>
                             <constraint firstItem="title" firstAttribute="centerX" secondItem="root" secondAttribute="centerX" id="centerX"/>
-                            <constraint firstItem="title" firstAttribute="centerY" secondItem="root" secondAttribute="centerY" id="centerY"/>
+                            <constraint firstItem="mark" firstAttribute="centerX" secondItem="root" secondAttribute="centerX" id="markCenterX"/>
+                            <constraint firstItem="title" firstAttribute="top" secondItem="mark" secondAttribute="bottom" constant="18" id="markSpacing"/>
+                            <constraint firstItem="mark" firstAttribute="centerY" secondItem="root" secondAttribute="centerY" constant="-40" id="markCenterY"/>
                         </constraints>
                     </view>
                 </viewController>
