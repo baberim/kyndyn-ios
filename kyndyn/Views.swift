@@ -1341,6 +1341,7 @@ struct QuestListView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity, alignment: .center)
             Group {
                 if horizontalSizeClass == .regular {
                     filterButtons
@@ -1739,9 +1740,9 @@ struct ParentAreaView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(KyndynScreenBackground())
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
+            .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
     }
