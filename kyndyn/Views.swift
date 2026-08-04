@@ -490,7 +490,7 @@ struct ProfilePickerView: View {
                         } label: {
                             VStack(spacing: 12) {
                                 CompanionArt(id: person.companionID)
-                                    .frame(height: 112)
+                                    .frame(width: 86, height: 86)
                                     .padding(8)
                                     .background(.background.opacity(0.78), in: Circle())
                                     .overlay {
@@ -527,6 +527,7 @@ struct ProfilePickerView: View {
                 .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                 .frame(maxWidth: .infinity)
             }
+            .background(KyndynScreenBackground())
             .navigationTitle("kyndyn")
         }
     }
@@ -557,6 +558,7 @@ struct MainView: View {
             }
             ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(3)
         }
+        .background(KyndynScreenBackground())
         .onChange(of: app.selectedPersonID) { _, _ in
             app.selectedTab = 0
             if !ProcessInfo.processInfo.arguments.contains("-ui-testing-parent-unlocked") {
@@ -603,7 +605,9 @@ struct ParentAuthenticationView: View {
                     Text("Canceling leaves kyndyn unlocked for everyday child use; only parent tools stay locked.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.padding(28).frame(maxWidth: 560).frame(maxWidth: .infinity)
-            }.navigationTitle("Protected")
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Protected")
         }
     }
 }
@@ -1052,6 +1056,7 @@ struct MyProfileView: View {
     @State private var colorHex: String
     @State private var companionID: String
     @State private var backgroundID: String
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(person: Person) {
         self.person = person
@@ -1067,7 +1072,7 @@ struct MyProfileView: View {
                     ProfileScene(
                         backgroundID: backgroundID, companionID: companionID,
                         accent: Color(hex: colorHex))
-                        .frame(height: 210)
+                        .frame(height: horizontalSizeClass == .compact ? 150 : 210)
                         .accessibilityLabel("Preview for \(person.name)")
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
@@ -1076,14 +1081,18 @@ struct MyProfileView: View {
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Companion").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 105))]) {
+                        LazyVGrid(columns: [GridItem(.adaptive(
+                            minimum: horizontalSizeClass == .compact ? 96 : 150,
+                            maximum: horizontalSizeClass == .compact ? 118 : 190
+                        ), spacing: 12)], spacing: 12) {
                             ForEach(CollectionCatalog.companionIDs, id: \.self) { choice in
                                 let earned = person.earnedCompanionIDs.contains(choice)
                                 Button {
                                     if earned { companionID = choice }
                                 } label: {
                                     VStack {
-                                        CompanionArt(id: choice).frame(width: 74, height: 74)
+                                        CompanionArt(id: choice)
+                                            .frame(width: 62, height: 62)
                                             .saturation(earned ? 1 : 0)
                                             .opacity(earned ? 1 : 0.35)
                                         Text(choice.capitalized).font(.caption.bold())
@@ -1095,7 +1104,7 @@ struct MyProfileView: View {
                                                 .font(.caption2)
                                         }
                                     }
-                                    .frame(maxWidth: .infinity, minHeight: 122)
+                                    .frame(maxWidth: .infinity, minHeight: 116)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!earned)
@@ -1107,7 +1116,10 @@ struct MyProfileView: View {
                     }
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Background").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 135))]) {
+                        LazyVGrid(columns: [GridItem(.adaptive(
+                            minimum: horizontalSizeClass == .compact ? 132 : 220,
+                            maximum: horizontalSizeClass == .compact ? 170 : 280
+                        ), spacing: 12)], spacing: 12) {
                             ForEach(CollectionCatalog.backgrounds) { background in
                                 let earned = person.earnedBackgroundIDs.contains(background.id)
                                 Button {
@@ -1118,7 +1130,7 @@ struct MyProfileView: View {
                                             backgroundID: background.id,
                                             companionID: companionID,
                                             accent: Color(hex: colorHex))
-                                            .frame(height: 100)
+                                            .frame(height: horizontalSizeClass == .compact ? 82 : 120)
                                             .saturation(earned ? 1 : 0)
                                             .opacity(earned ? 1 : 0.42)
                                         Text(background.name).font(.caption.bold())
@@ -1137,7 +1149,8 @@ struct MyProfileView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding()
-                .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+                .frame(maxWidth: horizontalSizeClass == .compact
+                       ? 520 : AdaptiveLayout.readableContentMaximum)
                 .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
@@ -1292,8 +1305,8 @@ struct QuestListView: View {
                         tint: statusTint(status))
                     LazyVGrid(
                         columns: [GridItem(.adaptive(
-                            minimum: dynamicTypeSize.isAccessibilitySize ? 540 : 300,
-                            maximum: 540
+                            minimum: dynamicTypeSize.isAccessibilitySize ? 540 : 340,
+                            maximum: 900
                         ), spacing: 12)],
                         alignment: .leading, spacing: 12
                     ) {
@@ -1321,7 +1334,7 @@ struct QuestListView: View {
                 Text("Everyone").tag(true)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 620)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                 ForEach(QuestBrowseFilter.allCases) { filter in
@@ -1708,6 +1721,8 @@ struct ParentAreaView: View {
                     LabeledContent("Version", value: appVersion)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(KyndynScreenBackground())
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .navigationTitle("Parent")
@@ -2073,10 +2088,18 @@ struct PersonEditorView: View {
                 ProfileColorSelector(selection: $draft.colorHex)
             }
             Section("Companion") {
-                Picker("Active companion", selection: $draft.companionID) {
-                    ForEach(availableCompanions, id: \.self) { id in
-                        HStack { CompanionArt(id: id).frame(width: 44, height: 44); Text(id.capitalized) }.tag(id)
+                HStack(spacing: 12) {
+                    Text("Active companion")
+                    Spacer()
+                    CompanionArt(id: draft.companionID)
+                        .frame(width: 38, height: 38)
+                    Picker("Active companion", selection: $draft.companionID) {
+                        ForEach(availableCompanions, id: \.self) { id in
+                            Text(id.capitalized).tag(id)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
             }
             if let person {
@@ -2100,6 +2123,8 @@ struct PersonEditorView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
         .navigationTitle(person == nil ? "New person" : "Edit person")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
