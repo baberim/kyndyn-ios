@@ -256,23 +256,23 @@ final class ForegroundSyncPulse {
                         .environment(invitationRouter)
                         .environmentObject(parentAccess)
                         .modelContainer(container)
-                        .task {
-                            automaticSync.configure(
-                                controller: cloudSync,
-                                context: container.mainContext)
-                            AutomaticSyncBackgroundBridge.shared.coordinator =
-                                automaticSync
-                            connectivity.start()
-                            foregroundSyncPulse.start(
-                                coordinator: automaticSync)
-                            parentAccess.unlockForUITesting()
-                            await Task.yield()
-                            model.finishedPreparing()
-                            automaticSync.request(.launch)
-                        }
                 } else {
                     StoreRecoveryView(detail: storeError)
                 }
+            }
+            .task {
+                guard let container else { return }
+                // Leave the branded preparation overlay before optional network
+                // work. Local SwiftData remains the immediate presentation source.
+                model.finishedPreparing()
+                automaticSync.configure(
+                    controller: cloudSync,
+                    context: container.mainContext)
+                AutomaticSyncBackgroundBridge.shared.coordinator = automaticSync
+                connectivity.start()
+                foregroundSyncPulse.start(coordinator: automaticSync)
+                parentAccess.unlockForUITesting()
+                automaticSync.request(.launch)
             }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {

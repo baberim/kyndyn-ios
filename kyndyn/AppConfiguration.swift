@@ -52,6 +52,7 @@ enum KyndynCloudReadiness: Equatable, Sendable {
     case disabled
     case missingContainerIdentifier
     case invalidContainerIdentifier
+    case missingContainerEntitlement
     case ready(containerIdentifier: String, environment: KyndynCloudEnvironment)
 
     var developmentMessage: String {
@@ -62,6 +63,8 @@ enum KyndynCloudReadiness: Equatable, Sendable {
             return "Family sync is enabled, but its iCloud container identifier is missing."
         case .invalidContainerIdentifier:
             return "The configured iCloud container identifier is invalid. It must begin with “iCloud.”"
+        case .missingContainerEntitlement:
+            return "Family sync is unavailable in this installation. The app can still be used locally."
         case let .ready(_, environment):
             return "Family sync is configured for Apple’s \(environment.rawValue) CloudKit environment."
         }
@@ -74,7 +77,14 @@ enum KyndynCloudContainerFactory {
     ) -> Result<CKContainer, KyndynCloudReadinessError> {
         switch configuration.readiness {
         case let .ready(identifier, _):
+            #if targetEnvironment(simulator)
+            // CloudKit's custom-container initializer traps when a simulator build
+            // lacks a real iCloud entitlement. Automated sync coverage uses the
+            // deterministic transport; the simulator remains safely local-only.
+            return .failure(KyndynCloudReadinessError(readiness: .missingContainerEntitlement))
+            #else
             return .success(CKContainer(identifier: identifier))
+            #endif
         case let readiness:
             return .failure(KyndynCloudReadinessError(readiness: readiness))
         }

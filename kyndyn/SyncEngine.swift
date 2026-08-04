@@ -80,6 +80,18 @@ struct HouseholdShareDescriptor: Equatable, Sendable {
     var title: String
 }
 
+struct CloudHouseholdCandidate: Identifiable, Equatable, Sendable {
+    var id: String { "\(scope.rawValue):\(zoneOwnerName ?? "owner"):\(zoneName)" }
+    var householdID: UUID
+    var householdName: String
+    var zoneName: String
+    var zoneOwnerName: String?
+    var rootRecordName: String
+    var shareRecordName: String?
+    var scope: CloudDatabaseScope
+    var records: [CloudRecordEnvelope]
+}
+
 struct ShareInvitation: Equatable, Sendable {
     var shareIdentifier: String
     var rootRecordName: String
@@ -127,6 +139,7 @@ protocol CloudAccountChecking: Sendable {
 }
 
 protocol HouseholdCloudTransport: CloudAccountChecking {
+    func discoverHouseholds() async throws -> [CloudHouseholdCandidate]
     func prepareZone(named zoneName: String, scope: CloudDatabaseScope) async throws
     func save(records: [CloudRecordEnvelope], zoneName: String,
               zoneOwnerName: String?,
@@ -145,6 +158,7 @@ protocol HouseholdCloudTransport: CloudAccountChecking {
 }
 
 extension HouseholdCloudTransport {
+    func discoverHouseholds() async throws -> [CloudHouseholdCandidate] { [] }
     func ensureChangeSubscription(zoneName: String, zoneOwnerName: String?,
                                   scope: CloudDatabaseScope) async throws {}
 
@@ -462,6 +476,97 @@ struct ProvisioningPreview: Equatable {
          notificationScheduler: NotificationScheduling = UserNotificationScheduler()) {
         self.transport = transport
         self.notificationScheduler = notificationScheduler
+    }
+
+    func discoverRecoverableHouseholds() async -> [CloudHouseholdCandidate] {
+        guard !isWorking else { return [] }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let account = try await transport.accountAvailability()
+            guard case .available = account else {
+                statusMessage = account == .noAccount
+                    ? "Sign in to iCloud to look for your family."
+                    : "iCloud isn’t available right now."
+                return []
+            }
+            let values = try await transport.discoverHouseholds()
+            statusMessage = values.isEmpty
+                ? "No Kyndyn family was found in this iCloud account."
+                : "Found \(values.count) family\(values.count == 1 ? "" : "ies")."
+            return values
+        } catch let error as CloudGatewayError {
+            lastErrorCategory = error.category
+            statusMessage = error == .offline
+                ? "Connect to the internet to look for your family."
+                : "Kyndyn couldn’t check iCloud yet. Try again."
+            return []
+        } catch {
+            lastErrorCategory = .unknown
+            statusMessage = "Kyndyn couldn’t check iCloud yet. Try again."
+            return []
+        }
+    }
+
+    @discardableResult
+    func recoverHousehold(
+        _ candidate: CloudHouseholdCandidate, context: ModelContext
+    ) async -> HouseholdCloudState? {
+        guard !isWorking else { return nil }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            guard try context.fetch(FetchDescriptor<Household>()).isEmpty else {
+                statusMessage = "Recovery is available only on an empty installation."
+                return nil
+            }
+            guard let root = candidate.records.first(where: {
+                $0.type == .household && $0.entityID == candidate.householdID &&
+                    !$0.tombstone
+            }) else { throw CloudGatewayError.malformedInvitation }
+            guard (Int(root.fields["schemaVersion"] ?? "") ?? KyndynSchema.version)
+                    <= KyndynSchema.version else {
+                throw CloudGatewayError.incompatibleSchema
+            }
+            let account = try await transport.accountAvailability()
+            guard case .available(let fingerprint) = account else {
+                throw account == .noAccount
+                    ? CloudGatewayError.notSignedIn : CloudGatewayError.transient
+            }
+            try SyncRemoteApplier.apply(candidate.records, context: context)
+            let state = HouseholdCloudState(householdID: candidate.householdID)
+            state.mode = candidate.scope == .privateDatabase ? .owner : .participant
+            state.databaseScope = candidate.scope
+            state.zoneName = candidate.zoneName
+            state.zoneOwnerName = candidate.zoneOwnerName
+            state.rootRecordName = candidate.rootRecordName
+            state.shareRecordName = candidate.shareRecordName
+            state.accountFingerprint = fingerprint
+            state.provisioningStage = .roundTripVerified
+            state.sharingHierarchyVersion = 1
+            state.lastSuccessfulSyncAt = .now
+            context.insert(state)
+            if try context.fetch(FetchDescriptor<LocalDeviceSettings>()).isEmpty {
+                context.insert(LocalDeviceSettings())
+            }
+            try context.save()
+            statusMessage = "Your family was recovered from iCloud."
+            lastErrorCategory = nil
+            await refreshRemindersIfNeeded(candidate.records, context: context)
+            return state
+        } catch let error as CloudGatewayError {
+            context.rollback()
+            lastErrorCategory = error.category
+            statusMessage = error == .incompatibleSchema
+                ? "Update Kyndyn to recover this family."
+                : "Kyndyn couldn’t recover this family yet. Nothing was changed."
+            return nil
+        } catch {
+            context.rollback()
+            lastErrorCategory = .unknown
+            statusMessage = "Kyndyn couldn’t recover this family yet. Nothing was changed."
+            return nil
+        }
     }
 
     func ensureChangeSubscription(for state: HouseholdCloudState) async -> Bool {
@@ -1018,6 +1123,24 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
         return availability
     }
 
+    func discoverHouseholds() async throws -> [CloudHouseholdCandidate] {
+        try consumeFailure()
+        return zones.compactMap { zoneName, zone in
+            guard let root = zone.records.values.first(where: {
+                $0.type == .household && !$0.tombstone
+            }) else { return nil }
+            return CloudHouseholdCandidate(
+                householdID: root.householdID,
+                householdName: root.fields["name"] ?? "Kyndyn family",
+                zoneName: zoneName,
+                zoneOwnerName: nil,
+                rootRecordName: root.recordName,
+                shareRecordName: shares.first(where: { $0.value == root.recordName })?.key,
+                scope: .privateDatabase,
+                records: Array(zone.records.values))
+        }.sorted { $0.householdName < $1.householdName }
+    }
+
     func prepareZone(named zoneName: String,
                      scope: CloudDatabaseScope) async throws {
         try consumeFailure()
@@ -1168,6 +1291,49 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
 
     func accountAvailability() async throws -> CloudAccountAvailability {
         try await CloudKitAccountChecker(container: container).accountAvailability()
+    }
+
+    func discoverHouseholds() async throws -> [CloudHouseholdCandidate] {
+        var candidates = [CloudHouseholdCandidate]()
+        for scope in [CloudDatabaseScope.privateDatabase, .sharedDatabase] {
+            let database = database(scope)
+            let zones: [CKRecordZone]
+            do {
+                zones = try await database.allRecordZones()
+            } catch {
+                throw map(error, operation: "discover-zones")
+            }
+            for zone in zones where zone.zoneID.zoneName.hasPrefix("kyndyn-household-") {
+                let batch = try await fetchChanges(
+                    zoneName: zone.zoneID.zoneName,
+                    scope: scope,
+                    zoneOwnerName: zone.zoneID.ownerName,
+                    after: nil)
+                guard let root = batch.records.first(where: {
+                    $0.type == .household && !$0.tombstone
+                }),
+                (Int(root.fields["schemaVersion"] ?? "") ?? KyndynSchema.version)
+                    <= KyndynSchema.version else { continue }
+                let shareName: String?
+                if scope == .privateDatabase {
+                    shareName = try? await shareRecordName(
+                        rootRecordName: root.recordName,
+                        zoneID: zone.zoneID)
+                } else {
+                    shareName = nil
+                }
+                candidates.append(CloudHouseholdCandidate(
+                    householdID: root.householdID,
+                    householdName: root.fields["name"] ?? "Kyndyn family",
+                    zoneName: zone.zoneID.zoneName,
+                    zoneOwnerName: zone.zoneID.ownerName,
+                    rootRecordName: root.recordName,
+                    shareRecordName: shareName,
+                    scope: scope,
+                    records: batch.records))
+            }
+        }
+        return candidates.sorted { $0.householdName < $1.householdName }
     }
 
     func prepareZone(named zoneName: String,
@@ -1348,6 +1514,15 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
     private func database(_ scope: CloudDatabaseScope) -> CKDatabase {
         scope == .privateDatabase
             ? container.privateCloudDatabase : container.sharedCloudDatabase
+    }
+
+    private func shareRecordName(
+        rootRecordName: String, zoneID: CKRecordZone.ID
+    ) async throws -> String? {
+        let root = try await container.privateCloudDatabase.record(for: CKRecord.ID(
+            recordName: rootRecordName, zoneID: zoneID))
+        guard let reference = root.share else { return nil }
+        return reference.recordID.recordName
     }
 
     private func zoneID(name: String, ownerName: String?) -> CKRecordZone.ID {
