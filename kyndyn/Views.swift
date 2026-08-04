@@ -143,6 +143,7 @@ struct InvitationLandingView: View {
 
 struct OnboardingView: View {
     @Environment(AppModel.self) private var app
+    @Environment(CloudSyncController.self) private var sync
     @EnvironmentObject private var parentAccess: ParentAccessController
     @Environment(\.modelContext) private var context
     @State private var isWorking = false
@@ -152,6 +153,7 @@ struct OnboardingView: View {
     @State private var pendingImportKind: TransferReport.Source?
     @State private var importReport: TransferReport?
     @State private var showImportConfirmation = false
+    @State private var showCloudRecovery = false
 
     var body: some View {
         ScrollView {
@@ -184,6 +186,11 @@ struct OnboardingView: View {
                     }
                 }
                 .buttonStyle(.borderless)
+                Button("Recover my family from iCloud", systemImage: "icloud.and.arrow.down") {
+                    showCloudRecovery = true
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Looks for an existing Kyndyn family without creating a new one")
                 Text("Sample mode uses fictional people and stays separate from your family. Restores and Rowan migrations require an empty installation.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -193,6 +200,9 @@ struct OnboardingView: View {
         .accessibilityIdentifier("onboarding")
         .sheet(isPresented: $showSetup) {
             HouseholdSetupView()
+        }
+        .sheet(isPresented: $showCloudRecovery) {
+            CloudHouseholdRecoveryView()
         }
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.json]) { result in
@@ -236,6 +246,86 @@ struct OnboardingView: View {
             }
         }
         .errorAlert(app: app)
+    }
+}
+
+struct CloudHouseholdRecoveryView: View {
+    @Environment(CloudSyncController.self) private var sync
+    @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var candidates = [CloudHouseholdCandidate]()
+    @State private var hasChecked = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Kyndyn will look for families already owned by or shared with this iCloud account. It won’t upload, replace, or delete anything.")
+                        .foregroundStyle(.secondary)
+                }
+                if sync.isWorking {
+                    Section { ProgressView("Checking iCloud…") }
+                } else if candidates.isEmpty, hasChecked {
+                    Section {
+                        ContentUnavailableView(
+                            "No family found",
+                            systemImage: "icloud.slash",
+                            description: Text(sync.statusMessage))
+                    }
+                } else {
+                    Section("Families found") {
+                        ForEach(candidates) { candidate in
+                            Button {
+                                recover(candidate)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(candidate.householdName).font(.headline)
+                                    Text(candidate.scope == .privateDatabase
+                                         ? "Hosted by you" : "Shared with you")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button("Check again", systemImage: "arrow.clockwise") {
+                        check()
+                    }
+                    .disabled(sync.isWorking)
+                }
+            }
+            .navigationTitle("Recover from iCloud")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .task { check() }
+        }
+    }
+
+    private func check() {
+        Task {
+            candidates = await sync.discoverRecoverableHouseholds()
+            hasChecked = true
+        }
+    }
+
+    private func recover(_ candidate: CloudHouseholdCandidate) {
+        Task {
+            guard await sync.recoverHousehold(candidate, context: context) != nil else {
+                return
+            }
+            let recoveredPeople = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+            app.selectedPersonID = recoveredPeople.first(where: {
+                $0.householdID == candidate.householdID && $0.deletedAt == nil
+            })?.id
+            automaticSync.request(.accountRecovery)
+            dismiss()
+        }
     }
 }
 
@@ -508,6 +598,8 @@ struct DashboardView: View {
     @Query private var goals: [RewardGoal]
     @Query private var deviceSettings: [LocalDeviceSettings]
     @Query private var quests: [Quest]
+    @State private var showMyProfile = false
+    @State private var showProgress = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -546,6 +638,10 @@ struct DashboardView: View {
                                 ) {
                             stats(progress)
                         }
+                        Button("See progress details", systemImage: "chart.line.uptrend.xyaxis") {
+                            showProgress = true
+                        }
+                        .buttonStyle(.bordered)
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
@@ -579,6 +675,23 @@ struct DashboardView: View {
             }
             .background(KyndynScreenBackground())
             .navigationTitle("Today")
+            .toolbar {
+                if person != nil && deviceSettings.first?.showsHouseholdDashboard != true {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("My profile", systemImage: "person.crop.circle") {
+                            showMyProfile = true
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showMyProfile) {
+                if let person { MyProfileView(person: person) }
+            }
+            .sheet(isPresented: $showProgress) {
+                if let person, let household = households.first {
+                    ProgressDetailView(person: person, household: household)
+                }
+            }
         }
     }
 
@@ -784,31 +897,246 @@ struct DashboardView: View {
     }
 }
 
+private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
+    case waiting, completed, overdue, upcoming, all
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
+struct ProgressDetailView: View {
+    let person: Person
+    let household: Household
+    @Environment(\.dismiss) private var dismiss
+    @Query private var completions: [QuestCompletion]
+    @Query private var quests: [Quest]
+
+    private var activeEvents: [QuestCompletion] {
+        completions.filter { $0.personID == person.id && $0.reversedAt == nil }
+            .sorted { $0.completedAt > $1.completedAt }
+    }
+    private var progress: PersonProgress {
+        ProgressionEngine.progress(
+            personID: person.id, completions: completions, now: .now,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Progress") {
+                    LabeledContent("Total XP", value: "\(progress.xp)")
+                    LabeledContent("Level", value: "\(progress.level)")
+                    LabeledContent("Current streak", value: "\(progress.currentStreak) days")
+                    Text("XP comes from active completion events. Undoing a completion removes that event’s XP from these totals.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("Recent XP") {
+                    if activeEvents.isEmpty {
+                        Text("Complete a quest to begin your history.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(activeEvents.prefix(30)) { event in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(quests.first { $0.id == event.questID }?.title
+                                         ?? "Completed quest")
+                                    Text(event.completedAt.formatted())
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("+\(event.awardedXP) XP")
+                                    .font(.subheadline.bold()).monospacedDigit()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("\(person.name)’s progress")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct MyProfileView: View {
+    let person: Person
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var colorHex: String
+    @State private var companionID: String
+
+    init(person: Person) {
+        self.person = person
+        _colorHex = State(initialValue: person.colorHex)
+        _companionID = State(initialValue: person.companionID)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 22) {
+                    CompanionArt(id: companionID)
+                        .frame(width: 150, height: 150)
+                        .padding(14)
+                        .background(Color(hex: colorHex).opacity(0.16), in: Circle())
+                        .overlay { Circle().stroke(Color(hex: colorHex), lineWidth: 6) }
+                        .accessibilityLabel("Preview for \(person.name)")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("App color").font(.headline)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64))]) {
+                            ForEach(colorChoices, id: \.self) { color in
+                                Button {
+                                    colorHex = color
+                                } label: {
+                                    Circle().fill(Color(hex: color))
+                                        .frame(width: 44, height: 44)
+                                        .overlay {
+                                            if colorHex == color {
+                                                Image(systemName: "checkmark")
+                                                    .bold().foregroundStyle(.white)
+                                            }
+                                        }
+                                }
+                                .accessibilityLabel(ProfilePalette.name(for: color))
+                                .accessibilityValue(colorHex == color ? "Selected" : "Not selected")
+                            }
+                        }
+                    }
+                    .kyndynCard(tint: Color(hex: colorHex))
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Companion").font(.headline)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 105))]) {
+                            ForEach(companionChoices, id: \.self) { choice in
+                                Button {
+                                    companionID = choice
+                                } label: {
+                                    VStack {
+                                        CompanionArt(id: choice).frame(width: 74, height: 74)
+                                        Text(choice.capitalized).font(.caption.bold())
+                                        if companionID == choice {
+                                            Label("Active", systemImage: "checkmark.circle.fill")
+                                                .font(.caption2)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 122)
+                                }
+                                .buttonStyle(.plain)
+                                .kyndynCard(tint: companionID == choice
+                                            ? Color(hex: colorHex) : .secondary)
+                            }
+                        }
+                    }
+                    Text("Parents still manage names, roles, and family permissions.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+                .frame(maxWidth: .infinity)
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("My profile")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                }
+            }
+        }
+        .tint(Color(hex: colorHex))
+    }
+
+    private func save() {
+        do {
+            try app.updatePerson(
+                person,
+                draft: PersonDraft(name: person.name, role: person.role,
+                                   colorHex: colorHex,
+                                   companionID: companionID),
+                context: context)
+            dismiss()
+        } catch {
+            app.errorMessage = error.localizedDescription
+        }
+    }
+}
+
 struct QuestListView: View {
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var households: [Household]
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
+    @Query private var people: [Person]
     var compact = false
     var personID: UUID? = nil
     var includeUpcoming = false
     var showsCompactHeading = true
     @State private var inFlight = Set<String>()
     @State private var earnedFeedback: String?
+    @State private var browseFilter: QuestBrowseFilter = .waiting
+    @State private var searchText = ""
+    @State private var selectedQuest: Quest?
+    @State private var browseEveryone = false
 
     private var selectedPersonID: UUID? { personID ?? app.selectedPersonID }
 
     private var visible: [(Quest, QuestTemporalStatus)] {
-        guard let household = households.first, let personID = selectedPersonID else { return [] }
-        return quests.compactMap {
-            let status = ProgressionEngine.temporalStatus(for: $0, personID: personID, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
-            return status == .inactive || (!includeUpcoming && status == .upcoming)
-                ? nil : ($0, status)
+        guard let household = households.first else { return [] }
+        return quests.compactMap { quest in
+            let status: QuestTemporalStatus
+            if browseEveryone {
+                let values = quest.participantIDs.map { personID in
+                    ProgressionEngine.temporalStatus(
+                        for: quest, personID: personID, completions: completions,
+                        now: .now,
+                        timeZoneIdentifier: household.timeZoneIdentifier)
+                }
+                status = aggregateStatus(values)
+            } else if let personID = selectedPersonID {
+                status = ProgressionEngine.temporalStatus(
+                    for: quest, personID: personID, completions: completions,
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+            } else {
+                status = .inactive
+            }
+            return status == .inactive ||
+                (!includeUpcoming && compact && status == .upcoming)
+                ? nil : (quest, status)
         }.sorted { lhs, rhs in
             let order: [QuestTemporalStatus: Int] = [.overdue: 0, .today: 1, .completed: 2]
             return order[lhs.1, default: 9] < order[rhs.1, default: 9]
+        }
+    }
+
+    private func aggregateStatus(_ values: [QuestTemporalStatus]) -> QuestTemporalStatus {
+        for status in [QuestTemporalStatus.overdue, .today, .upcoming, .completed] {
+            if values.contains(status) { return status }
+        }
+        return .inactive
+    }
+
+    private var browsed: [(Quest, QuestTemporalStatus)] {
+        visible.filter { quest, status in
+            let matchesFilter: Bool
+            switch browseFilter {
+            case .waiting: matchesFilter = status == .today || status == .overdue
+            case .completed: matchesFilter = status == .completed
+            case .overdue: matchesFilter = status == .overdue
+            case .upcoming: matchesFilter = status == .upcoming
+            case .all: matchesFilter = true
+            }
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return matchesFilter && (query.isEmpty ||
+                quest.title.localizedCaseInsensitiveContains(query) ||
+                quest.detail.localizedCaseInsensitiveContains(query))
         }
     }
 
@@ -825,26 +1153,40 @@ struct QuestListView: View {
                         }
                         .background(KyndynScreenBackground())
                         .navigationTitle("Today’s quests")
+                        .searchable(text: $searchText, prompt: "Search quests")
                 }
             }
-        }.errorAlert(app: app)
+        }
+        .sheet(item: $selectedQuest) { quest in
+            QuestDetailView(quest: quest, personID: browseEveryone ? nil : selectedPersonID)
+        }
+        .errorAlert(app: app)
     }
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !compact { browseControls }
             if compact && showsCompactHeading { Text("Quests").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader) }
-            if visible.isEmpty {
-                ContentUnavailableView("All clear", systemImage: "checkmark.circle", description: Text("No quests are waiting for you today."))
+            if (compact ? visible : browsed).isEmpty {
+                ContentUnavailableView(
+                    searchText.isEmpty ? "All clear" : "No matching quests",
+                    systemImage: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
+                    description: Text(searchText.isEmpty
+                        ? "No quests match this view."
+                        : "Try another search or filter."))
             }
             ForEach([QuestTemporalStatus.overdue, .today, .completed, .upcoming],
                     id: \.rawValue) { status in
-                let items = visible.filter { $0.1 == status }
+                let items = (compact ? visible : browsed).filter { $0.1 == status }
                 if !items.isEmpty {
                     KyndynSectionHeader(
                         title: sectionTitle(status), count: items.count,
                         tint: statusTint(status))
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 300, maximum: 540), spacing: 12)],
+                        columns: [GridItem(.adaptive(
+                            minimum: dynamicTypeSize.isAccessibilitySize ? 540 : 300,
+                            maximum: 540
+                        ), spacing: 12)],
                         alignment: .leading, spacing: 12
                     ) {
                         ForEach(items, id: \.0.id) { quest, itemStatus in
@@ -864,34 +1206,107 @@ struct QuestListView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var browseControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Whose quests", selection: $browseEveryone) {
+                Text("My quests").tag(false)
+                Text("Everyone").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 360)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                ForEach(QuestBrowseFilter.allCases) { filter in
+                        Button {
+                            browseFilter = filter
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(filter.title)
+                                Text("\(count(for: filter))")
+                                    .font(.caption.bold().monospacedDigit())
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(.secondary.opacity(0.13), in: Capsule())
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(browseFilter == filter ? .accentColor : .secondary)
+                        .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
+                    }
+                }
+            }
+            .accessibilityIdentifier("quest-status-filter")
+            Text(browseEveryone ? "Showing the whole family" :
+                    "Showing quests for \(people.first { $0.id == selectedPersonID }?.name ?? "the selected profile")")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func count(for filter: QuestBrowseFilter) -> Int {
+        switch filter {
+        case .waiting: return visible.filter { $0.1 == .today || $0.1 == .overdue }.count
+        case .completed: return visible.filter { $0.1 == .completed }.count
+        case .overdue: return visible.filter { $0.1 == .overdue }.count
+        case .upcoming: return visible.filter { $0.1 == .upcoming }.count
+        case .all: return visible.count
+        }
+    }
+
     @ViewBuilder private func QuestRow(quest: Quest, status: QuestTemporalStatus) -> some View {
-        if let household = households.first, let personID = selectedPersonID {
-            let done = status == .completed
+        if browseEveryone {
             Button {
-                toggle(quest: quest, done: done, personID: personID,
-                       household: household)
+                selectedQuest = quest
             } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: statusIcon(status))
+                        .font(.title2).foregroundStyle(statusTint(status))
+                        .frame(minWidth: 44, minHeight: 44)
+                    questDetails(quest: quest, status: status,
+                                 done: status == .completed)
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 96,
+                       alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .kyndynCard(tint: statusTint(status), raised: status == .overdue)
+            .accessibilityHint("Shows assignments and family completion history")
+        } else if let household = households.first, let personID = selectedPersonID {
+            let done = status == .completed
+            HStack(spacing: 4) {
+                Button {
+                    toggle(quest: quest, done: done, personID: personID,
+                           household: household)
+                } label: {
                 HStack(spacing: 14) {
                     completionIcon(quest: quest, done: done)
                     questDetails(quest: quest, status: status, done: done)
                     Spacer()
                     xpLabel(quest: quest, done: done, household: household)
                 }
-                .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 96,
+                .frame(maxWidth: .infinity, minHeight: 96,
                        alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .disabled(status == .upcoming ||
+                          inFlight.contains(actionKey(quest, personID)))
+                .accessibilityLabel(status == .upcoming ? "Upcoming \(quest.title)" :
+                    (done ? "Undo \(quest.title)" : "Complete \(quest.title)"))
+                .accessibilityHint(done
+                    ? "Reverses this occurrence and recalculates progress"
+                    : "Records this occurrence as complete")
+                .accessibilityValue(quest.completionMode == .sharedAll
+                    ? "Shared family check-in" : "Individual check-in")
+                .accessibilityIdentifier("quest-toggle-\(quest.title)")
+                Button("Details", systemImage: "info.circle") {
+                    selectedQuest = quest
+                }
+                .labelStyle(.iconOnly)
+                .font(.title3)
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityLabel("Details for \(quest.title)")
             }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .disabled(status == .upcoming ||
-                      inFlight.contains(actionKey(quest, personID)))
-            .accessibilityLabel(status == .upcoming ? "Upcoming \(quest.title)" :
-                (done ? "Undo \(quest.title)" : "Complete \(quest.title)"))
-            .accessibilityHint(done
-                ? "Reverses this occurrence and recalculates progress"
-                : "Records this occurrence as complete")
-            .accessibilityValue(quest.completionMode == .sharedAll
-                ? "Shared family check-in" : "Individual check-in")
-            .accessibilityIdentifier("quest-toggle-\(quest.title)")
             .kyndynCard(tint: statusTint(status),
                         raised: status == .overdue)
         }
@@ -1030,11 +1445,94 @@ struct QuestListView: View {
     }
 }
 
+struct QuestDetailView: View {
+    let quest: Quest
+    let personID: UUID?
+    @Environment(\.dismiss) private var dismiss
+    @Query private var people: [Person]
+    @Query private var completions: [QuestCompletion]
+
+    private var history: [QuestCompletion] {
+        completions.filter {
+            $0.questID == quest.id && (personID == nil || $0.personID == personID)
+        }.sorted { $0.completedAt > $1.completedAt }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Quest") {
+                    LabeledContent("XP", value: "\(quest.xp)")
+                    LabeledContent("Schedule", value: scheduleText)
+                    LabeledContent("Assigned to", value: assignees)
+                    LabeledContent("Check-in", value: quest.completionMode == .sharedAll
+                                   ? "Each person" : "Individual")
+                    if let due = quest.dueAt {
+                        LabeledContent("Deadline", value: due.formatted())
+                    }
+                    if !quest.detail.isEmpty { Text(quest.detail) }
+                }
+                Section("Completion history") {
+                    if history.isEmpty {
+                        Text("No completion events yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(history) { event in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(people.first { $0.id == event.personID }?.name
+                                         ?? "Family member")
+                                    Spacer()
+                                    Text("+\(event.awardedXP) XP")
+                                        .font(.subheadline.bold())
+                                }
+                                Text(event.completedAt.formatted())
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if let reversed = event.reversedAt {
+                                    Label("Undone \(reversed.formatted())",
+                                          systemImage: "arrow.uturn.backward.circle")
+                                        .font(.caption).foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(quest.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var assignees: String {
+        let names = people.filter { quest.participantIDs.contains($0.id) }.map(\.name)
+        return names.isEmpty ? "No one" : names.joined(separator: ", ")
+    }
+
+    private var scheduleText: String {
+        switch quest.scheduleKind {
+        case .oneTime: return "One time"
+        case .daily: return "Daily"
+        case .weekly:
+            return quest.repeatIntervalWeeks > 1 ? "Every other week" : "Weekly"
+        }
+    }
+}
+
 // MARK: - Parent area
 
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
     @Query private var households: [Household]
+    @Query private var people: [Person]
+    @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+    @Query private var goals: [RewardGoal]
+    @Query private var cloudStates: [HouseholdCloudState]
     var body: some View {
         NavigationStack {
             List {
@@ -1044,6 +1542,40 @@ struct ParentAreaView: View {
                             .foregroundStyle(.purple)
                         Text("This household contains fictional practice data and is kept separate from personal setup.")
                             .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if let household = households.first {
+                    Section("Today at a glance") {
+                        HStack(spacing: 10) {
+                            ParentSummaryTile(value: waitingCount(household), label: "Waiting", tint: .blue)
+                            ParentSummaryTile(value: overdueCount(household), label: "Overdue", tint: .orange)
+                            ParentSummaryTile(value: completedCount(household), label: "Done", tint: .green)
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Label(currentReward(household), systemImage: "gift.fill")
+                                Spacer()
+                                Text("\(rewardXP(household)) / \(rewardTarget(household)) XP")
+                                    .font(.subheadline.monospacedDigit())
+                            }
+                            ProgressView(value: min(Double(rewardXP(household)),
+                                                    Double(rewardTarget(household))),
+                                         total: Double(rewardTarget(household)))
+                        }
+                    }
+                    Section("Quick actions") {
+                        NavigationLink { QuestEditorView(quest: nil) } label: {
+                            Label("Create a quest", systemImage: "plus.circle.fill")
+                        }
+                        NavigationLink { PersonEditorView(person: nil) } label: {
+                            Label("Add a person", systemImage: "person.badge.plus")
+                        }
+                        NavigationLink { FamilyRewardSettingsView() } label: {
+                            Label("Update family reward", systemImage: "gift")
+                        }
+                        NavigationLink { CloudSyncSettingsView() } label: {
+                            Label(syncSummary, systemImage: "icloud")
+                        }
                     }
                 }
                 Section {
@@ -1064,11 +1596,74 @@ struct ParentAreaView: View {
                 Section {
                     Button("Lock Parent area", systemImage: "lock.fill") { access.lock() }
                 }
+                Section("About") {
+                    LabeledContent("Version", value: appVersion)
+                }
             }
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .navigationTitle("Parent")
         }
+    }
+
+    private func statuses(_ household: Household) -> [QuestTemporalStatus] {
+        quests.filter { $0.deletedAt == nil }.flatMap { quest in
+            quest.participantIDs.compactMap { personID in
+                ProgressionEngine.temporalStatus(
+                    for: quest, personID: personID, completions: completions,
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+            }
+        }
+    }
+
+    private func waitingCount(_ household: Household) -> Int {
+        statuses(household).filter { $0 == .today || $0 == .overdue }.count
+    }
+    private func overdueCount(_ household: Household) -> Int {
+        statuses(household).filter { $0 == .overdue }.count
+    }
+    private func completedCount(_ household: Household) -> Int {
+        statuses(household).filter { $0 == .completed }.count
+    }
+    private func currentGoal(_ household: Household) -> RewardGoal? {
+        ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
+    }
+    private func currentReward(_ household: Household) -> String {
+        currentGoal(household)?.title ?? household.rewardTitle
+    }
+    private func rewardTarget(_ household: Household) -> Int {
+        max(1, currentGoal(household)?.targetXP ?? household.rewardGoalXP)
+    }
+    private func rewardXP(_ household: Household) -> Int {
+        ProgressionEngine.rewardXP(completions, goal: currentGoal(household))
+    }
+    private var syncSummary: String {
+        guard let state = cloudStates.first else { return "Set up family sync" }
+        switch state.mode {
+        case .owner, .participant: return "Family sync is up to date"
+        case .localOnly: return "Set up family sync"
+        default: return "Review family sync"
+        }
+    }
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "\(version) (\(build))"
+    }
+}
+
+private struct ParentSummaryTile: View {
+    let value: Int
+    let label: String
+    let tint: Color
+    var body: some View {
+        VStack(spacing: 3) {
+            Text("\(value)").font(.title2.bold()).monospacedDigit()
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 62)
+        .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
     }
 }
 
