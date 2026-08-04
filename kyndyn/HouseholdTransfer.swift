@@ -54,6 +54,9 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var role: ProfileRole
         var colorHex: String
         var companionID: String
+        var earnedCompanionIDs: [String]? = nil
+        var backgroundID: String? = nil
+        var earnedBackgroundIDs: [String]? = nil
         var createdAt: Date
         var deletedAt: Date?
     }
@@ -154,6 +157,9 @@ enum HouseholdTransferCodec {
             people: people.map {
                 .init(id: $0.id, name: $0.name, role: $0.role,
                       colorHex: $0.colorHex, companionID: $0.companionID,
+                      earnedCompanionIDs: $0.earnedCompanionIDs,
+                      backgroundID: $0.backgroundID,
+                      earnedBackgroundIDs: $0.earnedBackgroundIDs,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
             quests: quests.map {
@@ -299,6 +305,14 @@ enum HouseholdRestoreService {
                 companionID: value.companionID)
             person.createdAt = value.createdAt
             person.deletedAt = value.deletedAt
+            person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(
+                value.earnedCompanionIDs ?? CollectionCatalog.starterCompanionIDs)
+            person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(
+                value.earnedBackgroundIDs ?? [CollectionCatalog.defaultBackgroundID])
+            if let background = value.backgroundID,
+               person.earnedBackgroundIDs.contains(background) {
+                person.backgroundID = background
+            }
             context.insert(person); insertedPeople.append(person)
         }
         var insertedQuests: [Quest] = []
@@ -453,6 +467,15 @@ struct RowanTransferPackage: Codable {
         var color: String?
         var companion: String?
         var active: Bool?
+        var earnedCompanions: [String]?
+        var activeBackgroundID: String?
+        var earnedBackgrounds: [String]?
+        enum CodingKeys: String, CodingKey {
+            case id, name, role, color, companion, active
+            case earnedCompanions = "earned_companions"
+            case activeBackgroundID = "active_background_id"
+            case earnedBackgrounds = "earned_backgrounds"
+        }
     }
     struct Quest: Codable {
         var id: LegacyID
@@ -511,8 +534,7 @@ struct RowanTransferPackage: Codable {
 
 enum RowanTransferConverter {
     private static let namespace = "com.kyndynfamily.rowan-import.v1"
-    private static let supportedCompanions =
-        Set(["spark", "orbit", "pixel", "comet", "bop"])
+    private static let supportedCompanions = Set(CollectionCatalog.companionIDs)
 
     static func dryRun(_ data: Data) throws
         -> (backup: HouseholdBackup, report: TransferReport) {
@@ -567,7 +589,14 @@ enum RowanTransferConverter {
             }
             people.append(.init(
                 id: id, name: name, role: role, colorHex: color,
-                companionID: companion, createdAt: .now,
+                companionID: companion,
+                earnedCompanionIDs: CollectionCatalog.normalizedCompanions(
+                    (sourcePerson.earnedCompanions ?? []) + [companion]),
+                backgroundID: sourcePerson.activeBackgroundID,
+                earnedBackgroundIDs: CollectionCatalog.normalizedBackgrounds(
+                    (sourcePerson.earnedBackgrounds ?? [])
+                    + (sourcePerson.activeBackgroundID.map { [$0] } ?? [])),
+                createdAt: .now,
                 deletedAt: sourcePerson.active == false ? .now : nil))
         }
         guard people.contains(where: { $0.role == .parent && $0.deletedAt == nil })

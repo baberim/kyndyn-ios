@@ -33,14 +33,18 @@ portable sync envelope.
 | kyndyn data | Cloud record | Notes |
 | --- | --- | --- |
 | Household | `kyndynHousehold` | Root; name, time zone, schema version, archive date |
-| Person | `kyndynPerson` | Household reference, role, color, companion, archive date |
+| Person | `kyndynPerson` | Household reference, role, color, active companion/background, durable earned collection IDs, archive date |
 | Quest | `kyndynQuest` | Text, XP, assignees, completion mode, archive date |
 | Quest schedule | `kyndynQuestSchedule` | One-to-one with quest; recurrence, weekdays, start/deadline |
 | QuestCompletion | `kyndynQuestCompletion` | Append-friendly UUID event; reversal is an explicit update |
 | RewardGoal | `kyndynRewardGoal` | Goal text/target and archive date |
 | HouseholdSettings | `kyndynHouseholdSettings` | Shared household policy only |
 
-Companion selection may sync as part of `Person`; companion assets do not.
+Companion and background selections and their earned/granted collection IDs
+sync as part of `Person`; the bundled artwork itself does not. Merge uses a set
+union so a concurrent device cannot remove an earned unlock. Pending unlock
+presentation stays device-local, so acknowledging it on one device cannot
+recreate it through a union merge.
 `FamilyBroadcast`, weather, calendar, StoreKit, and assistant data are outside
 this milestone.
 

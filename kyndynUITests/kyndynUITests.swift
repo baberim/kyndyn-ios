@@ -96,6 +96,17 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 3))
     }
 
+    func testProfileShowsExistingCompanionAndBackgroundCollections() throws {
+        let app = launch()
+        app.buttons["My profile"].tap()
+        XCTAssertTrue(app.buttons["collection-companion-spark"]
+            .waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["collection-companion-penguin"].exists)
+        reveal(app.buttons["collection-background-meadow"], in: app)
+        XCTAssertTrue(app.buttons["collection-background-bedroom"].exists)
+        XCTAssertTrue(app.buttons["collection-background-aquarium"].exists)
+    }
+
     func testEmptyOnboardingOffersNonDestructiveICloudRecovery() throws {
         let app = XCUIApplication()
         app.launchArguments = [

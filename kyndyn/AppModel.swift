@@ -243,6 +243,29 @@ enum LifecycleRules {
         refreshReminders(context: context)
     }
 
+    func grantCompanion(_ id: String, to person: Person, context: ModelContext) throws {
+        guard CollectionCatalog.companionIDs.contains(id) else { return }
+        person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(
+            person.earnedCompanionIDs + [id])
+        try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
+                              context: context)
+    }
+
+    func grantBackground(_ id: String, to person: Person, context: ModelContext) throws {
+        guard CollectionCatalog.backgrounds.contains(where: { $0.id == id }) else { return }
+        person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(
+            person.earnedBackgroundIDs + [id])
+        try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
+                              context: context)
+    }
+
+    func acknowledgeUnlock(_ id: String, for person: Person, context: ModelContext) throws {
+        person.pendingUnlockIDs.removeAll { $0 == id }
+        try context.save()
+    }
+
     func archivePerson(_ person: Person, people: [Person], quests: [Quest], context: ModelContext) throws {
         guard LifecycleRules.canArchive(person: person, people: people) else { throw KyndynValidationError.lastParent }
         let affectedQuestIDs = Set(quests.filter {
@@ -443,6 +466,8 @@ enum LifecycleRules {
             try context.save()
             try SyncQueue.enqueue(SyncSnapshot.completion(existing),
                                   operation: .createOrUpdate, context: context)
+            try evaluateCollections(for: personID, household: household,
+                                    context: context, now: now)
             refreshReminders(context: context)
             return
         }
@@ -457,7 +482,43 @@ enum LifecycleRules {
         try context.save()
         try SyncQueue.enqueue(SyncSnapshot.completion(completion),
                               operation: .createOrUpdate, context: context)
+        try evaluateCollections(for: personID, household: household,
+                                context: context, now: now)
         refreshReminders(context: context)
+    }
+
+    func evaluateCollections(
+        for personID: UUID, household: Household, context: ModelContext,
+        now: Date = .now
+    ) throws {
+        let people = try context.fetch(FetchDescriptor<Person>())
+        guard let person = people.first(where: { $0.id == personID }) else { return }
+        let completions = try context.fetch(FetchDescriptor<QuestCompletion>())
+        let goals = try context.fetch(FetchDescriptor<RewardGoal>())
+        let progress = ProgressionEngine.progress(
+            personID: personID, completions: completions, now: now,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let goal = ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
+        let rewardReached = goal.map {
+            ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
+        } ?? false
+        let companions = CollectionCatalog.normalizedCompanions(
+            person.earnedCompanionIDs + RecognitionEngine.earnedCompanionIDs(progress: progress))
+        let backgrounds = CollectionCatalog.normalizedBackgrounds(
+            person.earnedBackgroundIDs + RecognitionEngine.earnedBackgroundIDs(
+                progress: progress, familyRewardReached: rewardReached))
+        let newlyEarned = companions.filter { !person.earnedCompanionIDs.contains($0) }
+            .map { "companion:\($0)" }
+            + backgrounds.filter { !person.earnedBackgroundIDs.contains($0) }
+                .map { "background:\($0)" }
+        person.earnedCompanionIDs = companions
+        person.earnedBackgroundIDs = backgrounds
+        person.pendingUnlockIDs = Array(Set(person.pendingUnlockIDs + newlyEarned))
+        try context.save()
+        if !newlyEarned.isEmpty {
+            try SyncQueue.enqueue(SyncSnapshot.person(person),
+                                  operation: .createOrUpdate, context: context)
+        }
     }
 
     func undo(_ quest: Quest, personID: UUID, household: Household, completions: [QuestCompletion], context: ModelContext, now: Date = .now) throws {

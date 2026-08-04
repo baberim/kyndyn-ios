@@ -22,3 +22,22 @@ underlying family, quest, progression, or synchronization rules.
 
 The result intentionally gives the greeting, current quests, and family reward
 more room while preserving Dynamic Type, VoiceOver, dark mode, and iPad layout.
+
+## Recognition and collections
+
+- Badges are derived from active completion history using deterministic
+  thresholds. They do not add XP and are safe to recalculate.
+- The five starter companions remain available to every profile. Penguin, Bee,
+  Cactus, Cloud, and Dino unlock from completion, streak, and badge milestones.
+- Meadow is the default background; Bedroom is also included. Cloud, Aquarium,
+  and Arcade unlock from deterministic completion or badge milestones.
+- Earned and parent-granted collection IDs are durable. Undoing a completion
+  recalculates XP and badges but does not confiscate an item already unlocked.
+- Unlock introductions are calm, one at a time, and direct the person to My
+  profile. There are no random rewards, loot mechanics, trading, or behavioral
+  profiling.
+- Protected parent tools can grant collection access directly. This changes
+  access only and does not fabricate completions, badges, streaks, or XP.
+- Collection ownership and current selections are included in native backups,
+  Rowan imports where supported, and the existing conflict-safe Person sync
+  record. Device-local authentication and notification settings remain excluded.

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-private let companionChoices = ["spark", "orbit", "pixel", "comet", "bop"]
+private let companionChoices = CollectionCatalog.companionIDs
 private let colorChoices = [
     "#6F2DBD", "#AF52DE", "#007AFF", "#00A6A6", "#34C759",
     "#F4C430", "#FF9500", "#F26B5B", "#FF2D55", "#8E6E53"
@@ -620,6 +620,7 @@ struct DashboardView: View {
     @Query private var quests: [Quest]
     @State private var showMyProfile = false
     @State private var showProgress = false
+    @State private var unlockToPresent: String?
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -701,7 +702,32 @@ struct DashboardView: View {
                     ProgressDetailView(person: person, household: household)
                 }
             }
+            .alert("New collection item", isPresented: Binding(
+                get: { unlockToPresent != nil },
+                set: { if !$0 { acknowledgePresentedUnlock() } }
+            )) {
+                Button("Nice!") { acknowledgePresentedUnlock() }
+            } message: {
+                Text(unlockMessage(unlockToPresent))
+            }
+            .task(id: person?.pendingUnlockIDs.first) {
+                unlockToPresent = person?.pendingUnlockIDs.first
+            }
         }
+    }
+
+    private func unlockMessage(_ value: String?) -> String {
+        guard let value else { return "A new item is ready in My profile." }
+        let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return "A new item is ready in My profile." }
+        return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
+    }
+
+    private func acknowledgePresentedUnlock() {
+        guard let value = unlockToPresent, let person else { return }
+        unlockToPresent = nil
+        do { try app.acknowledgeUnlock(value, for: person, context: context) }
+        catch { app.errorMessage = error.localizedDescription }
     }
 
     private var dashboardModePicker: some View {
@@ -969,6 +995,24 @@ struct ProgressDetailView: View {
                     Text("XP comes from active completion events. Undoing a completion removes that event’s XP from these totals.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Section("Badges") {
+                    let badges = RecognitionEngine.badges(progress: progress)
+                    if badges.isEmpty {
+                        Text("Complete quests to begin earning badges.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(badges) { badge in
+                            Label {
+                                VStack(alignment: .leading) {
+                                    Text(badge.title)
+                                    Text(badge.detail).font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: badge.systemImage)
+                            }
+                        }
+                    }
+                }
                 Section("Recent XP") {
                     if activeEvents.isEmpty {
                         Text("Complete a quest to begin your history.")
@@ -1007,22 +1051,23 @@ struct MyProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var colorHex: String
     @State private var companionID: String
+    @State private var backgroundID: String
 
     init(person: Person) {
         self.person = person
         _colorHex = State(initialValue: person.colorHex)
         _companionID = State(initialValue: person.companionID)
+        _backgroundID = State(initialValue: person.backgroundID)
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 22) {
-                    CompanionArt(id: companionID)
-                        .frame(width: 150, height: 150)
-                        .padding(14)
-                        .background(Color(hex: colorHex).opacity(0.16), in: Circle())
-                        .overlay { Circle().stroke(Color(hex: colorHex), lineWidth: 6) }
+                    ProfileScene(
+                        backgroundID: backgroundID, companionID: companionID,
+                        accent: Color(hex: colorHex))
+                        .frame(height: 210)
                         .accessibilityLabel("Preview for \(person.name)")
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
@@ -1032,26 +1077,62 @@ struct MyProfileView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Companion").font(.headline)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 105))]) {
-                            ForEach(companionChoices, id: \.self) { choice in
+                            ForEach(CollectionCatalog.companionIDs, id: \.self) { choice in
+                                let earned = person.earnedCompanionIDs.contains(choice)
                                 Button {
-                                    companionID = choice
+                                    if earned { companionID = choice }
                                 } label: {
                                     VStack {
                                         CompanionArt(id: choice).frame(width: 74, height: 74)
+                                            .saturation(earned ? 1 : 0)
+                                            .opacity(earned ? 1 : 0.35)
                                         Text(choice.capitalized).font(.caption.bold())
                                         if companionID == choice {
                                             Label("Active", systemImage: "checkmark.circle.fill")
+                                                .font(.caption2)
+                                        } else if !earned {
+                                            Label("Locked", systemImage: "lock.fill")
                                                 .font(.caption2)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, minHeight: 122)
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(!earned)
+                                .accessibilityIdentifier("collection-companion-\(choice)")
                                 .kyndynCard(tint: companionID == choice
                                             ? Color(hex: colorHex) : .secondary)
                             }
                         }
                     }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Background").font(.headline)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 135))]) {
+                            ForEach(CollectionCatalog.backgrounds) { background in
+                                let earned = person.earnedBackgroundIDs.contains(background.id)
+                                Button {
+                                    if earned { backgroundID = background.id }
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        ProfileScene(
+                                            backgroundID: background.id,
+                                            companionID: companionID,
+                                            accent: Color(hex: colorHex))
+                                            .frame(height: 100)
+                                            .saturation(earned ? 1 : 0)
+                                            .opacity(earned ? 1 : 0.42)
+                                        Text(background.name).font(.caption.bold())
+                                        Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
+                                            .font(.caption2).foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                .buttonStyle(.plain).disabled(!earned)
+                                .accessibilityIdentifier("collection-background-\(background.id)")
+                            }
+                        }
+                    }
+                    .kyndynCard(tint: Color(hex: colorHex))
                     Text("Parents still manage names, roles, and family permissions.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -1081,6 +1162,11 @@ struct MyProfileView: View {
                                    colorHex: colorHex,
                                    companionID: companionID),
                 context: context)
+            person.backgroundID = person.earnedBackgroundIDs.contains(backgroundID)
+                ? backgroundID : CollectionCatalog.defaultBackgroundID
+            try context.save()
+            try SyncQueue.enqueue(SyncSnapshot.person(person),
+                                  operation: .createOrUpdate, context: context)
             dismiss()
         } catch {
             app.errorMessage = error.localizedDescription
@@ -1988,8 +2074,28 @@ struct PersonEditorView: View {
             }
             Section("Companion") {
                 Picker("Active companion", selection: $draft.companionID) {
-                    ForEach(companionChoices, id: \.self) { id in
+                    ForEach(availableCompanions, id: \.self) { id in
                         HStack { CompanionArt(id: id).frame(width: 44, height: 44); Text(id.capitalized) }.tag(id)
+                    }
+                }
+            }
+            if let person {
+                Section("Collection access") {
+                    Text("Parents can make collection items available without changing earned progress.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    ForEach(CollectionCatalog.companionIDs.filter {
+                        !person.earnedCompanionIDs.contains($0)
+                    }, id: \.self) { id in
+                        Button("Unlock \(id.capitalized) companion") {
+                            grantCompanion(id, to: person)
+                        }
+                    }
+                    ForEach(CollectionCatalog.backgrounds.filter {
+                        !person.earnedBackgroundIDs.contains($0.id)
+                    }) { background in
+                        Button("Unlock \(background.name) background") {
+                            grantBackground(background.id, to: person)
+                        }
                     }
                 }
             }
@@ -2010,6 +2116,21 @@ struct PersonEditorView: View {
             }
         }
         .errorAlert(app: app)
+    }
+
+    private var availableCompanions: [String] {
+        person.map { CollectionCatalog.normalizedCompanions($0.earnedCompanionIDs) }
+            ?? CollectionCatalog.starterCompanionIDs
+    }
+
+    private func grantCompanion(_ id: String, to person: Person) {
+        do { try app.grantCompanion(id, to: person, context: context) }
+        catch { app.errorMessage = error.localizedDescription }
+    }
+
+    private func grantBackground(_ id: String, to person: Person) {
+        do { try app.grantBackground(id, to: person, context: context) }
+        catch { app.errorMessage = error.localizedDescription }
     }
 }
 

@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 5
+    static let version = 6
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -67,6 +67,10 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var roleRaw: String
     var colorHex: String
     var companionID: String
+    var earnedCompanionIDs: [String] = CollectionCatalog.starterCompanionIDs
+    var backgroundID: String = CollectionCatalog.defaultBackgroundID
+    var earnedBackgroundIDs: [String] = CollectionCatalog.starterBackgroundIDs
+    var pendingUnlockIDs: [String] = []
     var createdAt: Date
     var deletedAt: Date?
 
@@ -82,6 +86,10 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.roleRaw = role.rawValue
         self.colorHex = colorHex
         self.companionID = companionID
+        self.earnedCompanionIDs = CollectionCatalog.starterCompanionIDs
+        self.backgroundID = CollectionCatalog.defaultBackgroundID
+        self.earnedBackgroundIDs = CollectionCatalog.starterBackgroundIDs
+        self.pendingUnlockIDs = []
         self.createdAt = .now
     }
 }

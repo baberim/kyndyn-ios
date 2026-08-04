@@ -392,6 +392,9 @@ final class HouseholdTransferTests: XCTestCase {
         let parent = Person(
             householdID: household.id, name: "Avery", role: .parent,
             colorHex: "#6F2DBD", companionID: "spark")
+        parent.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(["penguin", "bee"])
+        parent.backgroundID = "aquarium"
+        parent.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(["aquarium"])
         let quest = Quest(
             householdID: household.id, title: "Sort art supplies",
             xp: 17, participantIDs: [parent.id], scheduleKind: .weekly,
@@ -422,6 +425,12 @@ final class HouseholdTransferTests: XCTestCase {
         let restoredQuest = try destination.mainContext.fetch(
             FetchDescriptor<Quest>()).first
         XCTAssertEqual(restoredQuest?.repeatIntervalWeeks, 2)
+        let restoredPerson = try destination.mainContext.fetch(
+            FetchDescriptor<Person>()).first
+        XCTAssertTrue(restoredPerson?.earnedCompanionIDs.contains("penguin") == true)
+        XCTAssertTrue(restoredPerson?.earnedCompanionIDs.contains("bee") == true)
+        XCTAssertEqual(restoredPerson?.backgroundID, "aquarium")
+        XCTAssertTrue(restoredPerson?.earnedBackgroundIDs.contains("aquarium") == true)
         XCTAssertEqual(ProgressionEngine.familyXP(restoredEvents), 0)
         XCTAssertEqual(try destination.mainContext.fetch(
             FetchDescriptor<HouseholdImportReceipt>()).count, 1)
@@ -528,6 +537,35 @@ final class HouseholdTransferTests: XCTestCase {
       }
     }
     """#
+}
+
+final class RecognitionEngineTests: XCTestCase {
+    func testCollectionUnlockThresholdsAreDeterministic() {
+        let early = PersonProgress(xp: 10, level: 1, currentStreak: 1,
+                                   bestStreak: 1, completedCount: 1)
+        XCTAssertEqual(RecognitionEngine.badges(progress: early).map(\.id),
+                       ["first-step"])
+        XCTAssertTrue(RecognitionEngine.earnedCompanionIDs(progress: early)
+            .contains("penguin"))
+        XCTAssertFalse(RecognitionEngine.earnedCompanionIDs(progress: early)
+            .contains("bee"))
+
+        let established = PersonProgress(xp: 250, level: 3, currentStreak: 3,
+                                         bestStreak: 3, completedCount: 25)
+        XCTAssertEqual(Set(RecognitionEngine.earnedCompanionIDs(progress: established)),
+                       Set(CollectionCatalog.companionIDs))
+        XCTAssertEqual(Set(RecognitionEngine.earnedBackgroundIDs(
+            progress: established, familyRewardReached: false)),
+            Set(CollectionCatalog.backgrounds.map(\.id)))
+    }
+
+    func testNormalizationPreservesStartersAndRejectsUnknownIDs() {
+        XCTAssertEqual(Set(CollectionCatalog.normalizedCompanions(
+            ["penguin", "not-a-companion"])),
+            Set(CollectionCatalog.starterCompanionIDs + ["penguin"]))
+        XCTAssertEqual(CollectionCatalog.normalizedBackgrounds(
+            ["aquarium", "not-a-background"]), ["aquarium", "bedroom", "meadow"])
+    }
 }
 
 private struct FakeAuthenticator: DeviceAuthenticating {
