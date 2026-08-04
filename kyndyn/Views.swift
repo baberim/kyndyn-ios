@@ -558,6 +558,7 @@ struct MainView: View {
             }
             ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(3)
         }
+        .tabViewStyle(.tabBarOnly)
         .background(KyndynScreenBackground())
         .onChange(of: app.selectedPersonID) { _, _ in
             app.selectedTab = 0
@@ -1058,6 +1059,15 @@ struct MyProfileView: View {
     @State private var backgroundID: String
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    private var companionColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12),
+              count: horizontalSizeClass == .compact ? 3 : 4)
+    }
+
+    private var backgroundColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    }
+
     init(person: Person) {
         self.person = person
         _colorHex = State(initialValue: person.colorHex)
@@ -1081,10 +1091,7 @@ struct MyProfileView: View {
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Companion").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(
-                            minimum: horizontalSizeClass == .compact ? 96 : 150,
-                            maximum: horizontalSizeClass == .compact ? 118 : 190
-                        ), spacing: 12)], spacing: 12) {
+                        LazyVGrid(columns: companionColumns, spacing: 12) {
                             ForEach(CollectionCatalog.companionIDs, id: \.self) { choice in
                                 let earned = person.earnedCompanionIDs.contains(choice)
                                 Button {
@@ -1116,10 +1123,7 @@ struct MyProfileView: View {
                     }
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Background").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(
-                            minimum: horizontalSizeClass == .compact ? 132 : 220,
-                            maximum: horizontalSizeClass == .compact ? 170 : 280
-                        ), spacing: 12)], spacing: 12) {
+                        LazyVGrid(columns: backgroundColumns, spacing: 16) {
                             ForEach(CollectionCatalog.backgrounds) { background in
                                 let earned = person.earnedBackgroundIDs.contains(background.id)
                                 Button {
@@ -1155,6 +1159,7 @@ struct MyProfileView: View {
             }
             .background(KyndynScreenBackground())
             .navigationTitle("My profile")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -1192,6 +1197,7 @@ struct QuestListView: View {
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var households: [Household]
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
@@ -1335,23 +1341,13 @@ struct QuestListView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 620)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                ForEach(QuestBrowseFilter.allCases) { filter in
-                        Button {
-                            browseFilter = filter
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(filter.title)
-                                Text("\(count(for: filter))")
-                                    .font(.caption.bold().monospacedDigit())
-                                    .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(.secondary.opacity(0.13), in: Capsule())
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(browseFilter == filter ? .accentColor : .secondary)
-                        .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
+            Group {
+                if horizontalSizeClass == .regular {
+                    filterButtons
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        filterButtons
                     }
                 }
             }
@@ -1359,6 +1355,27 @@ struct QuestListView: View {
             Text(browseEveryone ? "Showing the whole family" :
                     "Showing quests for \(people.first { $0.id == selectedPersonID }?.name ?? "the selected profile")")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var filterButtons: some View {
+        HStack(spacing: 8) {
+            ForEach(QuestBrowseFilter.allCases) { filter in
+                Button {
+                    browseFilter = filter
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(filter.title)
+                        Text("\(count(for: filter))")
+                            .font(.caption.bold().monospacedDigit())
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(.secondary.opacity(0.13), in: Capsule())
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(browseFilter == filter ? .accentColor : .secondary)
+                .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
+            }
         }
     }
 
