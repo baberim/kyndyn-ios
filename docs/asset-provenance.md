@@ -32,3 +32,7 @@ The app icon at
 provided directly by the project owner during Development CloudKit Validation
 0.5. The native copy is mechanically flattened to an opaque 1024×1024 PNG for
 Apple asset-catalog compliance; the supplied source file is not committed.
+
+The launch-screen wordmark at
+`kyndyn/Resources/Assets.xcassets/KyndynSplash.imageset/KyndynSplash.png` was
+provided directly by the project owner for Build 5 and is committed unchanged.
