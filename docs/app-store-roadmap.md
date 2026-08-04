@@ -17,6 +17,8 @@
 
 ## Build 5 — Recognition and Collections
 
+- Continue the loose visual-consistency pass, beginning with a calmer Home
+  hierarchy, unified personal progress, and quieter activity presentation.
 - Native badges derived from deterministic progression.
 - Durable companion collection and unlock rules.
 - Background collection and profile scenes.

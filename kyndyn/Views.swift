@@ -2,7 +2,10 @@ import SwiftUI
 import SwiftData
 
 private let companionChoices = ["spark", "orbit", "pixel", "comet", "bop"]
-private let colorChoices = ["#6F2DBD", "#007AFF", "#00A6A6", "#34C759", "#F26B5B", "#FF9500"]
+private let colorChoices = [
+    "#6F2DBD", "#AF52DE", "#007AFF", "#00A6A6", "#34C759",
+    "#F4C430", "#FF9500", "#F26B5B", "#FF2D55", "#8E6E53"
+]
 
 enum AdaptiveLayout {
     static let readableContentMaximum: CGFloat = 1_100
@@ -21,11 +24,15 @@ enum ProfilePalette {
     static func name(for hex: String) -> String {
         switch hex.uppercased() {
         case "#6F2DBD": return "Purple"
+        case "#AF52DE": return "Violet"
         case "#007AFF": return "Blue"
         case "#00A6A6": return "Teal"
         case "#34C759": return "Green"
+        case "#F4C430": return "Gold"
         case "#F26B5B": return "Coral"
         case "#FF9500": return "Orange"
+        case "#FF2D55": return "Pink"
+        case "#8E6E53": return "Cocoa"
         default: return "Custom"
         }
     }
@@ -154,6 +161,7 @@ struct OnboardingView: View {
     @State private var importReport: TransferReport?
     @State private var showImportConfirmation = false
     @State private var showCloudRecovery = false
+    @State private var showRestoreOptions = false
 
     var body: some View {
         ScrollView {
@@ -161,7 +169,7 @@ struct OnboardingView: View {
                 Image(systemName: "leaf.fill").font(.system(size: 58)).foregroundStyle(.purple)
                 Text("Welcome to kyndyn").font(.largeTitle.bold()).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("A calm home base for quests, progress, and family wins. Start your own family or explore safely with fictional sample data.")
+                Text("A calm home base for quests, progress, and family wins.")
                     .font(.title3).multilineTextAlignment(.center).foregroundStyle(.secondary)
                 Button {
                     showSetup = true
@@ -171,28 +179,27 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 Button {
-                    isWorking = true
-                    do { try app.seedSample(into: context) } catch { app.errorMessage = error.localizedDescription }
-                    isWorking = false
+                    showRestoreOptions = true
                 } label: {
-                    Label("Create a sample household", systemImage: "sparkles")
+                    Label("Bring back my family", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered).controlSize(.large).disabled(isWorking)
-                Button("Restore or migrate a household", systemImage: "square.and.arrow.down") {
-                    Task {
-                        await parentAccess.authenticate()
-                        if parentAccess.isUnlocked { showImporter = true }
-                    }
-                }
-                .buttonStyle(.borderless)
-                Button("Recover my family from iCloud", systemImage: "icloud.and.arrow.down") {
-                    showCloudRecovery = true
-                }
                 .buttonStyle(.bordered)
-                .accessibilityHint("Looks for an existing Kyndyn family without creating a new one")
-                Text("Sample mode uses fictional people and stays separate from your family. Restores and Rowan migrations require an empty installation.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                .controlSize(.large)
+                .accessibilityHint("Recover from iCloud or restore a backup")
+
+                Button {
+                    isWorking = true
+                    do { try app.seedSample(into: context) }
+                    catch { app.errorMessage = error.localizedDescription }
+                    isWorking = false
+                } label: {
+                    Label("Explore with sample data", systemImage: "sparkles")
+                }
+                .buttonStyle(.plain)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .disabled(isWorking)
             }
             .padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
         }
@@ -203,6 +210,23 @@ struct OnboardingView: View {
         }
         .sheet(isPresented: $showCloudRecovery) {
             CloudHouseholdRecoveryView()
+        }
+        .confirmationDialog(
+            "Bring back my family",
+            isPresented: $showRestoreOptions,
+            titleVisibility: .visible
+        ) {
+            Button("Recover from iCloud", systemImage: "icloud.and.arrow.down") {
+                showCloudRecovery = true
+            }
+            Button("Restore a backup or Rowan export", systemImage: "square.and.arrow.down") {
+                Task {
+                    await parentAccess.authenticate()
+                    if parentAccess.isUnlocked { showImporter = true }
+                }
+            }
+        } message: {
+            Text("Choose where your existing family is stored. Nothing will be replaced without your review.")
         }
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.json]) { result in
@@ -352,11 +376,7 @@ struct HouseholdSetupView: View {
                 }
                 Section("First parent") {
                     TextField("Parent name", text: $draft.parent.name)
-                    Picker("Profile color", selection: $draft.parent.colorHex) {
-                        ForEach(colorChoices, id: \.self) {
-                            Text(ProfilePalette.name(for: $0)).tag($0)
-                        }
-                    }
+                    ProfileColorSelector(selection: $draft.parent.colorHex)
                     Picker("Companion", selection: $draft.parent.companionID) {
                         ForEach(companionChoices, id: \.self) {
                             Text($0.capitalized).tag($0)
@@ -630,18 +650,7 @@ struct DashboardView: View {
                                 .kyndynCard(
                                     tint: Color(hex: person.colorHex),
                                     raised: true)
-                                LazyVGrid(
-                                    columns: Array(
-                                        repeating: GridItem(.flexible(), spacing: 10),
-                                        count: 3),
-                                    spacing: 12
-                                ) {
-                            stats(progress)
-                        }
-                        Button("See progress details", systemImage: "chart.line.uptrend.xyaxis") {
-                            showProgress = true
-                        }
-                        .buttonStyle(.bordered)
+                                progressSummary(progress, tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
@@ -820,13 +829,11 @@ struct DashboardView: View {
         let recent = completions.filter {
             $0.reversedAt == nil && (personID == nil || $0.personID == personID)
         }.sorted { $0.completedAt > $1.completedAt }.prefix(5)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Recent activity").font(.title2.bold())
-                .accessibilityAddTraits(.isHeader)
-            if recent.isEmpty {
-                Text("Completed quests will appear here.")
-                    .foregroundStyle(.secondary)
-            } else {
+        return Group {
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    KyndynSectionHeader(title: "Recent activity")
+                        .padding(.bottom, 6)
                 ForEach(Array(recent)) { event in
                     HStack(alignment: .firstTextBaseline) {
                         Image(systemName: "checkmark.circle.fill")
@@ -842,11 +849,18 @@ struct DashboardView: View {
                         }
                         Spacer()
                         Text("+\(event.awardedXP) XP")
-                            .font(.subheadline.bold()).foregroundStyle(.purple)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 9)
+                    if event.id != recent.last?.id {
+                        Divider().padding(.leading, 30)
                     }
                 }
             }
-        }.kyndynCard()
+            .padding(.horizontal, 4)
+            }
+        }
     }
 
     private func profileArt(_ person: Person) -> some View {
@@ -890,10 +904,35 @@ struct DashboardView: View {
         ProgressionEngine.rewardXP(completions, goal: currentReward(household))
     }
 
-    @ViewBuilder private func stats(_ progress: PersonProgress) -> some View {
-        StatCard(value: "\(progress.xp)", label: "XP")
-        StatCard(value: "\(progress.level)", label: "Level")
-        StatCard(value: "\(progress.currentStreak)", label: "Day streak")
+    private func progressSummary(_ progress: PersonProgress, tint: Color) -> some View {
+        Button {
+            showProgress = true
+        } label: {
+            VStack(spacing: 14) {
+                HStack {
+                    Label("Your progress", systemImage: "chart.line.uptrend.xyaxis")
+                        .font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(.tertiary)
+                }
+                HStack(spacing: 0) {
+                    ProgressStat(value: "\(progress.xp)", label: "XP")
+                    Divider().frame(height: 34)
+                    ProgressStat(value: "\(progress.level)", label: "Level")
+                    Divider().frame(height: 34)
+                    ProgressStat(
+                        value: "\(progress.currentStreak)", label: "Day streak")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .kyndynCard(tint: tint)
+        .accessibilityIdentifier("home-progress-summary")
+        .accessibilityHint("Shows progress details")
     }
 }
 
@@ -987,24 +1026,7 @@ struct MyProfileView: View {
                         .accessibilityLabel("Preview for \(person.name)")
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64))]) {
-                            ForEach(colorChoices, id: \.self) { color in
-                                Button {
-                                    colorHex = color
-                                } label: {
-                                    Circle().fill(Color(hex: color))
-                                        .frame(width: 44, height: 44)
-                                        .overlay {
-                                            if colorHex == color {
-                                                Image(systemName: "checkmark")
-                                                    .bold().foregroundStyle(.white)
-                                            }
-                                        }
-                                }
-                                .accessibilityLabel(ProfilePalette.name(for: color))
-                                .accessibilityValue(colorHex == color ? "Selected" : "Not selected")
-                            }
-                        }
+                        ProfileColorSelector(selection: $colorHex)
                     }
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
@@ -1962,18 +1984,7 @@ struct PersonEditorView: View {
                 Text("This accent appears around the person’s companion and profile card. Their name and companion always identify them too.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 54))]) {
-                    ForEach(colorChoices, id: \.self) { color in
-                        Button { draft.colorHex = color } label: {
-                            Circle().fill(Color(hex: color)).frame(width: 42, height: 42)
-                                .overlay { if draft.colorHex == color { Image(systemName: "checkmark").foregroundStyle(.white).bold() } }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(ProfilePalette.name(for: color)) profile color")
-                        .accessibilityValue(draft.colorHex == color ? "Selected" : "Not selected")
-                        .accessibilityIdentifier("profile-color-\(color)")
-                    }
-                }
+                ProfileColorSelector(selection: $draft.colorHex)
             }
             Section("Companion") {
                 Picker("Active companion", selection: $draft.companionID) {
@@ -2591,6 +2602,70 @@ struct NotificationSettingsView: View {
 
 // MARK: - Shared presentation
 
+struct ProfileColorSelector: View {
+    @Binding var selection: String
+
+    private var customColor: Binding<Color> {
+        Binding(
+            get: { Color(hex: selection) },
+            set: { selection = $0.hexRGB ?? selection })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color(hex: selection))
+                    .frame(width: 34, height: 34)
+                    .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 2))
+                    .shadow(color: Color(hex: selection).opacity(0.25), radius: 4, y: 2)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(ProfilePalette.name(for: selection)).font(.headline)
+                    Text("Profile and app accent")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Selected color, \(ProfilePalette.name(for: selection))")
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: 8)], spacing: 12) {
+                ForEach(colorChoices, id: \.self) { color in
+                    Button { selection = color } label: {
+                        VStack(spacing: 5) {
+                            Circle()
+                                .fill(Color(hex: color))
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    Circle().stroke(
+                                        selection.uppercased() == color ? Color.primary : .clear,
+                                        lineWidth: 3)
+                                        .padding(-4)
+                                }
+                                .overlay {
+                                    if selection.uppercased() == color {
+                                        Image(systemName: "checkmark")
+                                            .font(.caption.bold()).foregroundStyle(.white)
+                                    }
+                                }
+                            Text(ProfilePalette.name(for: color))
+                                .font(.caption2).foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(ProfilePalette.name(for: color)) profile color")
+                    .accessibilityValue(selection.uppercased() == color ? "Selected" : "Not selected")
+                    .accessibilityIdentifier("profile-color-\(color)")
+                }
+            }
+
+            ColorPicker("Choose any color", selection: customColor, supportsOpacity: false)
+                .accessibilityIdentifier("profile-custom-color")
+        }
+    }
+}
+
 struct CompanionArt: View {
     let id: String
     var body: some View {
@@ -2606,7 +2681,7 @@ struct CompanionArt: View {
     }
 }
 
-struct StatCard: View {
+struct ProgressStat: View {
     let value: String
     let label: String
     var body: some View {
@@ -2615,16 +2690,7 @@ struct StatCard: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .kyndynCard(tint: tint)
         .accessibilityElement(children: .ignore).accessibilityLabel("\(label), \(value)")
-    }
-
-    private var tint: Color {
-        switch label {
-        case "XP": return KyndynTheme.purple
-        case "Level": return KyndynTheme.blue
-        default: return KyndynTheme.pink
-        }
     }
 }
 
@@ -2643,6 +2709,21 @@ extension Color {
     init(hex: String) {
         let value = UInt64(hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted), radix: 16) ?? 0x6F2DBD
         self.init(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)
+    }
+
+    var hexRGB: String? {
+        let resolved = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: nil) else {
+            return nil
+        }
+        return String(
+            format: "#%02X%02X%02X",
+            Int((red * 255).rounded()),
+            Int((green * 255).rounded()),
+            Int((blue * 255).rounded()))
     }
 }
 
