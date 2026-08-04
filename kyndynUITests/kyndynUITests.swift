@@ -101,10 +101,10 @@ final class KyndynUITests: XCTestCase {
         app.buttons["My profile"].tap()
         XCTAssertTrue(app.buttons["collection-companion-spark"]
             .waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["collection-companion-penguin"].exists)
+        reveal(app.buttons["collection-companion-penguin"], in: app)
         reveal(app.buttons["collection-background-meadow"], in: app)
-        XCTAssertTrue(app.buttons["collection-background-bedroom"].exists)
-        XCTAssertTrue(app.buttons["collection-background-aquarium"].exists)
+        reveal(app.buttons["collection-background-bedroom"], in: app)
+        reveal(app.buttons["collection-background-aquarium"], in: app)
     }
 
     func testEmptyOnboardingOffersNonDestructiveICloudRecovery() throws {
