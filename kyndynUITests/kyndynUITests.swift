@@ -2,7 +2,10 @@ import XCTest
 
 @MainActor
 final class KyndynUITests: XCTestCase {
-    override func setUpWithError() throws { continueAfterFailure = false }
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+    }
 
     private func launch(
         parentUnlocked: Bool = false,
@@ -29,16 +32,70 @@ final class KyndynUITests: XCTestCase {
         item.tap()
     }
 
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        var attempts = 0
+        while !element.exists && attempts < 6 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(element.exists)
+    }
+
     func testOnboardingProfileAndQuestJourney() throws {
         let app = launch()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         tapTab("Quests", in: app)
+        app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "All")
+        ).firstMatch.tap()
         let toggle = app.buttons["quest-toggle-Make your bed"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 3))
         toggle.tap()
         XCTAssertTrue(app.buttons["Undo Make your bed"].waitForExistence(timeout: 3))
         app.buttons["Undo Make your bed"].tap()
         XCTAssertTrue(app.buttons["Complete Make your bed"].waitForExistence(timeout: 3))
+    }
+
+    func testQuestBrowsingFiltersSearchAndDetails() throws {
+        let app = launch()
+        tapTab("Quests", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["quest-status-filter"]
+            .waitForExistence(timeout: 3))
+        let search = app.searchFields["Search quests"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap(); search.typeText("bed")
+        XCTAssertTrue(app.buttons["Details for Make your bed"]
+            .waitForExistence(timeout: 3))
+        app.buttons["Details for Make your bed"].tap()
+        XCTAssertTrue(app.staticTexts["Completion history"]
+            .waitForExistence(timeout: 3))
+    }
+
+    func testActivePersonCanCustomizeProfileWithoutParentTools() throws {
+        let app = launch()
+        app.buttons["My profile"].tap()
+        XCTAssertTrue(app.navigationBars["My profile"]
+            .waitForExistence(timeout: 3))
+        app.buttons["Teal"].tap()
+        app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Orbit")
+        ).firstMatch.tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 3))
+    }
+
+    func testEmptyOnboardingOffersNonDestructiveICloudRecovery() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing-reset",
+            "-ui-testing-cloud-unconfigured"
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["Recover my family from iCloud"]
+            .waitForExistence(timeout: 8))
+        app.buttons["Recover my family from iCloud"].tap()
+        XCTAssertTrue(app.navigationBars["Recover from iCloud"]
+            .waitForExistence(timeout: 3))
     }
 
     func testRealFamilySetupCreatesNoSampleRecords() throws {
@@ -108,8 +165,9 @@ final class KyndynUITests: XCTestCase {
         tapTab("Switch", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
-        XCTAssertTrue(app.staticTexts["Family sync"].waitForExistence(timeout: 3))
-        app.staticTexts["Family sync"].tap()
+        let familySync = app.staticTexts["Family sync"]
+        reveal(familySync, in: app)
+        familySync.tap()
         XCTAssertTrue(app.descendants(matching: .any)["cloud-sync-settings"]
             .waitForExistence(timeout: 3))
         XCTAssertTrue(app.descendants(matching: .any)["cloud-configuration-readiness"]
@@ -122,7 +180,7 @@ final class KyndynUITests: XCTestCase {
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let familyReward = app.staticTexts["Family reward"]
-        XCTAssertTrue(familyReward.waitForExistence(timeout: 3))
+        reveal(familyReward, in: app)
         familyReward.tap()
 
         let title = app.textFields["Reward name"]
@@ -159,12 +217,14 @@ final class KyndynUITests: XCTestCase {
         ])
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         tapTab("Quests", in: app)
+        app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "All")
+        ).firstMatch.tap()
         let questAction = app.buttons["quest-toggle-Make your bed"]
         XCTAssertTrue(questAction.waitForExistence(timeout: 3))
-        if !questAction.isHittable {
-            app.swipeUp()
-        }
-        XCTAssertTrue(questAction.isHittable, "Quest action should remain reachable in the constrained layout")
+        questAction.tap()
+        XCTAssertTrue(app.buttons["Undo Make your bed"].waitForExistence(timeout: 3),
+                      "Quest action should remain usable in the constrained layout")
     }
 
     func testHouseholdPersistsAcrossRelaunch() throws {

@@ -413,6 +413,59 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         XCTAssertEqual(second, first)
     }
 
+    func testEmptyInstallDiscoversAndRecoversExistingCloudHousehold() async throws {
+        let sourceID = UUID()
+        let personID = UUID()
+        let source = Household(id: sourceID, name: "Fictional Recovery Family",
+                               timeZoneIdentifier: "America/New_York")
+        let person = Person(id: personID, householdID: sourceID, name: "Avery",
+                            role: .parent, colorHex: "#00A6A6",
+                            companionID: "orbit")
+        let transport = InMemoryCloudTransport()
+        let zone = SyncIdentity.zoneName(householdID: sourceID)
+        try await transport.prepareZone(named: zone, scope: .privateDatabase)
+        _ = try await transport.save(
+            records: [SyncSnapshot.household(source), SyncSnapshot.person(person)],
+            zoneName: zone, scope: .privateDatabase)
+
+        let (container, placeholder, state, _) = try fixture()
+        container.mainContext.delete(state)
+        container.mainContext.delete(placeholder)
+        try container.mainContext.save()
+        let controller = CloudSyncController(transport: transport)
+        let candidates = await controller.discoverRecoverableHouseholds()
+        let candidate = try XCTUnwrap(candidates.first)
+        XCTAssertEqual(candidate.householdName, "Fictional Recovery Family")
+
+        let recovered = await controller.recoverHousehold(
+            candidate, context: container.mainContext)
+        XCTAssertEqual(recovered?.mode, .owner)
+        XCTAssertEqual(recovered?.databaseScope, .privateDatabase)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<Household>()).first?.id, sourceID)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<Person>()).first?.id, personID)
+        XCTAssertFalse(try container.mainContext.fetch(
+            FetchDescriptor<LocalDeviceSettings>()).isEmpty)
+    }
+
+    func testRecoveryRefusesToMergeIntoExistingLocalHousehold() async throws {
+        let (container, _, _, _) = try fixture()
+        let transport = InMemoryCloudTransport()
+        let controller = CloudSyncController(transport: transport)
+        let candidate = CloudHouseholdCandidate(
+            householdID: UUID(), householdName: "Other Fictional Family",
+            zoneName: "kyndyn-household-other", zoneOwnerName: nil,
+            rootRecordName: "household-other", shareRecordName: nil,
+            scope: .privateDatabase, records: [])
+
+        let recovered = await controller.recoverHousehold(
+            candidate, context: container.mainContext)
+        XCTAssertNil(recovered)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<Household>()).count, 1)
+    }
+
     func testProvisioningResumesAfterEveryMeaningfulInterruption() async throws {
         for call in 1...6 {
             let (container, household, state, records) = try fixture()
