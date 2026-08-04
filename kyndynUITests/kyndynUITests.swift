@@ -103,12 +103,12 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["Bring back my family"]
+        XCTAssertTrue(app.buttons["Restore or import a household"]
             .waitForExistence(timeout: 8))
-        app.buttons["Bring back my family"].tap()
-        XCTAssertTrue(app.buttons["Recover from iCloud"]
+        app.buttons["Restore or import a household"].tap()
+        XCTAssertTrue(app.buttons["Restore from iCloud"]
             .waitForExistence(timeout: 3))
-        app.buttons["Recover from iCloud"].firstMatch.tap()
+        app.buttons["Restore from iCloud"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Recover from iCloud"]
             .waitForExistence(timeout: 3))
     }

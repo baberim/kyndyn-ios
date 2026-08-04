@@ -181,7 +181,7 @@ struct OnboardingView: View {
                 Button {
                     showRestoreOptions = true
                 } label: {
-                    Label("Bring back my family", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                    Label("Restore or import a household", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -212,14 +212,14 @@ struct OnboardingView: View {
             CloudHouseholdRecoveryView()
         }
         .confirmationDialog(
-            "Bring back my family",
+            "Restore or import a household",
             isPresented: $showRestoreOptions,
             titleVisibility: .visible
         ) {
-            Button("Recover from iCloud", systemImage: "icloud.and.arrow.down") {
+            Button("Restore from iCloud", systemImage: "icloud.and.arrow.down") {
                 showCloudRecovery = true
             }
-            Button("Restore a backup or Rowan export", systemImage: "square.and.arrow.down") {
+            Button("Import a backup or Rowan export", systemImage: "square.and.arrow.down") {
                 Task {
                     await parentAccess.authenticate()
                     if parentAccess.isUnlocked { showImporter = true }
