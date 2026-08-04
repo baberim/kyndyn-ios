@@ -110,15 +110,29 @@ struct ProfileScene: View {
     var body: some View {
         let definition = CollectionCatalog.backgrounds.first { $0.id == backgroundID }
             ?? CollectionCatalog.backgrounds[0]
-        ZStack {
-            if let path = Bundle.main.path(forResource: definition.assetName, ofType: "png"),
-               let image = UIImage(contentsOfFile: path) {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                LinearGradient(colors: [accent.opacity(0.35), .purple.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        GeometryReader { proxy in
+            ZStack {
+                if let path = Bundle.main.path(
+                    forResource: definition.assetName, ofType: "png"),
+                   let image = UIImage(contentsOfFile: path) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                } else {
+                    LinearGradient(
+                        colors: [accent.opacity(0.35), .purple.opacity(0.25)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+                Circle()
+                    .fill(.white.opacity(0.28))
+                    .frame(width: min(proxy.size.height * 0.62, 92),
+                           height: min(proxy.size.height * 0.62, 92))
+                CompanionArt(id: companionID)
+                    .frame(width: min(proxy.size.height * 0.72, 118),
+                           height: min(proxy.size.height * 0.72, 118))
             }
-            Circle().fill(.white.opacity(0.28)).frame(width: 92, height: 92)
-            CompanionArt(id: companionID).padding(12)
         }
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(accent.opacity(0.45)))

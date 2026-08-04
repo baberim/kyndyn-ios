@@ -490,7 +490,7 @@ struct ProfilePickerView: View {
                         } label: {
                             VStack(spacing: 12) {
                                 CompanionArt(id: person.companionID)
-                                    .frame(height: 112)
+                                    .frame(width: 86, height: 86)
                                     .padding(8)
                                     .background(.background.opacity(0.78), in: Circle())
                                     .overlay {
@@ -527,6 +527,7 @@ struct ProfilePickerView: View {
                 .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                 .frame(maxWidth: .infinity)
             }
+            .background(KyndynScreenBackground())
             .navigationTitle("kyndyn")
         }
     }
@@ -557,6 +558,8 @@ struct MainView: View {
             }
             ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(3)
         }
+        .tabViewStyle(.tabBarOnly)
+        .background(KyndynScreenBackground())
         .onChange(of: app.selectedPersonID) { _, _ in
             app.selectedTab = 0
             if !ProcessInfo.processInfo.arguments.contains("-ui-testing-parent-unlocked") {
@@ -603,7 +606,9 @@ struct ParentAuthenticationView: View {
                     Text("Canceling leaves kyndyn unlocked for everyday child use; only parent tools stay locked.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.padding(28).frame(maxWidth: 560).frame(maxWidth: .infinity)
-            }.navigationTitle("Protected")
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Protected")
         }
     }
 }
@@ -1052,6 +1057,16 @@ struct MyProfileView: View {
     @State private var colorHex: String
     @State private var companionID: String
     @State private var backgroundID: String
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var companionColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12),
+              count: horizontalSizeClass == .compact ? 3 : 4)
+    }
+
+    private var backgroundColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    }
 
     init(person: Person) {
         self.person = person
@@ -1067,7 +1082,7 @@ struct MyProfileView: View {
                     ProfileScene(
                         backgroundID: backgroundID, companionID: companionID,
                         accent: Color(hex: colorHex))
-                        .frame(height: 210)
+                        .frame(height: horizontalSizeClass == .compact ? 150 : 210)
                         .accessibilityLabel("Preview for \(person.name)")
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
@@ -1076,14 +1091,15 @@ struct MyProfileView: View {
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Companion").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 105))]) {
+                        LazyVGrid(columns: companionColumns, spacing: 12) {
                             ForEach(CollectionCatalog.companionIDs, id: \.self) { choice in
                                 let earned = person.earnedCompanionIDs.contains(choice)
                                 Button {
                                     if earned { companionID = choice }
                                 } label: {
                                     VStack {
-                                        CompanionArt(id: choice).frame(width: 74, height: 74)
+                                        CompanionArt(id: choice)
+                                            .frame(width: 62, height: 62)
                                             .saturation(earned ? 1 : 0)
                                             .opacity(earned ? 1 : 0.35)
                                         Text(choice.capitalized).font(.caption.bold())
@@ -1095,7 +1111,7 @@ struct MyProfileView: View {
                                                 .font(.caption2)
                                         }
                                     }
-                                    .frame(maxWidth: .infinity, minHeight: 122)
+                                    .frame(maxWidth: .infinity, minHeight: 116)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!earned)
@@ -1107,7 +1123,7 @@ struct MyProfileView: View {
                     }
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Background").font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 135))]) {
+                        LazyVGrid(columns: backgroundColumns, spacing: 16) {
                             ForEach(CollectionCatalog.backgrounds) { background in
                                 let earned = person.earnedBackgroundIDs.contains(background.id)
                                 Button {
@@ -1118,7 +1134,7 @@ struct MyProfileView: View {
                                             backgroundID: background.id,
                                             companionID: companionID,
                                             accent: Color(hex: colorHex))
-                                            .frame(height: 100)
+                                            .frame(height: horizontalSizeClass == .compact ? 82 : 120)
                                             .saturation(earned ? 1 : 0)
                                             .opacity(earned ? 1 : 0.42)
                                         Text(background.name).font(.caption.bold())
@@ -1137,11 +1153,13 @@ struct MyProfileView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding()
-                .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+                .frame(maxWidth: horizontalSizeClass == .compact
+                       ? 520 : AdaptiveLayout.readableContentMaximum)
                 .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
             .navigationTitle("My profile")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -1179,6 +1197,7 @@ struct QuestListView: View {
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var households: [Household]
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
@@ -1292,8 +1311,8 @@ struct QuestListView: View {
                         tint: statusTint(status))
                     LazyVGrid(
                         columns: [GridItem(.adaptive(
-                            minimum: dynamicTypeSize.isAccessibilitySize ? 540 : 300,
-                            maximum: 540
+                            minimum: dynamicTypeSize.isAccessibilitySize ? 540 : 340,
+                            maximum: 900
                         ), spacing: 12)],
                         alignment: .leading, spacing: 12
                     ) {
@@ -1321,24 +1340,15 @@ struct QuestListView: View {
                 Text("Everyone").tag(true)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 360)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                ForEach(QuestBrowseFilter.allCases) { filter in
-                        Button {
-                            browseFilter = filter
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(filter.title)
-                                Text("\(count(for: filter))")
-                                    .font(.caption.bold().monospacedDigit())
-                                    .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(.secondary.opacity(0.13), in: Capsule())
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(browseFilter == filter ? .accentColor : .secondary)
-                        .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity, alignment: .center)
+            Group {
+                if horizontalSizeClass == .regular {
+                    filterButtons
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        filterButtons
                     }
                 }
             }
@@ -1346,6 +1356,27 @@ struct QuestListView: View {
             Text(browseEveryone ? "Showing the whole family" :
                     "Showing quests for \(people.first { $0.id == selectedPersonID }?.name ?? "the selected profile")")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var filterButtons: some View {
+        HStack(spacing: 8) {
+            ForEach(QuestBrowseFilter.allCases) { filter in
+                Button {
+                    browseFilter = filter
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(filter.title)
+                        Text("\(count(for: filter))")
+                            .font(.caption.bold().monospacedDigit())
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(.secondary.opacity(0.13), in: Capsule())
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(browseFilter == filter ? .accentColor : .secondary)
+                .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
+            }
         }
     }
 
@@ -1708,8 +1739,10 @@ struct ParentAreaView: View {
                     LabeledContent("Version", value: appVersion)
                 }
             }
+            .scrollContentBackground(.hidden)
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
+            .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
     }
@@ -2073,10 +2106,18 @@ struct PersonEditorView: View {
                 ProfileColorSelector(selection: $draft.colorHex)
             }
             Section("Companion") {
-                Picker("Active companion", selection: $draft.companionID) {
-                    ForEach(availableCompanions, id: \.self) { id in
-                        HStack { CompanionArt(id: id).frame(width: 44, height: 44); Text(id.capitalized) }.tag(id)
+                HStack(spacing: 12) {
+                    Text("Active companion")
+                    Spacer()
+                    CompanionArt(id: draft.companionID)
+                        .frame(width: 38, height: 38)
+                    Picker("Active companion", selection: $draft.companionID) {
+                        ForEach(availableCompanions, id: \.self) { id in
+                            Text(id.capitalized).tag(id)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
             }
             if let person {
@@ -2100,6 +2141,8 @@ struct PersonEditorView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
         .navigationTitle(person == nil ? "New person" : "Edit person")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

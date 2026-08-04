@@ -201,6 +201,8 @@ final class ForegroundSyncPulse {
     private let foregroundSyncPulse = ForegroundSyncPulse()
 
     init() {
+        UITableView.appearance().backgroundColor = .clear
+        UICollectionView.appearance().backgroundColor = .clear
         let schema = Schema([
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
@@ -247,7 +249,7 @@ final class ForegroundSyncPulse {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                KyndynLaunchBackground()
+                KyndynScreenBackground()
                 if let container {
                     RootView()
                         .environment(model)
