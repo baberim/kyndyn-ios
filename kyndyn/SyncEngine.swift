@@ -353,6 +353,9 @@ enum SyncSnapshot {
             householdID: value.householdID, fields: [
                 "name": value.name, "role": value.roleRaw,
                 "colorHex": value.colorHex, "companionID": value.companionID,
+                "earnedCompanionIDs": value.earnedCompanionIDs.sorted().joined(separator: ","),
+                "backgroundID": value.backgroundID,
+                "earnedBackgroundIDs": value.earnedBackgroundIDs.sorted().joined(separator: ","),
                 "createdAt": value.createdAt.ISO8601Format(),
                 "deletedAt": value.deletedAt?.ISO8601Format() ?? ""
             ], mutationID: mutationID, tombstone: value.deletedAt != nil)
@@ -962,6 +965,14 @@ enum SyncRemoteApplier {
                 person.colorHex = record.fields["colorHex"] ?? person.colorHex
                 person.companionID =
                     record.fields["companionID"] ?? person.companionID
+                person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(
+                    person.earnedCompanionIDs + stringList(record.fields["earnedCompanionIDs"]))
+                person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(
+                    person.earnedBackgroundIDs + stringList(record.fields["earnedBackgroundIDs"]))
+                if let background = record.fields["backgroundID"],
+                   person.earnedBackgroundIDs.contains(background) {
+                    person.backgroundID = background
+                }
                 person.deletedAt = date(record.fields["deletedAt"])
             case .quest:
                 let id = record.entityID
@@ -1080,6 +1091,10 @@ enum SyncRemoteApplier {
         text?.split(separator: ",").compactMap {
             UUID(uuidString: String($0))
         } ?? []
+    }
+
+    private static func stringList(_ text: String?) -> [String] {
+        text?.split(separator: ",").map(String.init).filter { !$0.isEmpty } ?? []
     }
 
     private static func intList(_ text: String?) -> [Int] {

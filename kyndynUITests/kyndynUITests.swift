@@ -19,8 +19,8 @@ final class KyndynUITests: XCTestCase {
             + (parentUnlocked ? ["-ui-testing-parent-unlocked"] : [])
             + additionalArguments
         app.launch()
-        XCTAssertTrue(app.buttons["Create a sample household"].waitForExistence(timeout: 8))
-        app.buttons["Create a sample household"].tap()
+        XCTAssertTrue(app.buttons["Explore with sample data"].waitForExistence(timeout: 8))
+        app.buttons["Explore with sample data"].tap()
         return app
     }
 
@@ -56,6 +56,17 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Complete Make your bed"].waitForExistence(timeout: 3))
     }
 
+    func testHomeUsesUnifiedProgressAndHidesEmptyActivity() throws {
+        let app = launch()
+        let progress = app.descendants(matching: .any)["home-progress-summary"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Recent activity"].exists)
+
+        progress.tap()
+        XCTAssertTrue(app.navigationBars["Leo’s progress"]
+            .waitForExistence(timeout: 3))
+    }
+
     func testQuestBrowsingFiltersSearchAndDetails() throws {
         let app = launch()
         tapTab("Quests", in: app)
@@ -76,7 +87,8 @@ final class KyndynUITests: XCTestCase {
         app.buttons["My profile"].tap()
         XCTAssertTrue(app.navigationBars["My profile"]
             .waitForExistence(timeout: 3))
-        app.buttons["Teal"].tap()
+        app.buttons["Teal profile color"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["profile-custom-color"].exists)
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Orbit")
         ).firstMatch.tap()
@@ -91,9 +103,12 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["Recover my family from iCloud"]
+        XCTAssertTrue(app.buttons["Restore or import a household"]
             .waitForExistence(timeout: 8))
-        app.buttons["Recover my family from iCloud"].tap()
+        app.buttons["Restore or import a household"].tap()
+        XCTAssertTrue(app.buttons["Restore from iCloud"]
+            .waitForExistence(timeout: 3))
+        app.buttons["Restore from iCloud"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Recover from iCloud"]
             .waitForExistence(timeout: 3))
     }
@@ -158,6 +173,7 @@ final class KyndynUITests: XCTestCase {
         XCTAssertEqual(teal.value as? String, "Selected")
         XCTAssertEqual(app.buttons["profile-color-#FF9500"].value as? String,
                        "Not selected")
+        XCTAssertTrue(app.descendants(matching: .any)["profile-custom-color"].exists)
     }
 
     func testParentCanReviewLocalOnlyFamilySyncStatus() throws {
@@ -235,8 +251,8 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["Create a sample household"].waitForExistence(timeout: 8))
-        app.buttons["Create a sample household"].tap()
+        XCTAssertTrue(app.buttons["Explore with sample data"].waitForExistence(timeout: 8))
+        app.buttons["Explore with sample data"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         app.terminate()
         app.launchArguments = [
@@ -245,7 +261,7 @@ final class KyndynUITests: XCTestCase {
         ]
         app.launch()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["Create a sample household"].exists)
+        XCTAssertFalse(app.buttons["Explore with sample data"].exists)
     }
 
     func testWholeHouseholdModePersistsAcrossRelaunch() throws {
@@ -256,9 +272,9 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["Create a sample household"]
+        XCTAssertTrue(app.buttons["Explore with sample data"]
             .waitForExistence(timeout: 8))
-        app.buttons["Create a sample household"].tap()
+        app.buttons["Explore with sample data"].tap()
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 3))
         everyone.tap()

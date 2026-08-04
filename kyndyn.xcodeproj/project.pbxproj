@@ -27,6 +27,17 @@
 		A10000000000000000000012 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* AppConfiguration.swift */; };
 		A10000000000000000000013 /* HouseholdTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* HouseholdTransfer.swift */; };
 		A10000000000000000000014 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* DesignSystem.swift */; };
+		C50000000000000000000001 /* Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000001 /* Collections.swift */; };
+		C50000000000000000000002 /* penguin.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000002 /* penguin.png */; };
+		C50000000000000000000003 /* bee.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000003 /* bee.png */; };
+		C50000000000000000000004 /* cactus.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000004 /* cactus.png */; };
+		C50000000000000000000005 /* cloud companion.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000005 /* cloud companion.png */; };
+		C50000000000000000000006 /* dino.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000006 /* dino.png */; };
+		C50000000000000000000007 /* meadow.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000007 /* meadow.png */; };
+		C50000000000000000000008 /* bedroom.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000008 /* bedroom.png */; };
+		C50000000000000000000009 /* cloud background.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000009 /* cloud background.png */; };
+		C5000000000000000000000A /* aquarium.png in Resources */ = {isa = PBXBuildFile; fileRef = D5000000000000000000000A /* aquarium.png */; };
+		C5000000000000000000000B /* arcade.png in Resources */ = {isa = PBXBuildFile; fileRef = D5000000000000000000000B /* arcade.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +82,17 @@
 		B10000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000017 /* HouseholdTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdTransfer.swift; sourceTree = "<group>"; };
 		B10000000000000000000018 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		D50000000000000000000001 /* Collections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collections.swift; sourceTree = "<group>"; };
+		D50000000000000000000002 /* penguin.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = penguin.png; sourceTree = "<group>"; };
+		D50000000000000000000003 /* bee.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bee.png; sourceTree = "<group>"; };
+		D50000000000000000000004 /* cactus.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cactus.png; sourceTree = "<group>"; };
+		D50000000000000000000005 /* cloud companion.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cloud.png; sourceTree = "<group>"; };
+		D50000000000000000000006 /* dino.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dino.png; sourceTree = "<group>"; };
+		D50000000000000000000007 /* meadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = meadow.png; sourceTree = "<group>"; };
+		D50000000000000000000008 /* bedroom.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bedroom.png; sourceTree = "<group>"; };
+		D50000000000000000000009 /* background-cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "background-cloud.png"; sourceTree = "<group>"; };
+		D5000000000000000000000A /* aquarium.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = aquarium.png; sourceTree = "<group>"; };
+		D5000000000000000000000B /* arcade.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = arcade.png; sourceTree = "<group>"; };
 		FA2129B2301A79F000756983 /* kyndyn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = kyndyn.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -117,6 +139,7 @@
 				B10000000000000000000015 /* AppConfiguration.swift */,
 				B10000000000000000000016 /* Info.plist */,
 				B10000000000000000000002 /* DomainModels.swift */,
+				D50000000000000000000001 /* Collections.swift */,
 				B10000000000000000000003 /* ProgressionEngine.swift */,
 				B10000000000000000000004 /* Services.swift */,
 				B10000000000000000000005 /* AppModel.swift */,
@@ -126,6 +149,7 @@
 				B10000000000000000000017 /* HouseholdTransfer.swift */,
 				G10000000000000000000007 /* Resources */,
 				G10000000000000000000003 /* Resources/Companions */,
+				G10000000000000000000008 /* Resources/Backgrounds */,
 			);
 			path = kyndyn;
 			sourceTree = "<group>";
@@ -138,8 +162,25 @@
 				B10000000000000000000009 /* pixel.png */,
 				B1000000000000000000000A /* comet.png */,
 				B1000000000000000000000B /* bop.png */,
+				D50000000000000000000002 /* penguin.png */,
+				D50000000000000000000003 /* bee.png */,
+				D50000000000000000000004 /* cactus.png */,
+				D50000000000000000000005 /* cloud companion.png */,
+				D50000000000000000000006 /* dino.png */,
 			);
 			path = Resources/Companions;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000008 /* Resources/Backgrounds */ = {
+			isa = PBXGroup;
+			children = (
+				D50000000000000000000007 /* meadow.png */,
+				D50000000000000000000008 /* bedroom.png */,
+				D50000000000000000000009 /* background-cloud.png */,
+				D5000000000000000000000A /* aquarium.png */,
+				D5000000000000000000000B /* arcade.png */,
+			);
+			path = Resources/Backgrounds;
 			sourceTree = "<group>";
 		};
 		G10000000000000000000004 /* Products */ = {
@@ -289,6 +330,16 @@
 				A1000000000000000000000B /* bop.png in Resources */,
 				A1000000000000000000000E /* Assets.xcassets in Resources */,
 				A1000000000000000000000F /* LaunchScreen.storyboard in Resources */,
+				C50000000000000000000002 /* penguin.png in Resources */,
+				C50000000000000000000003 /* bee.png in Resources */,
+				C50000000000000000000004 /* cactus.png in Resources */,
+				C50000000000000000000005 /* cloud companion.png in Resources */,
+				C50000000000000000000006 /* dino.png in Resources */,
+				C50000000000000000000007 /* meadow.png in Resources */,
+				C50000000000000000000008 /* bedroom.png in Resources */,
+				C50000000000000000000009 /* cloud background.png in Resources */,
+				C5000000000000000000000A /* aquarium.png in Resources */,
+				C5000000000000000000000B /* arcade.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -317,6 +368,7 @@
 				A10000000000000000000012 /* AppConfiguration.swift in Sources */,
 				A10000000000000000000013 /* HouseholdTransfer.swift in Sources */,
 				A10000000000000000000002 /* DomainModels.swift in Sources */,
+				C50000000000000000000001 /* Collections.swift in Sources */,
 				A10000000000000000000003 /* ProgressionEngine.swift in Sources */,
 				A10000000000000000000004 /* Services.swift in Sources */,
 				A10000000000000000000005 /* AppModel.swift in Sources */,
@@ -399,13 +451,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.8.1;
+				MARKETING_VERSION = 0.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -423,13 +475,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.8.1;
+				MARKETING_VERSION = 0.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

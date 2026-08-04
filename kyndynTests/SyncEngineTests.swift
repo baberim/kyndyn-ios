@@ -113,6 +113,9 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         let household = Household(name: "Test Household", timeZoneIdentifier: "UTC")
         let person = Person(householdID: household.id, name: "Alex",
                             role: .child, colorHex: "#123", companionID: "spark")
+        person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(["penguin"])
+        person.backgroundID = "aquarium"
+        person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(["aquarium"])
         let state = HouseholdCloudState(householdID: household.id)
         state.mode = .owner
         context.insert(household); context.insert(person); context.insert(state)
@@ -127,6 +130,9 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         XCTAssertEqual(decoded.recordName, envelope.recordName)
         XCTAssertEqual(decoded.fields, envelope.fields)
         XCTAssertEqual(decoded.mutationID, envelope.mutationID)
+        XCTAssertEqual(decoded.fields["backgroundID"], "aquarium")
+        XCTAssertTrue(decoded.fields["earnedCompanionIDs"]?.contains("penguin") == true)
+        XCTAssertTrue(decoded.fields["earnedBackgroundIDs"]?.contains("aquarium") == true)
         let text = String(data: mutation.payload, encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("quietStart"))
         XCTAssertFalse(text.localizedCaseInsensitiveContains("pin"))

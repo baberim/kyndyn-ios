@@ -6,7 +6,6 @@
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="26600"/>
         <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
-        <capability name="System colors in document resources" minToolsVersion="11.0"/>
     </dependencies>
     <scenes>
         <scene sceneID="scene">
@@ -16,28 +15,19 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="K" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="mark">
-                                <rect key="frame" x="156.5" y="328" width="80" height="80"/>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="KyndynSplash" translatesAutoresizingMaskIntoConstraints="NO" id="splashArtwork">
+                                <rect key="frame" x="56.5" y="318.5" width="280" height="215"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="80" id="markWidth"/>
-                                    <constraint firstAttribute="height" constant="80" id="markHeight"/>
+                                    <constraint firstAttribute="width" constant="280" id="splashWidth"/>
+                                    <constraint firstAttribute="width" secondItem="splashArtwork" secondAttribute="height" multiplier="1148:879" id="splashAspect"/>
                                 </constraints>
-                                <fontDescription key="fontDescription" type="system" weight="heavy" pointSize="62"/>
-                                <color key="textColor" systemColor="systemPurpleColor"/>
-                            </label>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="kyndyn" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="title">
-                                <rect key="frame" x="126.66666666666667" y="426" width="139.66666666666663" height="47.666666666666686"/>
-                                <fontDescription key="fontDescription" type="system" weight="bold" pointSize="40"/>
-                                <color key="textColor" systemColor="systemPurpleColor"/>
-                            </label>
+                            </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="safe"/>
                         <color key="backgroundColor" name="LaunchBackground"/>
                         <constraints>
-                            <constraint firstItem="title" firstAttribute="centerX" secondItem="root" secondAttribute="centerX" id="centerX"/>
-                            <constraint firstItem="mark" firstAttribute="centerX" secondItem="root" secondAttribute="centerX" id="markCenterX"/>
-                            <constraint firstItem="title" firstAttribute="top" secondItem="mark" secondAttribute="bottom" constant="18" id="markSpacing"/>
-                            <constraint firstItem="mark" firstAttribute="centerY" secondItem="root" secondAttribute="centerY" constant="-40" id="markCenterY"/>
+                            <constraint firstItem="splashArtwork" firstAttribute="centerX" secondItem="root" secondAttribute="centerX" id="splashCenterX"/>
+                            <constraint firstItem="splashArtwork" firstAttribute="centerY" secondItem="root" secondAttribute="centerY" id="splashCenterY"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -46,11 +36,9 @@
         </scene>
     </scenes>
     <resources>
+        <image name="KyndynSplash" width="1148" height="879"/>
         <namedColor name="LaunchBackground">
             <color red="0.965" green="0.965" blue="0.980" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
-        <systemColor name="systemPurpleColor">
-            <color red="0.686" green="0.321" blue="0.871" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-        </systemColor>
     </resources>
 </document>
