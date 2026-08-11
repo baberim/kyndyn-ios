@@ -358,6 +358,28 @@ enum LifecycleRules {
         refreshReminders(context: context)
     }
 
+    @discardableResult
+    func repairQuestSchedules(
+        _ quests: [Quest], household: Household, context: ModelContext
+    ) throws -> Int {
+        var repaired = [Quest]()
+        for quest in quests where QuestScheduleDiagnostics.applySafeRepairs(
+            to: quest, timeZoneIdentifier: household.timeZoneIdentifier
+        ) {
+            repaired.append(quest)
+        }
+        guard !repaired.isEmpty else { return 0 }
+        try context.save()
+        for quest in repaired {
+            for envelope in SyncSnapshot.quest(quest) {
+                try SyncQueue.enqueue(envelope, operation: .createOrUpdate,
+                                      context: context)
+            }
+        }
+        refreshReminders(context: context)
+        return repaired.count
+    }
+
     func saveFamilyReward(
         title rawTitle: String, targetXP: Int, resetProgress: Bool,
         household: Household, goals: [RewardGoal], context: ModelContext,
