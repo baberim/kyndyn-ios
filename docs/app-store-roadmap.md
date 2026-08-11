@@ -1,6 +1,6 @@
 # App Store roadmap
 
-## Completed through Build 10
+## Completed through Build 11
 
 ### Build 4 — Daily Experience and Recovery 0.8.1
 
@@ -103,15 +103,13 @@ See `docs/build-8-visual-identity.md` for the implemented scope.
 
 See `docs/build-10-quest-planning.md` for the implemented scope.
 
-## Next
-
 ### Build 11 — Siri and System Intelligence
 
 - Siri and System Intelligence integration using App Intents rather than a
   dedicated Kyndyn AI service:
-  - Expose privacy-limited Person, Quest, quest-occurrence, and family-reward
-    entities to Siri, Shortcuts, Spotlight, and supported Apple Intelligence
-    experiences.
+  - Expose privacy-limited profile and quest-occurrence choices to Siri and
+    Shortcuts, with shortcut discovery available through Apple's system
+    surfaces.
   - Begin with safe actions such as listing today's quests, showing reward
     progress, opening a person's dashboard, and completing or undoing an exact
     quest occurrence.
@@ -127,6 +125,11 @@ See `docs/build-10-quest-planning.md` for the implemented scope.
     versions.
   - Add deterministic App Intents tests plus physical-device Siri, Shortcuts,
     Spotlight, locked-device, offline, and synchronization validation.
+
+See `docs/build-11-system-intelligence.md` for the implemented foundation and
+the remaining physical-device validation boundary.
+
+## Next
 
 ### Build 12 — Family Communication
 
@@ -173,7 +176,7 @@ See `docs/build-10-quest-planning.md` for the implemented scope.
   participant permissions, revocation, and recovery through TestFlight.
 - Validate notification scheduling and privacy across supported physical
   devices and account roles.
-- Complete the remaining Build 7–10 roadmap above and robust parent editors.
+- Complete the remaining roadmap and robust parent editors.
 - Continue expanding accessibility identifiers, UI coverage, and real-family
   TestFlight validation.
 

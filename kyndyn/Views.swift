@@ -707,6 +707,12 @@ struct SettingsView: View {
                 }
                 Section("Help") {
                     NavigationLink {
+                        SiriShortcutsHelpView()
+                    } label: {
+                        Label("Siri & Shortcuts", systemImage: "waveform")
+                    }
+                    .accessibilityIdentifier("settings-siri-shortcuts")
+                    NavigationLink {
                         FamilySetupGuideView()
                     } label: {
                         Label("Family setup guide", systemImage: "questionmark.circle.fill")
@@ -721,6 +727,37 @@ struct SettingsView: View {
             .background(KyndynScreenBackground())
             .navigationTitle("Settings")
         }
+    }
+}
+
+struct SiriShortcutsHelpView: View {
+    var body: some View {
+        List {
+            Section("Try saying") {
+                Label("“Show my quests in kyndyn”", systemImage: "checklist")
+                Label("“Show family reward progress in kyndyn”",
+                      systemImage: "gift.fill")
+                Label("“Open a profile in kyndyn”",
+                      systemImage: "person.crop.circle")
+                Label("“Complete a quest in kyndyn”",
+                      systemImage: "checkmark.circle.fill")
+                Label("“Undo a quest in kyndyn”",
+                      systemImage: "arrow.uturn.backward.circle.fill")
+            }
+            Section("Privacy") {
+                Text("Kyndyn requires device authentication before Siri or Shortcuts can reveal profile names, quest details, or reward progress.")
+                Text("Quest changes use the same offline history and family-sync queue as changes made inside the app.")
+            }
+            Section {
+                Text("Apple controls which phrases are recognized and when Siri or Shortcuts can run. Newer Apple Intelligence features vary by device, language, and OS version.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Siri & Shortcuts")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
