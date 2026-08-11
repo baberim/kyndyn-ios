@@ -240,6 +240,62 @@ final class ProgressionEngineTests: XCTestCase {
         quest.deletedAt = now
         XCTAssertEqual(ProgressionEngine.temporalStatus(for: quest, personID: person.id, completions: [event], now: now, timeZoneIdentifier: household.timeZoneIdentifier), .inactive)
     }
+
+    func testQuestTemplateCatalogMatchesApprovedRowanRoutines() {
+        XCTAssertEqual(QuestTemplateCatalog.templates.count, 11)
+        XCTAssertEqual(Set(QuestTemplateCatalog.templates.map(\.id)).count, 11)
+        XCTAssertTrue(QuestTemplateCatalog.templates.contains {
+            $0.id == "family-reset" && $0.completionMode == .sharedAll
+        })
+        XCTAssertEqual(
+            QuestTemplateCatalog.templates.first { $0.id == "backpack-reset" }?.weekdays,
+            Set(2...6))
+    }
+
+    @MainActor func testScheduleDiagnosticsRepairOnlySafeRecurrenceFields() throws {
+        let (_, household, person, quest) = try models()
+        quest.scheduleKind = .weekly
+        quest.weekdays = [9]
+        quest.repeatIntervalWeeks = 4
+        quest.startDate = ISO8601DateFormatter().date(
+            from: "2026-08-03T12:00:00Z")!
+        quest.dueAt = ISO8601DateFormatter().date(
+            from: "2026-08-01T12:00:00Z")!
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-07-27",
+            completedAt: .now, awardedXP: 17)
+
+        let issues = QuestScheduleDiagnostics.issues(for: quest)
+        XCTAssertEqual(Set(issues.map(\.kind)), [
+            .missingWeekdays, .invalidWeekdays, .unsupportedInterval,
+            .dueBeforeStart
+        ])
+        XCTAssertTrue(QuestScheduleDiagnostics.applySafeRepairs(
+            to: quest, timeZoneIdentifier: household.timeZoneIdentifier))
+        XCTAssertEqual(quest.weekdays, [2])
+        XCTAssertEqual(quest.repeatIntervalWeeks, 1)
+        XCTAssertNotNil(quest.dueAt, "Unsafe deadline intent must remain for review")
+        XCTAssertEqual(completion.awardedXP, 17)
+        XCTAssertNil(completion.reversedAt)
+    }
+
+    @MainActor func testTwoWeekProjectionRespectsBiweeklyAnchor() throws {
+        let (_, household, _, quest) = try models()
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        quest.scheduleKind = .weekly
+        quest.weekdays = [2]
+        quest.repeatIntervalWeeks = 2
+        quest.startDate = calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 3, hour: 9))!
+        let days = QuestScheduleProjection.days(
+            quests: [quest], starting: quest.startDate, count: 15,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        XCTAssertTrue(days[0].questIDs.contains(quest.id))
+        XCTAssertFalse(days[7].questIDs.contains(quest.id))
+        XCTAssertTrue(days[14].questIDs.contains(quest.id))
+    }
 }
 
 final class ConfigurationAndAdaptiveLayoutTests: XCTestCase {
@@ -344,6 +400,46 @@ final class LifecycleRulesTests: XCTestCase {
         draft.weekdays = [2]
         person.deletedAt = .now
         XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? KyndynValidationError, .archivedParticipant) }
+    }
+
+    func testQuestScheduleValidationPreventsInvalidInput() throws {
+        var draft = QuestDraft(scheduleKind: .weekly, weekdays: [0, 2])
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError, .invalidWeekdays)
+        }
+
+        draft.weekdays = [2]
+        draft.repeatIntervalWeeks = 3
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .invalidRepeatInterval)
+        }
+
+        draft.scheduleKind = .daily
+        draft.repeatIntervalWeeks = 2
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .invalidRepeatInterval)
+        }
+
+        draft.repeatIntervalWeeks = 1
+        draft.hasDueDate = true
+        draft.startDate = ISO8601DateFormatter().date(
+            from: "2026-03-09T04:00:00Z")!
+        draft.dueDate = ISO8601DateFormatter().date(
+            from: "2026-03-07T18:00:00Z")!
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .deadlineBeforeStart)
+        }
+
+        draft.dueDate = draft.startDate
+        XCTAssertNoThrow(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York"))
     }
 
     @MainActor func testArchivePreservesHistoryAndStableIDs() throws {

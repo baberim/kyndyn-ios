@@ -1,6 +1,6 @@
 # App Store roadmap
 
-## Completed through Build 7
+## Completed through Build 10
 
 ### Build 4 — Daily Experience and Recovery 0.8.1
 
@@ -62,8 +62,6 @@
 
 See `docs/build-7-guided-family-setup.md` for the implemented scope.
 
-## Next
-
 ### Build 8 — Visual Identity and Personalization
 
 - Add a device-local app icon selector with the current icon and the supplied
@@ -97,20 +95,17 @@ See `docs/build-8-visual-identity.md` for the implemented scope.
 
 ### Build 10 — Quest Planning Tools
 
-- Native quest templates for common family routines.
-- Schedule overview and diagnostics for recurring quests.
-- Safer bulk planning and recurrence repair tools.
-- Preserve completion history when schedules are edited.
+- Added eleven native quest templates for common family routines.
+- Added a household-time-zone-aware two-week schedule overview.
+- Added recurrence diagnostics and explicit safe-repair tools.
+- Preserved completion history and awarded XP when schedules are edited or
+  repaired, while routing repairs through the existing sync queue.
 
-### Build 11 — Family Communication
+See `docs/build-10-quest-planning.md` for the implemented scope.
 
-- Family broadcasts and announcements with parent controls.
-- Richer parent and family summaries.
-- Privacy-conscious delivery and expiration behavior.
-- Keep announcements separate from synchronization notifications and quest
-  reminders.
+## Next
 
-## Later
+### Build 11 — Siri and System Intelligence
 
 - Siri and System Intelligence integration using App Intents rather than a
   dedicated Kyndyn AI service:
@@ -132,6 +127,17 @@ See `docs/build-8-visual-identity.md` for the implemented scope.
     versions.
   - Add deterministic App Intents tests plus physical-device Siri, Shortcuts,
     Spotlight, locked-device, offline, and synchronization validation.
+
+### Build 12 — Family Communication
+
+- Family broadcasts and announcements with parent controls.
+- Richer parent and family summaries.
+- Privacy-conscious delivery and expiration behavior.
+- Keep announcements separate from synchronization notifications and quest
+  reminders.
+
+## Later
+
 - Read-only calendar integration with explicit permission and privacy design.
 - Weather as derived, replaceable cache data rather than shared source truth.
 - Business Model and Entitlements must be designed and approved before adding

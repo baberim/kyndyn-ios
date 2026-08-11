@@ -2105,6 +2105,9 @@ struct ParentAreaView: View {
                     }
                     NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
                     NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
+                    NavigationLink { QuestPlanningView() } label: {
+                        Label("Quest planning", systemImage: "calendar.badge.clock")
+                    }
                     NavigationLink { FamilyRewardSettingsView() } label: {
                         Label("Family reward", systemImage: "gift.fill")
                     }
@@ -2571,6 +2574,18 @@ struct QuestManagementView: View {
 
     var body: some View {
         List {
+            Section("Plan") {
+                NavigationLink {
+                    QuestTemplateLibraryView()
+                } label: {
+                    Label("Quest templates", systemImage: "square.grid.2x2.fill")
+                }
+                NavigationLink {
+                    QuestScheduleOverviewView()
+                } label: {
+                    Label("Schedule overview", systemImage: "calendar")
+                }
+            }
             Section("Active quests") {
                 ForEach(quests.filter { $0.deletedAt == nil }) { quest in
                     NavigationLink { QuestEditorView(quest: quest) } label: { QuestManagementLabel(quest: quest) }
@@ -2613,6 +2628,233 @@ struct QuestManagementView: View {
     }
 }
 
+struct QuestPlanningView: View {
+    @Query private var households: [Household]
+    @Query private var quests: [Quest]
+
+    private var issues: [QuestScheduleIssue] {
+        quests.flatMap(QuestScheduleDiagnostics.issues(for:))
+    }
+
+    var body: some View {
+        List {
+            Section("Start faster") {
+                NavigationLink { QuestTemplateLibraryView() } label: {
+                    Label("Quest templates", systemImage: "square.grid.2x2.fill")
+                }
+                Text("Start with a common routine, then choose the people, timing, and reminders that fit your family.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("See what is coming") {
+                NavigationLink { QuestScheduleOverviewView() } label: {
+                    Label("Two-week schedule", systemImage: "calendar")
+                }
+                LabeledContent("Active quests",
+                    value: "\(quests.filter { $0.deletedAt == nil }.count)")
+            }
+            Section("Schedule health") {
+                if issues.isEmpty {
+                    LabeledContent("Legacy schedule check", value: "No issues")
+                        .foregroundStyle(.secondary)
+                } else {
+                    NavigationLink { QuestScheduleHealthView() } label: {
+                        Label("\(issues.count) item\(issues.count == 1 ? "" : "s") to review",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                Text(issues.isEmpty
+                     ? "New quests are checked before saving. This fallback watches for older, restored, imported, or synchronized schedules."
+                     : "Safe repairs never remove completion history or recalculate previously awarded XP.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Quest planning")
+        .accessibilityIdentifier("quest-planning")
+    }
+}
+
+struct QuestTemplateLibraryView: View {
+    @State private var selectedTemplate: QuestTemplate?
+    private let columns = [GridItem(.adaptive(minimum: 250), spacing: 12)]
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(QuestTemplateCatalog.templates) { template in
+                    Button {
+                        selectedTemplate = template
+                    } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(template.title, systemImage: template.symbol)
+                                .font(.headline)
+                            Text(template.detail)
+                                .font(.subheadline).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack {
+                                KyndynStatusPill(text: "\(template.xp) XP",
+                                                 systemImage: "bolt.fill",
+                                                 tint: .purple)
+                                KyndynStatusPill(text: template.scheduleLabel,
+                                                 systemImage: "repeat",
+                                                 tint: .blue)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 132,
+                               alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .kyndynCard(tint: .purple)
+                    .accessibilityIdentifier("quest-template-\(template.id)")
+                    .accessibilityHint("Opens an editable new quest")
+                }
+            }
+            .padding()
+            .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+        }
+        .frame(maxWidth: .infinity)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Quest templates")
+        .sheet(item: $selectedTemplate) { template in
+            NavigationStack {
+                QuestEditorView(quest: nil, template: template)
+            }
+        }
+    }
+}
+
+struct QuestScheduleOverviewView: View {
+    @Query private var households: [Household]
+    @Query(sort: \Quest.createdAt) private var quests: [Quest]
+
+    private var household: Household? { households.first }
+    private var days: [QuestScheduleDay] {
+        guard let household else { return [] }
+        return QuestScheduleProjection.days(
+            quests: quests, starting: .now, count: 14,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+    }
+
+    var body: some View {
+        List(days) { day in
+            Section {
+                if scheduledQuests(day).isEmpty {
+                    Text("No quests scheduled")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(scheduledQuests(day)) { quest in
+                        NavigationLink { QuestEditorView(quest: quest) } label: {
+                            QuestManagementLabel(quest: quest)
+                        }
+                    }
+                }
+            } header: {
+                Text(day.date.formatted(.dateTime.weekday(.wide).month().day()))
+            }
+        }
+        .navigationTitle("Two-week schedule")
+        .accessibilityIdentifier("quest-schedule-overview")
+    }
+
+    private func scheduledQuests(_ day: QuestScheduleDay) -> [Quest] {
+        let ids = Set(day.questIDs)
+        return quests.filter { ids.contains($0.id) }
+    }
+}
+
+struct QuestScheduleHealthView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @Query(sort: \Quest.createdAt) private var quests: [Quest]
+    @State private var confirmRepair = false
+    @State private var repairedMessage: String?
+
+    private var issues: [QuestScheduleIssue] {
+        quests.flatMap(QuestScheduleDiagnostics.issues(for:))
+    }
+    private var repairableCount: Int {
+        Set(issues.filter { $0.safelyRepairable }.map(\.questID)).count
+    }
+
+    var body: some View {
+        List {
+            if issues.isEmpty {
+                ContentUnavailableView("Schedules look good",
+                    systemImage: "checkmark.circle.fill",
+                    description: Text("No recurrence problems need attention."))
+            } else {
+                Section("Review") {
+                    ForEach(issues) { issue in
+                        NavigationLink {
+                            if let quest = quests.first(where: { $0.id == issue.questID }) {
+                                QuestEditorView(quest: quest)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(issue.questTitle).font(.headline)
+                                Text(issue.message).font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Text(issue.safelyRepairable ? "Safe repair available" :
+                                        "Choose the intended dates manually")
+                                    .font(.caption)
+                                    .foregroundStyle(issue.safelyRepairable ? .green : .orange)
+                            }
+                        }
+                    }
+                }
+                if repairableCount > 0 {
+                    Section("Safe repair") {
+                        Button("Repair \(repairableCount) quest\(repairableCount == 1 ? "" : "s")",
+                               systemImage: "wrench.and.screwdriver") {
+                            confirmRepair = true
+                        }
+                        Text("Missing weekdays use the quest’s start day. Unsupported intervals return to weekly. Deadlines are never changed automatically.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if let repairedMessage {
+                Section { Label(repairedMessage, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green) }
+            }
+        }
+        .navigationTitle("Schedule health")
+        .confirmationDialog("Repair safe schedule issues?",
+                            isPresented: $confirmRepair,
+                            titleVisibility: .visible) {
+            Button("Repair schedules") { repair() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Completion history and previously awarded XP stay unchanged. Repairs will sync to shared family devices.")
+        }
+        .errorAlert(app: app)
+    }
+
+    private func repair() {
+        guard let household = households.first else { return }
+        do {
+            let count = try app.repairQuestSchedules(
+                quests, household: household, context: context)
+            repairedMessage = count == 0 ? "No safe repairs were needed." :
+                "Repaired \(count) quest schedule\(count == 1 ? "" : "s")."
+        } catch {
+            app.errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private extension QuestTemplate {
+    var scheduleLabel: String {
+        switch scheduleKind {
+        case .oneTime: return "One time"
+        case .daily: return "Daily"
+        case .weekly:
+            return weekdays == Set(2...6) ? "Weekdays" : "Weekly"
+        }
+    }
+}
+
 struct QuestManagementLabel: View {
     let quest: Quest
     var body: some View {
@@ -2644,9 +2886,9 @@ struct QuestEditorView: View {
     @State private var loadedReminder = false
     @State private var confirmArchive = false
 
-    init(quest: Quest?) {
+    init(quest: Quest?, template: QuestTemplate? = nil) {
         self.quest = quest
-        var value = QuestDraft()
+        var value = template?.draft() ?? QuestDraft()
         if let quest {
             value.title = quest.title; value.detail = quest.detail; value.xp = quest.xp
             value.participantIDs = Set(quest.participantIDs); value.completionMode = quest.completionMode
@@ -2707,12 +2949,23 @@ struct QuestEditorView: View {
                     }
                 }
             }
+            .onChange(of: draft.scheduleKind) { _, newValue in
+                if newValue != .weekly {
+                    draft.repeatIntervalWeeks = 1
+                }
+            }
             Section("Deadline") {
                 Toggle("Add due date", isOn: $draft.hasDueDate)
                 if draft.hasDueDate {
                     DatePicker("Due date", selection: $draft.dueDate, displayedComponents: .date)
                     Toggle("Specific time", isOn: $draft.hasDueTime)
                     if draft.hasDueTime { DatePicker("Due time", selection: $draft.dueTime, displayedComponents: .hourAndMinute) }
+                    if deadlinePrecedesStart {
+                        Label("Due date must be on or after the start date.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                     if let household = households.first { Text("Uses \(household.timeZoneIdentifier).").font(.caption).foregroundStyle(.secondary) }
                 }
             }
@@ -2803,9 +3056,19 @@ struct QuestEditorView: View {
                         dismiss()
                     } catch { app.errorMessage = error.localizedDescription }
                 }
+                .disabled(deadlinePrecedesStart)
             }
         }
         .errorAlert(app: app)
+    }
+
+    private var deadlinePrecedesStart: Bool {
+        guard draft.hasDueDate else { return false }
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: households.first?.timeZoneIdentifier ??
+                TimeZone.current.identifier)
+        return calendar.startOfDay(for: draft.dueDate) <
+            calendar.startOfDay(for: draft.startDate)
     }
 }
 

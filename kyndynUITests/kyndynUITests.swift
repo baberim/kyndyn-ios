@@ -194,6 +194,30 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Casey"].waitForExistence(timeout: 3))
     }
 
+    func testParentCanBrowseScheduleAndStartFromTemplate() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Switch", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        let planning = app.staticTexts["Quest planning"]
+        reveal(planning, in: app)
+        planning.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["quest-planning"]
+            .waitForExistence(timeout: 3))
+        app.staticTexts["Quest templates"].tap()
+        let template = app.buttons["quest-template-morning-routine"]
+        XCTAssertTrue(template.waitForExistence(timeout: 3))
+        template.tap()
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        XCTAssertEqual(title.value as? String, "Morning Routine")
+        app.buttons["Cancel"].tap()
+        app.navigationBars["Quest templates"].buttons["Quest planning"].tap()
+        app.staticTexts["Two-week schedule"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["quest-schedule-overview"]
+            .waitForExistence(timeout: 3))
+    }
+
     func testProfileColorSelectionDoesNotFallThroughToOrange() throws {
         let app = launch(parentUnlocked: true)
         tapTab("Switch", in: app)
