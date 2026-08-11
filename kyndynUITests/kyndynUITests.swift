@@ -76,6 +76,8 @@ final class KyndynUITests: XCTestCase {
 
     func testHomeUsesUnifiedProgressAndHidesEmptyActivity() throws {
         let app = launch()
+        XCTAssertTrue(app.descendants(matching: .any)["home-profile-scene"]
+            .waitForExistence(timeout: 5))
         let progress = app.descendants(matching: .any)["home-progress-summary"]
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Recent activity"].exists)
@@ -105,7 +107,16 @@ final class KyndynUITests: XCTestCase {
         app.buttons["My profile"].tap()
         XCTAssertTrue(app.navigationBars["My profile"]
             .waitForExistence(timeout: 3))
-        app.buttons["Teal profile color"].tap()
+        let iconPicker = app.buttons["choose-app-icon"]
+        reveal(iconPicker, in: app)
+        iconPicker.tap()
+        XCTAssertTrue(app.navigationBars["App icon"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["app-icon-original"].exists)
+        XCTAssertTrue(app.buttons["app-icon-pastel"].exists)
+        app.buttons["Done"].tap()
+        let teal = app.buttons["Teal profile color"]
+        reveal(teal, in: app)
+        teal.tap()
         XCTAssertTrue(app.descendants(matching: .any)["profile-custom-color"].exists)
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Orbit")

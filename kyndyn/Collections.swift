@@ -127,11 +127,11 @@ struct ProfileScene: View {
                 }
                 Circle()
                     .fill(.white.opacity(0.28))
-                    .frame(width: min(proxy.size.height * 0.62, 92),
-                           height: min(proxy.size.height * 0.62, 92))
+                    .frame(width: min(proxy.size.height * 0.68, 156),
+                           height: min(proxy.size.height * 0.68, 156))
                 CompanionArt(id: companionID)
-                    .frame(width: min(proxy.size.height * 0.72, 118),
-                           height: min(proxy.size.height * 0.72, 118))
+                    .frame(width: min(proxy.size.height * 0.78, 180),
+                           height: min(proxy.size.height * 0.78, 180))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))

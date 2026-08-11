@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 private let companionChoices = CollectionCatalog.companionIDs
 private let colorChoices = [
@@ -560,7 +561,7 @@ struct ProfilePickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var settings: [LocalDeviceSettings]
-    let columns = [GridItem(.adaptive(minimum: 160, maximum: 260), spacing: 18)]
+    let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
 
     var body: some View {
         NavigationStack {
@@ -569,7 +570,7 @@ struct ProfilePickerView: View {
                     Text("Who’s using kyndyn?").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                     Text("Choose your profile to see the right quests.").foregroundStyle(.secondary)
                 }.padding(.vertical, 28)
-                LazyVGrid(columns: columns, spacing: 18) {
+                LazyVGrid(columns: columns, spacing: 26) {
                     ForEach(people.filter { $0.deletedAt == nil }) { person in
                         Button {
                             app.selectedPersonID = person.id
@@ -581,33 +582,32 @@ struct ProfilePickerView: View {
                             try? context.save()
                             dismiss()
                         } label: {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 10) {
                                 CompanionArt(id: person.companionID)
-                                    .frame(width: 86, height: 86)
-                                    .padding(8)
-                                    .background(.background.opacity(0.78), in: Circle())
+                                    .frame(width: 94, height: 94)
+                                    .padding(10)
+                                    .background(
+                                        Color(hex: person.colorHex).opacity(0.15),
+                                        in: Circle())
                                     .overlay {
                                         Circle().stroke(
                                             Color(hex: person.colorHex),
-                                            lineWidth: 5
+                                            lineWidth: app.selectedPersonID == person.id ? 6 : 3
                                         )
                                     }
-                                Text(person.name).font(.title3.bold()).foregroundStyle(.primary)
-                                Text(person.role == .parent ? "Parent" : "Family member").font(.caption).foregroundStyle(.secondary)
-                                Label(ProfilePalette.name(for: person.colorHex),
-                                      systemImage: "paintpalette.fill")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color(hex: person.colorHex))
+                                    .shadow(
+                                        color: Color(hex: person.colorHex).opacity(0.22),
+                                        radius: 10, y: 5)
+                                Text(person.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text(person.role == .parent ? "Parent" : "Family member")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity).padding()
-                            .background(
-                                Color(hex: person.colorHex).opacity(0.18),
-                                in: RoundedRectangle(cornerRadius: 24)
-                            )
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(Color(hex: person.colorHex), lineWidth: 2)
-                            }
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
@@ -719,6 +719,7 @@ struct DashboardView: View {
     @State private var showMyProfile = false
     @State private var showProgress = false
     @State private var unlockToPresent: String?
+    @State private var greetingMessage = "Small steps count."
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -734,21 +735,18 @@ struct DashboardView: View {
                         } else if let person {
                             let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                             VStack(spacing: 18) {
-                                ViewThatFits(in: .horizontal) {
-                            HStack {
-                                profileArt(person)
+                                ProfileScene(
+                                    backgroundID: person.backgroundID,
+                                    companionID: person.companionID,
+                                    accent: Color(hex: person.colorHex))
+                                    .frame(height: 220)
+                                    .accessibilityIdentifier("home-profile-scene")
+                                    .shadow(
+                                        color: Color(hex: person.colorHex).opacity(0.16),
+                                        radius: 14, y: 7)
                                 greeting(person)
-                                Spacer()
-                            }
-                            VStack(spacing: 10) {
-                                profileArt(person)
-                                greeting(person)
-                                    .multilineTextAlignment(.center)
-                                    }
-                                }
-                                .kyndynCard(
-                                    tint: Color(hex: person.colorHex),
-                                    raised: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 4)
                                 progressSummary(progress, tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
@@ -780,6 +778,7 @@ struct DashboardView: View {
             .refreshable {
                 automaticSync.request(.manual)
                 await automaticSync.waitUntilIdle()
+                rotateGreeting()
             }
             .background(KyndynScreenBackground())
             .navigationTitle("Today")
@@ -811,6 +810,7 @@ struct DashboardView: View {
             .task(id: person?.pendingUnlockIDs.first) {
                 unlockToPresent = person?.pendingUnlockIDs.first
             }
+            .onAppear { rotateGreeting() }
         }
     }
 
@@ -987,24 +987,30 @@ struct DashboardView: View {
         }
     }
 
-    private func profileArt(_ person: Person) -> some View {
-        CompanionArt(id: person.companionID)
-            .frame(width: 100, height: 100)
-            .padding(7)
-            .background(Color(hex: person.colorHex).opacity(0.18), in: Circle())
-            .overlay {
-                Circle().stroke(Color(hex: person.colorHex), lineWidth: 5)
-            }
-            .accessibilityHint("\(ProfilePalette.name(for: person.colorHex)) profile")
-    }
-
     private func greeting(_ person: Person) -> some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 3) {
             Text("Hi, \(person.name)")
                 .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text("Small steps count.").foregroundStyle(.secondary)
+            Text(greetingMessage).foregroundStyle(.secondary)
         }
+    }
+
+    private func rotateGreeting() {
+        let messages = [
+            "Small steps count.",
+            "You’ve got this.",
+            "A little progress goes a long way.",
+            "Ready for today’s adventure?",
+            "One quest at a time.",
+            "Your effort matters.",
+            "Let’s make today count.",
+            "Every win starts with one step.",
+            "Good things grow from steady effort.",
+            "There’s something great ahead."
+        ]
+        let choices = messages.filter { $0 != greetingMessage }
+        greetingMessage = choices.randomElement() ?? messages[0]
     }
 
     private func rewardProgress(_ household: Household) -> some View {
@@ -1150,6 +1156,7 @@ struct MyProfileView: View {
     @State private var colorHex: String
     @State private var companionID: String
     @State private var backgroundID: String
+    @State private var showAppIconPicker = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var companionColumns: [GridItem] {
@@ -1180,6 +1187,21 @@ struct MyProfileView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
                         ProfileColorSelector(selection: $colorHex)
+                        Divider()
+                        Button {
+                            showAppIconPicker = true
+                        } label: {
+                            HStack {
+                                Label("Choose app icon", systemImage: "app.dashed")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("choose-app-icon")
                     }
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
@@ -1263,6 +1285,9 @@ struct MyProfileView: View {
             }
         }
         .tint(Color(hex: colorHex))
+        .sheet(isPresented: $showAppIconPicker) {
+            AppIconPickerView()
+        }
     }
 
     private func save() {
@@ -1282,6 +1307,124 @@ struct MyProfileView: View {
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct AppIconChoice: Identifiable {
+    let id: String
+    let title: String
+    let alternateName: String?
+    let previewAsset: String
+
+    static let choices = [
+        AppIconChoice(
+            id: "original", title: "Original", alternateName: nil,
+            previewAsset: "AppIconDefaultPreview"),
+        AppIconChoice(
+            id: "pastel", title: "Pastel", alternateName: "AppIconPastel",
+            previewAsset: "AppIconPastelPreview")
+    ]
+}
+
+struct AppIconPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedName = UIApplication.shared.alternateIconName
+    @State private var isChanging = false
+    @State private var errorMessage: String?
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 22)
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Choose how kyndyn looks on this device. This choice doesn’t change anyone else’s icon.")
+                        .foregroundStyle(.secondary)
+                    LazyVGrid(columns: columns, spacing: 24) {
+                        ForEach(AppIconChoice.choices) { choice in
+                            AppIconChoiceButton(
+                                choice: choice,
+                                isSelected: selectedName == choice.alternateName,
+                                isDisabled: isChanging
+                            ) {
+                                change(to: choice.alternateName)
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("App icon")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .alert("Couldn’t change the app icon", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "Please try again.")
+            }
+        }
+    }
+
+    private func change(to alternateName: String?) {
+        guard UIApplication.shared.supportsAlternateIcons,
+              selectedName != alternateName else { return }
+        isChanging = true
+        UIApplication.shared.setAlternateIconName(alternateName) { error in
+            Task { @MainActor in
+                isChanging = false
+                if let error {
+                    errorMessage = error.localizedDescription
+                } else {
+                    selectedName = UIApplication.shared.alternateIconName
+                }
+            }
+        }
+    }
+}
+
+private struct AppIconChoiceButton: View {
+    let choice: AppIconChoice
+    let isSelected: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(choice.previewAsset)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(
+                        cornerRadius: 25, style: .continuous))
+                    .shadow(color: .black.opacity(0.14), radius: 8, y: 4)
+                    .overlay(alignment: .topTrailing) {
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title2)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, Color.accentColor)
+                                .padding(7)
+                        }
+                    }
+                Text(choice.title).font(.headline)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityIdentifier("app-icon-\(choice.id)")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 }
 
