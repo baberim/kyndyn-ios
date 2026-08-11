@@ -641,15 +641,16 @@ struct MainView: View {
         TabView(selection: $app.selectedTab) {
             DashboardView().tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
             QuestListView().tabItem { Label("Quests", systemImage: "checklist") }.tag(1)
+            SettingsView().tabItem { Label("Settings", systemImage: "gearshape.fill") }.tag(2)
             if selected?.role == .parent ||
                 (selected == nil && devicePerson?.role == .parent) {
                 Group {
                     if parentAccess.isUnlocked { ParentAreaView() }
                     else { ParentAuthenticationView() }
                 }
-                .tabItem { Label("Parent", systemImage: "lock.shield.fill") }.tag(2)
+                .tabItem { Label("Parent", systemImage: "lock.shield.fill") }.tag(3)
             }
-            ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(3)
+            ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(4)
         }
         .tabViewStyle(.tabBarOnly)
         .background(KyndynScreenBackground())
@@ -658,6 +659,67 @@ struct MainView: View {
             if !ProcessInfo.processInfo.arguments.contains("-ui-testing-parent-unlocked") {
                 parentAccess.lock()
             }
+        }
+    }
+}
+
+struct SettingsView: View {
+    @Environment(AppModel.self) private var app
+    @Query private var people: [Person]
+    @Query private var deviceSettings: [LocalDeviceSettings]
+
+    private var activePerson: Person? {
+        people.first { $0.id == app.selectedPersonID && $0.deletedAt == nil }
+            ?? people.first {
+                $0.id == deviceSettings.first?.selectedPersonID && $0.deletedAt == nil
+            }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Personalization") {
+                    if let activePerson {
+                        NavigationLink {
+                            MyProfileView(person: activePerson)
+                        } label: {
+                            HStack(spacing: 12) {
+                                CompanionArt(id: activePerson.companionID)
+                                    .frame(width: 44, height: 44)
+                                VStack(alignment: .leading) {
+                                    Text("My profile")
+                                    Text("Color, companion, and background")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("settings-my-profile")
+                    } else {
+                        Text("Choose a person from Switch to customize a profile.")
+                            .foregroundStyle(.secondary)
+                    }
+                    NavigationLink {
+                        AppIconPickerView()
+                    } label: {
+                        Label("App icon", systemImage: "app.dashed")
+                    }
+                    .accessibilityIdentifier("settings-app-icon")
+                }
+                Section("Help") {
+                    NavigationLink {
+                        FamilySetupGuideView()
+                    } label: {
+                        Label("Family setup guide", systemImage: "questionmark.circle.fill")
+                    }
+                }
+                Section {
+                    Text("Household management, family sync, reminders, backups, and security remain protected in Parent.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(KyndynScreenBackground())
+            .navigationTitle("Settings")
         }
     }
 }
@@ -1156,7 +1218,6 @@ struct MyProfileView: View {
     @State private var colorHex: String
     @State private var companionID: String
     @State private var backgroundID: String
-    @State private var showAppIconPicker = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var companionColumns: [GridItem] {
@@ -1187,51 +1248,39 @@ struct MyProfileView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("App color").font(.headline)
                         ProfileColorSelector(selection: $colorHex)
-                        Divider()
-                        Button {
-                            showAppIconPicker = true
-                        } label: {
-                            HStack {
-                                Label("Choose app icon", systemImage: "app.dashed")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("choose-app-icon")
                     }
                     .kyndynCard(tint: Color(hex: colorHex))
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Companion").font(.headline)
                         LazyVGrid(columns: companionColumns, spacing: 12) {
-                            ForEach(CollectionCatalog.companionIDs, id: \.self) { choice in
-                                let earned = person.earnedCompanionIDs.contains(choice)
+                            ForEach(CollectionCatalog.companions) { choice in
+                                let earned = person.earnedCompanionIDs.contains(choice.id)
                                 Button {
-                                    if earned { companionID = choice }
+                                    if earned { companionID = choice.id }
                                 } label: {
                                     VStack {
-                                        CompanionArt(id: choice)
+                                        CompanionArt(id: choice.id)
                                             .frame(width: 62, height: 62)
                                             .saturation(earned ? 1 : 0)
                                             .opacity(earned ? 1 : 0.35)
-                                        Text(choice.capitalized).font(.caption.bold())
-                                        if companionID == choice {
+                                        Text(choice.name).font(.caption.bold())
+                                        if companionID == choice.id {
                                             Label("Active", systemImage: "checkmark.circle.fill")
                                                 .font(.caption2)
                                         } else if !earned {
-                                            Label("Locked", systemImage: "lock.fill")
-                                                .font(.caption2)
+                                            VStack(spacing: 2) {
+                                                Label("Locked", systemImage: "lock.fill")
+                                                Text(choice.unlockHint).lineLimit(2)
+                                            }
+                                            .font(.caption2)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, minHeight: 116)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!earned)
-                                .accessibilityIdentifier("collection-companion-\(choice)")
-                                .kyndynCard(tint: companionID == choice
+                                .accessibilityIdentifier("collection-companion-\(choice.id)")
+                                .kyndynCard(tint: companionID == choice.id
                                             ? Color(hex: colorHex) : .secondary)
                             }
                         }
@@ -1285,9 +1334,6 @@ struct MyProfileView: View {
             }
         }
         .tint(Color(hex: colorHex))
-        .sheet(isPresented: $showAppIconPicker) {
-            AppIconPickerView()
-        }
     }
 
     private func save() {
@@ -3180,7 +3226,7 @@ struct CompanionArt: View {
                 Image(systemName: "sparkles").resizable().scaledToFit().foregroundStyle(.purple)
             }
         }
-            .accessibilityLabel("\(id.capitalized), kyndyn companion")
+            .accessibilityLabel("\(CollectionCatalog.companion(named: id).name), kyndyn companion")
     }
 }
 

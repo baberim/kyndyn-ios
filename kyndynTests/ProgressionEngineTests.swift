@@ -540,6 +540,26 @@ final class HouseholdTransferTests: XCTestCase {
 }
 
 final class RecognitionEngineTests: XCTestCase {
+    func testCompleteCollectionCatalogHasBundledArtwork() {
+        XCTAssertEqual(CollectionCatalog.companions.count, 18)
+        XCTAssertEqual(CollectionCatalog.backgrounds.count, 10)
+        XCTAssertEqual(Set(CollectionCatalog.companionIDs).count,
+                       CollectionCatalog.companions.count)
+        XCTAssertEqual(Set(CollectionCatalog.backgrounds.map(\.id)).count,
+                       CollectionCatalog.backgrounds.count)
+
+        for companion in CollectionCatalog.companions {
+            XCTAssertNotNil(
+                Bundle.main.path(forResource: companion.id, ofType: "png"),
+                "Missing artwork for \(companion.name)")
+        }
+        for background in CollectionCatalog.backgrounds {
+            XCTAssertNotNil(
+                Bundle.main.path(forResource: background.assetName, ofType: "png"),
+                "Missing artwork for \(background.name)")
+        }
+    }
+
     func testCollectionUnlockThresholdsAreDeterministic() {
         let early = PersonProgress(xp: 10, level: 1, currentStreak: 1,
                                    bestStreak: 1, completedCount: 1)
@@ -552,10 +572,19 @@ final class RecognitionEngineTests: XCTestCase {
 
         let established = PersonProgress(xp: 250, level: 3, currentStreak: 3,
                                          bestStreak: 3, completedCount: 25)
-        XCTAssertEqual(Set(RecognitionEngine.earnedCompanionIDs(progress: established)),
-                       Set(CollectionCatalog.companionIDs))
+        let establishedCompanions = RecognitionEngine.earnedCompanionIDs(
+            progress: established)
+        XCTAssertTrue(establishedCompanions.contains("star"))
+        XCTAssertFalse(establishedCompanions.contains("astronaut"))
+        XCTAssertFalse(establishedCompanions.contains("jellyfish"))
+
+        let mature = PersonProgress(xp: 2_000, level: 10, currentStreak: 7,
+                                    bestStreak: 7, completedCount: 100)
+        XCTAssertEqual(Set(RecognitionEngine.earnedCompanionIDs(
+            progress: mature, familyRewardReached: true)),
+            Set(CollectionCatalog.companionIDs))
         XCTAssertEqual(Set(RecognitionEngine.earnedBackgroundIDs(
-            progress: established, familyRewardReached: false)),
+            progress: mature, familyRewardReached: true)),
             Set(CollectionCatalog.backgrounds.map(\.id)))
     }
 
