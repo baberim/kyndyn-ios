@@ -2653,14 +2653,19 @@ struct QuestPlanningView: View {
                     value: "\(quests.filter { $0.deletedAt == nil }.count)")
             }
             Section("Schedule health") {
-                NavigationLink { QuestScheduleHealthView() } label: {
-                    Label(issues.isEmpty ? "Schedules look good" :
-                            "\(issues.count) item\(issues.count == 1 ? "" : "s") to review",
-                          systemImage: issues.isEmpty ? "checkmark.circle.fill" :
-                            "exclamationmark.triangle.fill")
-                        .foregroundStyle(issues.isEmpty ? .green : .orange)
+                if issues.isEmpty {
+                    LabeledContent("Legacy schedule check", value: "No issues")
+                        .foregroundStyle(.secondary)
+                } else {
+                    NavigationLink { QuestScheduleHealthView() } label: {
+                        Label("\(issues.count) item\(issues.count == 1 ? "" : "s") to review",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
                 }
-                Text("Safe repairs never remove completion history or recalculate previously awarded XP.")
+                Text(issues.isEmpty
+                     ? "New quests are checked before saving. This fallback watches for older, restored, imported, or synchronized schedules."
+                     : "Safe repairs never remove completion history or recalculate previously awarded XP.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -2944,12 +2949,23 @@ struct QuestEditorView: View {
                     }
                 }
             }
+            .onChange(of: draft.scheduleKind) { _, newValue in
+                if newValue != .weekly {
+                    draft.repeatIntervalWeeks = 1
+                }
+            }
             Section("Deadline") {
                 Toggle("Add due date", isOn: $draft.hasDueDate)
                 if draft.hasDueDate {
                     DatePicker("Due date", selection: $draft.dueDate, displayedComponents: .date)
                     Toggle("Specific time", isOn: $draft.hasDueTime)
                     if draft.hasDueTime { DatePicker("Due time", selection: $draft.dueTime, displayedComponents: .hourAndMinute) }
+                    if deadlinePrecedesStart {
+                        Label("Due date must be on or after the start date.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                     if let household = households.first { Text("Uses \(household.timeZoneIdentifier).").font(.caption).foregroundStyle(.secondary) }
                 }
             }
@@ -3040,9 +3056,19 @@ struct QuestEditorView: View {
                         dismiss()
                     } catch { app.errorMessage = error.localizedDescription }
                 }
+                .disabled(deadlinePrecedesStart)
             }
         }
         .errorAlert(app: app)
+    }
+
+    private var deadlinePrecedesStart: Bool {
+        guard draft.hasDueDate else { return false }
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: households.first?.timeZoneIdentifier ??
+                TimeZone.current.identifier)
+        return calendar.startOfDay(for: draft.dueDate) <
+            calendar.startOfDay(for: draft.startDate)
     }
 }
 

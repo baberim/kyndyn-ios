@@ -23,7 +23,14 @@ projected quest opens the existing history-safe editor.
 
 ## Schedule health and repair
 
-Diagnostics identify missing or invalid weekdays, unsupported repeat intervals,
+The normal quest editor prevents new invalid schedules from being saved. It
+requires valid weekdays and supported repeat intervals, clears weekly-only
+settings when another recurrence is selected, and shows an inline warning when
+a deadline falls before the start date.
+
+Schedule Health is a quiet recovery layer for schedules created by older app
+versions or received through restores, imports, and synchronization. Its
+diagnostics identify missing or invalid weekdays, unsupported repeat intervals,
 weekly intervals attached to non-weekly quests, and deadlines before start
 dates. Safe repair is explicit and parent-confirmed:
 

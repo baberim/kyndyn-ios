@@ -5,7 +5,8 @@ import SwiftUI
 
 enum KyndynValidationError: LocalizedError, Equatable {
     case emptyName, nameTooLong, emptyTitle, titleTooLong, detailTooLong
-    case invalidXP, noParticipants, noWeekdays, lastParent, archivedParticipant
+    case invalidXP, noParticipants, noWeekdays, invalidWeekdays
+    case invalidRepeatInterval, deadlineBeforeStart, lastParent, archivedParticipant
     case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
 
     var errorDescription: String? {
@@ -18,6 +19,9 @@ enum KyndynValidationError: LocalizedError, Equatable {
         case .invalidXP: return "XP must be between 1 and 500."
         case .noParticipants: return "Choose at least one active person."
         case .noWeekdays: return "Choose at least one weekday."
+        case .invalidWeekdays: return "Choose valid weekdays for this quest."
+        case .invalidRepeatInterval: return "Choose every week or every other week."
+        case .deadlineBeforeStart: return "The due date must be on or after the start date."
         case .lastParent: return "Add or promote another active parent before archiving the last parent."
         case .archivedParticipant: return "Archived people can’t receive new quest assignments."
         case .emptyRewardTitle: return "Enter a family reward."
@@ -96,6 +100,31 @@ enum LifecycleRules {
         guard draft.participantIDs.isSubset(of: active) else { throw KyndynValidationError.archivedParticipant }
         if draft.scheduleKind == .weekly && draft.weekdays.isEmpty { throw KyndynValidationError.noWeekdays }
         return (title, detail)
+    }
+
+    static func validateSchedule(_ draft: QuestDraft,
+                                 timeZoneIdentifier: String) throws {
+        if draft.scheduleKind == .weekly {
+            guard !draft.weekdays.isEmpty else {
+                throw KyndynValidationError.noWeekdays
+            }
+            guard draft.weekdays.allSatisfy((1...7).contains) else {
+                throw KyndynValidationError.invalidWeekdays
+            }
+            guard [1, 2].contains(draft.repeatIntervalWeeks) else {
+                throw KyndynValidationError.invalidRepeatInterval
+            }
+        } else if draft.repeatIntervalWeeks != 1 {
+            throw KyndynValidationError.invalidRepeatInterval
+        }
+
+        guard draft.hasDueDate else { return }
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: timeZoneIdentifier)
+        guard calendar.startOfDay(for: draft.dueDate) >=
+                calendar.startOfDay(for: draft.startDate) else {
+            throw KyndynValidationError.deadlineBeforeStart
+        }
     }
 }
 
@@ -302,6 +331,8 @@ enum LifecycleRules {
     @discardableResult
     func createQuest(_ draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws -> Quest {
         let (title, detail) = try LifecycleRules.validate(quest: draft, people: people)
+        try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: household.timeZoneIdentifier)
         let quest = Quest(householdID: household.id, title: title, detail: detail, xp: draft.xp,
                           participantIDs: Array(draft.participantIDs),
                           completionMode: draft.participantIDs.count == 1 ? .individual : draft.completionMode,
@@ -321,6 +352,8 @@ enum LifecycleRules {
 
     func updateQuest(_ quest: Quest, draft: QuestDraft, household: Household, people: [Person], context: ModelContext) throws {
         let (title, detail) = try LifecycleRules.validate(quest: draft, people: people)
+        try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: household.timeZoneIdentifier)
         quest.title = title
         quest.detail = detail
         quest.xp = draft.xp

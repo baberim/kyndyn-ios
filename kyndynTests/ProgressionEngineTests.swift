@@ -402,6 +402,46 @@ final class LifecycleRulesTests: XCTestCase {
         XCTAssertThrowsError(try LifecycleRules.validate(quest: draft, people: [person])) { XCTAssertEqual($0 as? KyndynValidationError, .archivedParticipant) }
     }
 
+    func testQuestScheduleValidationPreventsInvalidInput() throws {
+        var draft = QuestDraft(scheduleKind: .weekly, weekdays: [0, 2])
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError, .invalidWeekdays)
+        }
+
+        draft.weekdays = [2]
+        draft.repeatIntervalWeeks = 3
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .invalidRepeatInterval)
+        }
+
+        draft.scheduleKind = .daily
+        draft.repeatIntervalWeeks = 2
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .invalidRepeatInterval)
+        }
+
+        draft.repeatIntervalWeeks = 1
+        draft.hasDueDate = true
+        draft.startDate = ISO8601DateFormatter().date(
+            from: "2026-03-09T04:00:00Z")!
+        draft.dueDate = ISO8601DateFormatter().date(
+            from: "2026-03-07T18:00:00Z")!
+        XCTAssertThrowsError(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York")) {
+            XCTAssertEqual($0 as? KyndynValidationError,
+                           .deadlineBeforeStart)
+        }
+
+        draft.dueDate = draft.startDate
+        XCTAssertNoThrow(try LifecycleRules.validateSchedule(
+            draft, timeZoneIdentifier: "America/New_York"))
+    }
+
     @MainActor func testArchivePreservesHistoryAndStableIDs() throws {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
