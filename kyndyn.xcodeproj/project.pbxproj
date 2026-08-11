@@ -38,6 +38,19 @@
 		C50000000000000000000009 /* cloud background.png in Resources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000009 /* cloud background.png */; };
 		C5000000000000000000000A /* aquarium.png in Resources */ = {isa = PBXBuildFile; fileRef = D5000000000000000000000A /* aquarium.png */; };
 		C5000000000000000000000B /* arcade.png in Resources */ = {isa = PBXBuildFile; fileRef = D5000000000000000000000B /* arcade.png */; };
+		C60000000000000000000001 /* astronaut.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* astronaut.png */; };
+		C60000000000000000000002 /* deer.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000002 /* deer.png */; };
+		C60000000000000000000003 /* jellyfish.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000003 /* jellyfish.png */; };
+		C60000000000000000000004 /* ninja.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000004 /* ninja.png */; };
+		C60000000000000000000005 /* star.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000005 /* star.png */; };
+		C60000000000000000000006 /* petey.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000006 /* petey.png */; };
+		C60000000000000000000007 /* kaleido.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000007 /* kaleido.png */; };
+		C60000000000000000000008 /* selene.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000008 /* selene.png */; };
+		C60000000000000000000009 /* rainbow-summit.png in Resources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000009 /* rainbow-summit.png */; };
+		C6000000000000000000000A /* crystal-dream-cave.png in Resources */ = {isa = PBXBuildFile; fileRef = D6000000000000000000000A /* crystal-dream-cave.png */; };
+		C6000000000000000000000B /* moon-garden.png in Resources */ = {isa = PBXBuildFile; fileRef = D6000000000000000000000B /* moon-garden.png */; };
+		C6000000000000000000000C /* starry-campout.png in Resources */ = {isa = PBXBuildFile; fileRef = D6000000000000000000000C /* starry-campout.png */; };
+		C6000000000000000000000D /* space-station-window.png in Resources */ = {isa = PBXBuildFile; fileRef = D6000000000000000000000D /* space-station-window.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,6 +106,19 @@
 		D50000000000000000000009 /* background-cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "background-cloud.png"; sourceTree = "<group>"; };
 		D5000000000000000000000A /* aquarium.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = aquarium.png; sourceTree = "<group>"; };
 		D5000000000000000000000B /* arcade.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = arcade.png; sourceTree = "<group>"; };
+		D60000000000000000000001 /* astronaut.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = astronaut.png; sourceTree = "<group>"; };
+		D60000000000000000000002 /* deer.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = deer.png; sourceTree = "<group>"; };
+		D60000000000000000000003 /* jellyfish.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = jellyfish.png; sourceTree = "<group>"; };
+		D60000000000000000000004 /* ninja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ninja.png; sourceTree = "<group>"; };
+		D60000000000000000000005 /* star.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = star.png; sourceTree = "<group>"; };
+		D60000000000000000000006 /* petey.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = petey.png; sourceTree = "<group>"; };
+		D60000000000000000000007 /* kaleido.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kaleido.png; sourceTree = "<group>"; };
+		D60000000000000000000008 /* selene.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = selene.png; sourceTree = "<group>"; };
+		D60000000000000000000009 /* rainbow-summit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "rainbow-summit.png"; sourceTree = "<group>"; };
+		D6000000000000000000000A /* crystal-dream-cave.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "crystal-dream-cave.png"; sourceTree = "<group>"; };
+		D6000000000000000000000B /* moon-garden.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "moon-garden.png"; sourceTree = "<group>"; };
+		D6000000000000000000000C /* starry-campout.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "starry-campout.png"; sourceTree = "<group>"; };
+		D6000000000000000000000D /* space-station-window.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "space-station-window.png"; sourceTree = "<group>"; };
 		FA2129B2301A79F000756983 /* kyndyn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = kyndyn.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -167,6 +193,14 @@
 				D50000000000000000000004 /* cactus.png */,
 				D50000000000000000000005 /* cloud companion.png */,
 				D50000000000000000000006 /* dino.png */,
+				D60000000000000000000001 /* astronaut.png */,
+				D60000000000000000000002 /* deer.png */,
+				D60000000000000000000003 /* jellyfish.png */,
+				D60000000000000000000004 /* ninja.png */,
+				D60000000000000000000005 /* star.png */,
+				D60000000000000000000006 /* petey.png */,
+				D60000000000000000000007 /* kaleido.png */,
+				D60000000000000000000008 /* selene.png */,
 			);
 			path = Resources/Companions;
 			sourceTree = "<group>";
@@ -179,6 +213,11 @@
 				D50000000000000000000009 /* background-cloud.png */,
 				D5000000000000000000000A /* aquarium.png */,
 				D5000000000000000000000B /* arcade.png */,
+				D60000000000000000000009 /* rainbow-summit.png */,
+				D6000000000000000000000A /* crystal-dream-cave.png */,
+				D6000000000000000000000B /* moon-garden.png */,
+				D6000000000000000000000C /* starry-campout.png */,
+				D6000000000000000000000D /* space-station-window.png */,
 			);
 			path = Resources/Backgrounds;
 			sourceTree = "<group>";
@@ -340,6 +379,19 @@
 				C50000000000000000000009 /* cloud background.png in Resources */,
 				C5000000000000000000000A /* aquarium.png in Resources */,
 				C5000000000000000000000B /* arcade.png in Resources */,
+				C60000000000000000000001 /* astronaut.png in Resources */,
+				C60000000000000000000002 /* deer.png in Resources */,
+				C60000000000000000000003 /* jellyfish.png in Resources */,
+				C60000000000000000000004 /* ninja.png in Resources */,
+				C60000000000000000000005 /* star.png in Resources */,
+				C60000000000000000000006 /* petey.png in Resources */,
+				C60000000000000000000007 /* kaleido.png in Resources */,
+				C60000000000000000000008 /* selene.png in Resources */,
+				C60000000000000000000009 /* rainbow-summit.png in Resources */,
+				C6000000000000000000000A /* crystal-dream-cave.png in Resources */,
+				C6000000000000000000000B /* moon-garden.png in Resources */,
+				C6000000000000000000000C /* starry-campout.png in Resources */,
+				C6000000000000000000000D /* space-station-window.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -452,13 +504,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.10.0;
+				MARKETING_VERSION = 0.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -477,13 +529,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.10.0;
+				MARKETING_VERSION = 0.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

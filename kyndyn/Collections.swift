@@ -37,16 +37,71 @@ struct BackgroundDefinition: Identifiable, Equatable {
     }
 }
 
+struct CompanionDefinition: Identifiable, Equatable {
+    enum Requirement: Equatable {
+        case starter
+        case completions(Int)
+        case streak(Int)
+        case level(Int)
+        case badges(Int)
+        case familyReward
+        case parentGrant
+    }
+
+    let id: String
+    let name: String
+    let requirement: Requirement
+
+    var unlockHint: String {
+        switch requirement {
+        case .starter: return "Included"
+        case .completions(let count): return "Complete \(count) quests"
+        case .streak(let days): return "Reach a \(days)-day streak"
+        case .level(let level): return "Reach level \(level)"
+        case .badges(let count): return "Earn \(count) badges"
+        case .familyReward: return "Reach a family reward"
+        case .parentGrant: return "A parent can unlock this"
+        }
+    }
+}
+
 enum CollectionCatalog {
-    static let starterCompanionIDs = ["spark", "orbit", "pixel", "comet", "bop"]
-    static let companionIDs = starterCompanionIDs + ["penguin", "bee", "cactus", "cloud", "dino"]
+    static let companions = [
+        CompanionDefinition(id: "spark", name: "Spark", requirement: .starter),
+        CompanionDefinition(id: "orbit", name: "Orbit", requirement: .starter),
+        CompanionDefinition(id: "pixel", name: "Pixel", requirement: .starter),
+        CompanionDefinition(id: "comet", name: "Comet", requirement: .starter),
+        CompanionDefinition(id: "bop", name: "Bop", requirement: .starter),
+        CompanionDefinition(id: "penguin", name: "Penguin", requirement: .completions(1)),
+        CompanionDefinition(id: "bee", name: "Bee", requirement: .completions(10)),
+        CompanionDefinition(id: "cactus", name: "Cactus", requirement: .streak(3)),
+        CompanionDefinition(id: "cloud", name: "Cloud", requirement: .badges(3)),
+        CompanionDefinition(id: "dino", name: "Dino", requirement: .completions(25)),
+        CompanionDefinition(id: "jellyfish", name: "Jellyfish", requirement: .familyReward),
+        CompanionDefinition(id: "astronaut", name: "Astronaut", requirement: .level(5)),
+        CompanionDefinition(id: "deer", name: "Deer", requirement: .badges(5)),
+        CompanionDefinition(id: "ninja", name: "Ninja", requirement: .streak(7)),
+        CompanionDefinition(id: "star", name: "Star", requirement: .level(3)),
+        CompanionDefinition(id: "petey", name: "Petey", requirement: .completions(50)),
+        CompanionDefinition(id: "kaleido", name: "Kaleido", requirement: .completions(100)),
+        CompanionDefinition(id: "selene", name: "Selene", requirement: .level(10))
+    ]
+    static let starterCompanionIDs = companions.compactMap {
+        $0.requirement == .starter ? $0.id : nil
+    }
+    static let companionIDs = companions.map(\.id)
     static let defaultBackgroundID = "meadow"
     static let backgrounds = [
         BackgroundDefinition(id: "meadow", name: "Meadow", assetName: "meadow", requirement: .starter),
         BackgroundDefinition(id: "bedroom", name: "Bedroom", assetName: "bedroom", requirement: .starter),
         BackgroundDefinition(id: "cloud", name: "Cloud", assetName: "background-cloud", requirement: .completions(10)),
         BackgroundDefinition(id: "aquarium", name: "Aquarium", assetName: "aquarium", requirement: .badges(3)),
-        BackgroundDefinition(id: "arcade", name: "Arcade", assetName: "arcade", requirement: .completions(25))
+        BackgroundDefinition(id: "arcade", name: "Arcade", assetName: "arcade", requirement: .completions(25)),
+        BackgroundDefinition(id: "rainbow-summit", name: "Rainbow Summit", assetName: "rainbow-summit", requirement: .level(3)),
+        BackgroundDefinition(id: "crystal-dream-cave", name: "Crystal Dream Cave", assetName: "crystal-dream-cave", requirement: .streak(7)),
+        BackgroundDefinition(id: "moon-garden", name: "Moon Garden", assetName: "moon-garden", requirement: .badges(5)),
+        BackgroundDefinition(id: "starry-campout", name: "Starry Campout", assetName: "starry-campout", requirement: .completions(50)),
+        BackgroundDefinition(id: "space-station-window", name: "Space Station", assetName: "space-station-window", requirement: .level(10))
     ]
     static let starterBackgroundIDs = backgrounds.compactMap {
         $0.requirement == .starter ? $0.id : nil
@@ -61,6 +116,10 @@ enum CollectionCatalog {
         let valid = Set(backgrounds.map(\.id))
         let values = Set(ids).intersection(valid).union(starterBackgroundIDs)
         return values.sorted()
+    }
+
+    static func companion(named id: String) -> CompanionDefinition {
+        companions.first { $0.id == id } ?? companions[0]
     }
 }
 
@@ -91,14 +150,25 @@ enum RecognitionEngine {
         }
     }
 
-    static func earnedCompanionIDs(progress: PersonProgress) -> [String] {
-        var ids = CollectionCatalog.starterCompanionIDs
-        if progress.completedCount >= 1 { ids.append("penguin") }
-        if progress.completedCount >= 10 { ids.append("bee") }
-        if progress.currentStreak >= 3 { ids.append("cactus") }
-        if badges(progress: progress).count >= 3 { ids.append("cloud") }
-        if progress.completedCount >= 25 { ids.append("dino") }
-        return ids
+    static func earnedCompanionIDs(
+        progress: PersonProgress, familyRewardReached: Bool = false
+    ) -> [String] {
+        CollectionCatalog.companions.compactMap { companion in
+            switch companion.requirement {
+            case .starter: return companion.id
+            case .completions(let count):
+                return progress.completedCount >= count ? companion.id : nil
+            case .streak(let days):
+                return progress.currentStreak >= days ? companion.id : nil
+            case .level(let level):
+                return progress.level >= level ? companion.id : nil
+            case .badges(let count):
+                return badges(progress: progress).count >= count ? companion.id : nil
+            case .familyReward:
+                return familyRewardReached ? companion.id : nil
+            case .parentGrant: return nil
+            }
+        }
     }
 }
 
@@ -137,6 +207,6 @@ struct ProfileScene: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(accent.opacity(0.45)))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(definition.name) background with \(companionID.capitalized)")
+        .accessibilityLabel("\(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)")
     }
 }

@@ -82,14 +82,27 @@ See `docs/build-7-guided-family-setup.md` for the implemented scope.
 
 See `docs/build-8-visual-identity.md` for the implemented scope.
 
-### Build 9 — Quest Planning Tools
+### Build 9 — Personalization Parity
+
+- Separate everyday Settings from protected Parent administration so any
+  active profile can reach appearance and personalization safely.
+- Move app-icon choice into Settings while keeping it device-local.
+- Bring the complete approved Rowan companion artwork into the native
+  collection, including the three owner-approved custom companions.
+- Bring the remaining usable Rowan background scenes into the native
+  collection while excluding generic locked-placeholder art.
+- Preserve existing earned selections and apply deterministic milestone rules
+  to new collection items without introducing random rewards.
+- Keep parent grants available for accessibility and family discretion.
+
+### Build 10 — Quest Planning Tools
 
 - Native quest templates for common family routines.
 - Schedule overview and diagnostics for recurring quests.
 - Safer bulk planning and recurrence repair tools.
 - Preserve completion history when schedules are edited.
 
-### Build 10 — Family Communication
+### Build 11 — Family Communication
 
 - Family broadcasts and announcements with parent controls.
 - Richer parent and family summaries.

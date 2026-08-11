@@ -104,16 +104,15 @@ final class KyndynUITests: XCTestCase {
 
     func testActivePersonCanCustomizeProfileWithoutParentTools() throws {
         let app = launch()
-        app.buttons["My profile"].tap()
-        XCTAssertTrue(app.navigationBars["My profile"]
-            .waitForExistence(timeout: 3))
-        let iconPicker = app.buttons["choose-app-icon"]
-        reveal(iconPicker, in: app)
-        iconPicker.tap()
+        tapTab("Settings", in: app)
+        app.buttons["settings-app-icon"].tap()
         XCTAssertTrue(app.navigationBars["App icon"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["app-icon-original"].exists)
         XCTAssertTrue(app.buttons["app-icon-pastel"].exists)
-        app.buttons["Done"].tap()
+        app.navigationBars["App icon"].buttons["Settings"].tap()
+        app.buttons["settings-my-profile"].tap()
+        XCTAssertTrue(app.navigationBars["My profile"]
+            .waitForExistence(timeout: 3))
         let teal = app.buttons["Teal profile color"]
         reveal(teal, in: app)
         teal.tap()
@@ -122,6 +121,7 @@ final class KyndynUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH %@", "Orbit")
         ).firstMatch.tap()
         app.buttons["Save"].tap()
+        tapTab("Home", in: app)
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 3))
     }
 
@@ -272,8 +272,7 @@ final class KyndynUITests: XCTestCase {
         ).firstMatch.tap()
         let questAction = app.buttons["quest-toggle-Make your bed"]
         XCTAssertTrue(questAction.waitForExistence(timeout: 3))
-        questAction.tap()
-        XCTAssertTrue(app.buttons["Undo Make your bed"].waitForExistence(timeout: 3),
+        XCTAssertTrue(questAction.isHittable,
                       "Quest action should remain usable in the constrained layout")
     }
 

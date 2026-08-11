@@ -503,7 +503,8 @@ enum LifecycleRules {
             ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
         } ?? false
         let companions = CollectionCatalog.normalizedCompanions(
-            person.earnedCompanionIDs + RecognitionEngine.earnedCompanionIDs(progress: progress))
+            person.earnedCompanionIDs + RecognitionEngine.earnedCompanionIDs(
+                progress: progress, familyRewardReached: rewardReached))
         let backgrounds = CollectionCatalog.normalizedBackgrounds(
             person.earnedBackgroundIDs + RecognitionEngine.earnedBackgroundIDs(
                 progress: progress, familyRewardReached: rewardReached))
