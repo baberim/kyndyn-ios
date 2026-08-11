@@ -64,14 +64,32 @@ See `docs/build-7-guided-family-setup.md` for the implemented scope.
 
 ## Next
 
-### Build 8 — Quest Planning Tools
+### Build 8 — Visual Identity and Personalization
+
+- Add a device-local app icon selector with the current icon and the supplied
+  alternate icon, using a catalog that can grow as more approved icons arrive.
+- Put each person's earned companion and background front and center in a
+  responsive Home hero beneath the personal/everyone view control.
+- Move the personal greeting beneath that scene and rotate through a larger
+  set of short, encouraging, privacy-safe messages when Home is freshly shown
+  or refreshed, without remote AI or behavioral profiling.
+- Replace the large profile-selector cards with polished circular companion
+  portraits, names, clear selection state, and adaptive iPhone/iPad layouts.
+- Add restrained visual flair while preserving unlock rules, progression,
+  synchronization, accessibility, and reduced-motion behavior.
+- Keep alternate-icon choice local to each installation; companion and
+  background selections continue to follow the existing synced profile model.
+
+See `docs/build-8-visual-identity.md` for the implemented scope.
+
+### Build 9 — Quest Planning Tools
 
 - Native quest templates for common family routines.
 - Schedule overview and diagnostics for recurring quests.
 - Safer bulk planning and recurrence repair tools.
 - Preserve completion history when schedules are edited.
 
-### Build 9 — Family Communication
+### Build 10 — Family Communication
 
 - Family broadcasts and announcements with parent controls.
 - Richer parent and family summaries.
@@ -136,7 +154,7 @@ See `docs/build-7-guided-family-setup.md` for the implemented scope.
   participant permissions, revocation, and recovery through TestFlight.
 - Validate notification scheduling and privacy across supported physical
   devices and account roles.
-- Complete the remaining Build 7–9 roadmap above and robust parent editors.
+- Complete the remaining Build 7–10 roadmap above and robust parent editors.
 - Continue expanding accessibility identifiers, UI coverage, and real-family
   TestFlight validation.
 
