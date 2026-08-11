@@ -46,6 +46,7 @@ struct RootView: View {
     @Query private var deviceSettings: [LocalDeviceSettings]
     @Query private var pendingInvitations: [PendingShareInvitation]
     @State private var shareInbox = CloudShareInbox.shared
+    @State private var showFamilySetupGuide = false
 
     private var activeAccent: Color {
         guard let selectedID = app.selectedPersonID,
@@ -65,7 +66,12 @@ struct RootView: View {
                     pendingInvitations.contains(where: { $0.stateRaw == "pending" }) {
                     InvitationLandingView()
                 } else if households.isEmpty {
-                    OnboardingView()
+                    OnboardingView {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(350))
+                            showFamilySetupGuide = true
+                        }
+                    }
                 } else if app.selectedPersonID == nil &&
                             deviceSettings.first?.showsHouseholdDashboard != true {
                     ProfilePickerView()
@@ -104,6 +110,9 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: app.isPreparing)
+        .sheet(isPresented: $showFamilySetupGuide) {
+            FamilySetupGuideView(isFirstRun: true)
+        }
     }
 }
 
@@ -148,6 +157,41 @@ struct InvitationLandingView: View {
     }
 }
 
+private enum OnboardingLesson: Int, CaseIterable {
+    case familyLoop, profiles, sync, backup
+
+    var icon: String {
+        switch self {
+        case .familyLoop: "checkmark.circle"
+        case .profiles: "person.3"
+        case .sync: "icloud"
+        case .backup: "externaldrive"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .familyLoop: "Small quests. Shared progress."
+        case .profiles: "Profiles and invitations are different"
+        case .sync: "Choose how your family stays connected"
+        case .backup: "Keep a private backup too"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .familyLoop:
+            "Parents create quests. Family members complete them, earn XP, and move the family reward forward."
+        case .profiles:
+            "Add a profile for each person in your household. Invite another device only after family sync is enabled."
+        case .sync:
+            "Kyndyn works on one device without iCloud. Family sync lets invited Apple devices share changes, but background delivery is not guaranteed."
+        case .backup:
+            "An exported backup is separate from iCloud sync. Store it privately in Files so you can restore an empty installation later."
+        }
+    }
+}
+
 struct OnboardingView: View {
     @Environment(AppModel.self) private var app
     @Environment(CloudSyncController.self) private var sync
@@ -162,6 +206,13 @@ struct OnboardingView: View {
     @State private var showImportConfirmation = false
     @State private var showCloudRecovery = false
     @State private var showRestoreOptions = false
+    @State private var lessonIndex = 0
+    @State private var introductionComplete = false
+    let onHouseholdCreated: () -> Void
+
+    init(onHouseholdCreated: @escaping () -> Void = {}) {
+        self.onHouseholdCreated = onHouseholdCreated
+    }
 
     var body: some View {
         ScrollView {
@@ -169,44 +220,52 @@ struct OnboardingView: View {
                 Image(systemName: "leaf.fill").font(.system(size: 58)).foregroundStyle(.purple)
                 Text("Welcome to kyndyn").font(.largeTitle.bold()).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("A calm home base for quests, progress, and family wins.")
-                    .font(.title3).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                Button {
-                    showSetup = true
-                } label: {
-                    Label("Set up my family", systemImage: "house.fill")
-                        .frame(maxWidth: .infinity)
+                if introductionComplete {
+                    Text("Choose how you want to begin.")
+                        .font(.title3).multilineTextAlignment(.center).foregroundStyle(.secondary)
+                    onboardingActions
+                        .accessibilityIdentifier("onboarding-actions")
+                } else {
+                    let lesson = OnboardingLesson.allCases[lessonIndex]
+                    Image(systemName: lesson.icon)
+                        .font(.system(size: 42))
+                        .foregroundStyle(.purple)
+                        .accessibilityHidden(true)
+                    Text(lesson.title)
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                    Text(lesson.detail)
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: Double(lessonIndex + 1),
+                                 total: Double(OnboardingLesson.allCases.count))
+                        .accessibilityLabel("Introduction step \(lessonIndex + 1) of \(OnboardingLesson.allCases.count)")
+                    Button(lessonIndex == OnboardingLesson.allCases.count - 1
+                           ? "Choose how to begin" : "Continue") {
+                        if lessonIndex == OnboardingLesson.allCases.count - 1 {
+                            introductionComplete = true
+                        } else {
+                            lessonIndex += 1
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("onboarding-next")
+                    Button("Skip introduction") {
+                        introductionComplete = true
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("onboarding-skip")
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large)
-                Button {
-                    showRestoreOptions = true
-                } label: {
-                    Label("Restore or import a household", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .accessibilityHint("Recover from iCloud or restore a backup")
-
-                Button {
-                    isWorking = true
-                    do { try app.seedSample(into: context) }
-                    catch { app.errorMessage = error.localizedDescription }
-                    isWorking = false
-                } label: {
-                    Label("Explore with sample data", systemImage: "sparkles")
-                }
-                .buttonStyle(.plain)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .disabled(isWorking)
             }
             .padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
         }
         .background(KyndynLaunchBackground())
         .accessibilityIdentifier("onboarding")
         .sheet(isPresented: $showSetup) {
-            HouseholdSetupView()
+            HouseholdSetupView(onCreated: onHouseholdCreated)
         }
         .sheet(isPresented: $showCloudRecovery) {
             CloudHouseholdRecoveryView()
@@ -270,6 +329,38 @@ struct OnboardingView: View {
             }
         }
         .errorAlert(app: app)
+    }
+
+    @ViewBuilder
+    private var onboardingActions: some View {
+        Button {
+            showSetup = true
+        } label: {
+            Label("Set up my family", systemImage: "house.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large)
+        Button {
+            showRestoreOptions = true
+        } label: {
+            Label("Restore or import a household", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .accessibilityHint("Recover from iCloud or restore a backup")
+        Button {
+            isWorking = true
+            do { try app.seedSample(into: context) }
+            catch { app.errorMessage = error.localizedDescription }
+            isWorking = false
+        } label: {
+            Label("Explore with sample data", systemImage: "sparkles")
+        }
+        .buttonStyle(.plain)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .disabled(isWorking)
     }
 }
 
@@ -361,6 +452,11 @@ struct HouseholdSetupView: View {
     @State private var draft = HouseholdSetupDraft()
     @State private var pin = ""
     @State private var confirmation = ""
+    let onCreated: () -> Void
+
+    init(onCreated: @escaping () -> Void = {}) {
+        self.onCreated = onCreated
+    }
 
     var body: some View {
         NavigationStack {
@@ -424,6 +520,7 @@ struct HouseholdSetupView: View {
             }
             _ = try app.createHousehold(draft, context: context)
             dismiss()
+            onCreated()
         } catch {
             app.errorMessage = error.localizedDescription
         }
@@ -1664,6 +1761,106 @@ struct QuestDetailView: View {
 
 // MARK: - Parent area
 
+struct FamilySetupGuideView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @Query private var households: [Household]
+    @Query private var people: [Person]
+    @Query private var cloudStates: [HouseholdCloudState]
+    let isFirstRun: Bool
+
+    init(isFirstRun: Bool = false) {
+        self.isFirstRun = isFirstRun
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Label("Your family is ready", systemImage: "checkmark.seal.fill")
+                        .font(.headline)
+                        .foregroundStyle(.green)
+                    Text("Use this checklist now or return to it from the Parent area at any time.")
+                        .foregroundStyle(.secondary)
+                }
+                Section("1. Add family profiles") {
+                    guideRow(done: activePeople.count > 1,
+                             title: activePeople.count > 1 ? "Family profiles added" : "Add each person",
+                             detail: "A profile represents someone inside this household. It does not invite another Apple device.")
+                }
+                Section("2. Connect other devices") {
+                    guideRow(done: hasCloudSync,
+                             title: hasCloudSync ? cloudTitle : "Enable family sync",
+                             detail: "In Parent › Family sync, enable iCloud sharing, then use Invite or manage family to send the Apple invitation.")
+                    Text("On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.”")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Text("Local-only families remain fully usable on this device. Apple may delay background delivery, so Kyndyn always catches up when opened.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("3. Save a private backup") {
+                    guideRow(done: false,
+                             title: "Export after setup",
+                             detail: "Use Parent › Backup and migration, save the JSON file privately in Files, and export a fresh copy after major changes.")
+                    Text("A backup is separate from iCloud recovery. Restore and import are intentionally limited to an empty installation so existing family data is never replaced silently.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if isFirstRun {
+                    Section {
+                        Button("Open Parent setup", systemImage: "lock.shield") {
+                            app.selectedTab = 2
+                            dismiss()
+                        }
+                        Button("Finish for now") { dismiss() }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(KyndynScreenBackground())
+            .navigationTitle("Family setup guide")
+            .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("family-setup-guide")
+            .toolbar {
+                if isFirstRun {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+            }
+        }
+    }
+
+    private var activePeople: [Person] {
+        guard let householdID = households.first?.id else { return [] }
+        return people.filter { $0.householdID == householdID && $0.deletedAt == nil }
+    }
+
+    private var cloudState: HouseholdCloudState? {
+        guard let householdID = households.first?.id else { return nil }
+        return cloudStates.first { $0.householdID == householdID }
+    }
+
+    private var hasCloudSync: Bool {
+        cloudState?.mode == .owner || cloudState?.mode == .participant
+    }
+
+    private var cloudTitle: String {
+        cloudState?.mode == .participant ? "Shared with you" : "Hosted by you"
+    }
+
+    private func guideRow(done: Bool, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(done ? .green : .secondary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
     @Query private var households: [Household]
@@ -1718,6 +1915,9 @@ struct ParentAreaView: View {
                     }
                 }
                 Section {
+                    NavigationLink { FamilySetupGuideView() } label: {
+                        Label("Family setup guide", systemImage: "questionmark.circle")
+                    }
                     NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
                     NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
                     NavigationLink { FamilyRewardSettingsView() } label: {
@@ -1941,12 +2141,12 @@ struct HouseholdDataProtectionView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Restore limitation") {
-                Text("For safety, 0.7 restores backups and Rowan transfers only into an empty installation. It does not merge with or replace this household. Export a fresh backup before changing devices or CloudKit environments.")
+                Text("For safety, Kyndyn restores backups and Rowan transfers only into an empty installation. It does not merge with or replace this household. Export a fresh backup before changing devices or family-sync environments.")
             }
-            Section("Development pilot") {
-                Label("Apple Development CloudKit", systemImage: "hammer.fill")
-                Text("This personal pilot uses Apple’s Development environment. Its cloud data may need to be replaced before public release. Keep a recent exported backup.")
-                Text("Use a separate fictional household for destructive sharing, revocation, or Apple-account tests. Production CloudKit has not been deployed.")
+            Section("Backup and family sync") {
+                Label("Two separate protections", systemImage: "lock.icloud.fill")
+                Text("Family sync keeps supported household changes aligned across invited Apple devices. An exported backup is a separate file you control and can keep in a private location in Files.")
+                Text("Keep a recent backup even when family sync is up to date. Never share a backup publicly because it contains household names, quests, and completion history.")
                     .foregroundStyle(.secondary)
             }
             if households.first?.isSample == true {

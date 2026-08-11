@@ -19,9 +19,15 @@ final class KyndynUITests: XCTestCase {
             + (parentUnlocked ? ["-ui-testing-parent-unlocked"] : [])
             + additionalArguments
         app.launch()
+        skipIntroduction(in: app)
         XCTAssertTrue(app.buttons["Explore with sample data"].waitForExistence(timeout: 8))
         app.buttons["Explore with sample data"].tap()
         return app
+    }
+
+    private func skipIntroduction(in app: XCUIApplication) {
+        let skip = app.buttons["Skip introduction"]
+        if skip.waitForExistence(timeout: 3) { skip.tap() }
     }
 
     private func tapTab(_ label: String, in app: XCUIApplication) {
@@ -54,6 +60,18 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Undo Make your bed"].waitForExistence(timeout: 3))
         app.buttons["Undo Make your bed"].tap()
         XCTAssertTrue(app.buttons["Complete Make your bed"].waitForExistence(timeout: 3))
+    }
+
+    func testFirstRunExplainsSetupBeforeShowingChoices() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing-reset", "-ui-testing-cloud-unconfigured"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Small quests. Shared progress."]
+            .waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Set up my family"].exists)
+        for _ in 0..<3 { app.buttons["onboarding-next"].tap() }
+        app.buttons["onboarding-next"].tap()
+        XCTAssertTrue(app.buttons["Set up my family"].waitForExistence(timeout: 3))
     }
 
     func testHomeUsesUnifiedProgressAndHidesEmptyActivity() throws {
@@ -103,6 +121,7 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
+        skipIntroduction(in: app)
         XCTAssertTrue(app.buttons["Restore or import a household"]
             .waitForExistence(timeout: 8))
         app.buttons["Restore or import a household"].tap()
@@ -120,6 +139,7 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
+        skipIntroduction(in: app)
         XCTAssertTrue(app.buttons["Set up my family"]
             .waitForExistence(timeout: 8))
         app.buttons["Set up my family"].tap()
@@ -129,6 +149,9 @@ final class KyndynUITests: XCTestCase {
         let parent = app.textFields["Parent name"]
         parent.tap(); parent.typeText("Taylor")
         app.buttons["Create family"].tap()
+        XCTAssertTrue(app.navigationBars["Family setup guide"]
+            .waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Taylor"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Maya"].exists)
         XCTAssertFalse(app.staticTexts["Leo"].exists)
@@ -251,6 +274,7 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
+        skipIntroduction(in: app)
         XCTAssertTrue(app.buttons["Explore with sample data"].waitForExistence(timeout: 8))
         app.buttons["Explore with sample data"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
@@ -272,6 +296,7 @@ final class KyndynUITests: XCTestCase {
             "-ui-testing-cloud-unconfigured"
         ]
         app.launch()
+        skipIntroduction(in: app)
         XCTAssertTrue(app.buttons["Explore with sample data"]
             .waitForExistence(timeout: 8))
         app.buttons["Explore with sample data"].tap()
