@@ -81,11 +81,7 @@ struct RootView: View {
             }
             .opacity(app.isPreparing ? 0 : 1)
             if app.isPreparing {
-                VStack(spacing: 14) {
-                    Image(systemName: "leaf.fill").font(.system(size: 52)).foregroundStyle(.purple)
-                    Text("kyndyn").font(.largeTitle.bold())
-                    ProgressView().accessibilityLabel("Opening kyndyn")
-                }
+                KyndynStartupView()
                 .transition(.opacity)
             }
         }

@@ -195,14 +195,20 @@ final class ForegroundSyncPulse {
     @State private var automaticSync = AutomaticSyncCoordinator()
     @StateObject private var parentAccess = ParentAccessController()
     @Environment(\.scenePhase) private var scenePhase
-    private let container: ModelContainer?
-    private let storeError: String?
+    @State private var container: ModelContainer?
+    @State private var storeError: String?
+    @State private var isPreparingStore = false
     private let connectivity = ConnectivityRestorationMonitor()
     private let foregroundSyncPulse = ForegroundSyncPulse()
 
     init() {
         UITableView.appearance().backgroundColor = .clear
         UICollectionView.appearance().backgroundColor = .clear
+    }
+
+    nonisolated private static func makeContainer(
+        arguments: [String]
+    ) throws -> ModelContainer {
         let schema = Schema([
             Household.self, Person.self, Quest.self, QuestCompletion.self,
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
@@ -213,37 +219,33 @@ final class ForegroundSyncPulse {
             PendingSyncMutation.self, SyncConflict.self,
             PendingShareInvitation.self
         ])
-        let arguments = ProcessInfo.processInfo.arguments
         let testing = arguments.contains("-ui-testing-reset")
-        do {
-            let configuration: ModelConfiguration
-            if arguments.contains("-ui-testing-persistence") {
-                let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "kyndynPersistenceUITest", directoryHint: .isDirectory)
-                if arguments.contains("-ui-testing-persistence-reset") {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                configuration = ModelConfiguration(
-                    schema: schema,
-                    url: directory.appending(path: "kyndyn.store"),
-                    cloudKitDatabase: .none
-                )
-            } else {
-                configuration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: testing,
-                    cloudKitDatabase: .none
-                )
+        let configuration: ModelConfiguration
+        if arguments.contains("-ui-testing-persistence") {
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appending(path: "kyndynPersistenceUITest",
+                           directoryHint: .isDirectory)
+            if arguments.contains("-ui-testing-persistence-reset") {
+                try? FileManager.default.removeItem(at: directory)
             }
-            container = try ModelContainer(
-                for: schema,
-                configurations: [configuration]
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+            configuration = ModelConfiguration(
+                schema: schema,
+                url: directory.appending(path: "kyndyn.store"),
+                cloudKitDatabase: .none
             )
-            storeError = nil
-        } catch {
-            container = nil
-            storeError = error.localizedDescription
+        } else {
+            configuration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: testing,
+                cloudKitDatabase: .none
+            )
         }
+        return try ModelContainer(
+            for: schema,
+            configurations: [configuration]
+        )
     }
 
     var body: some Scene {
@@ -258,11 +260,28 @@ final class ForegroundSyncPulse {
                         .environment(invitationRouter)
                         .environmentObject(parentAccess)
                         .modelContainer(container)
-                } else {
+                } else if let storeError {
                     StoreRecoveryView(detail: storeError)
+                } else {
+                    KyndynStartupView()
                 }
             }
             .task {
+                guard container == nil, storeError == nil,
+                      !isPreparingStore else { return }
+                isPreparingStore = true
+                // Let the launch artwork transition to an animating SwiftUI
+                // loading surface before opening or migrating the local store.
+                await Task.yield()
+                do {
+                    let arguments = ProcessInfo.processInfo.arguments
+                    container = try await Task.detached(priority: .userInitiated) {
+                        try Self.makeContainer(arguments: arguments)
+                    }.value
+                } catch {
+                    storeError = error.localizedDescription
+                }
+                isPreparingStore = false
                 guard let container else { return }
                 // Leave the branded preparation overlay before optional network
                 // work. Local SwiftData remains the immediate presentation source.
@@ -311,6 +330,30 @@ struct KyndynLaunchBackground: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+    }
+}
+
+struct KyndynStartupView: View {
+    var body: some View {
+        VStack(spacing: 22) {
+            Image("KyndynSplash")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 280)
+                .accessibilityHidden(true)
+            ProgressView()
+                .controlSize(.large)
+                .tint(KyndynTheme.purple)
+            Text("Opening your family…")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.965, green: 0.965, blue: 0.980))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Opening kyndyn and preparing your family")
+        .accessibilityIdentifier("startup-loading")
     }
 }
 

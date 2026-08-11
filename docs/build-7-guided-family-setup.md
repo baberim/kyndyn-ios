@@ -5,6 +5,9 @@ walkthrough from a tester or household owner.
 
 ## First run
 
+- The static Apple launch artwork transitions into a matching branded loading
+  screen with an activity indicator while the local SwiftData store opens or
+  migrates, so a slow first launch no longer appears frozen.
 - Four short, skippable lessons explain the quest and reward loop, the
   difference between profiles and device invitations, local-only versus iCloud
   family sync, and private backups.
