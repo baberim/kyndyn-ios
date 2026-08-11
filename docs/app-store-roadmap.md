@@ -1,6 +1,6 @@
 # App Store roadmap
 
-## Completed through Build 6
+## Completed through Build 7
 
 ### Build 4 — Daily Experience and Recovery 0.8.1
 
@@ -38,9 +38,7 @@
 - Keep this release visual-only, without changing household data, progression,
   collections, or synchronization behavior.
 
-## Next
-
-### Build 7 — Guided Onboarding and Quest Planning
+### Build 7 — Guided Family Setup 0.9.0
 
 - Add a proper first-run onboarding journey that explains Kyndyn's core family
   loop before asking someone to configure a household.
@@ -62,12 +60,18 @@
   family information in examples, and cover VoiceOver, Dynamic Type, iPhone,
   and iPad layouts.
 
+See `docs/build-7-guided-family-setup.md` for the implemented scope.
+
+## Next
+
+### Build 8 — Quest Planning Tools
+
 - Native quest templates for common family routines.
 - Schedule overview and diagnostics for recurring quests.
 - Safer bulk planning and recurrence repair tools.
 - Preserve completion history when schedules are edited.
 
-### Build 8 — Family Communication
+### Build 9 — Family Communication
 
 - Family broadcasts and announcements with parent controls.
 - Richer parent and family summaries.
@@ -132,7 +136,7 @@
   participant permissions, revocation, and recovery through TestFlight.
 - Validate notification scheduling and privacy across supported physical
   devices and account roles.
-- Complete the remaining Build 7–8 roadmap above and robust parent editors.
+- Complete the remaining Build 7–9 roadmap above and robust parent editors.
 - Continue expanding accessibility identifiers, UI coverage, and real-family
   TestFlight validation.
 
