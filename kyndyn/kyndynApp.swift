@@ -1,5 +1,6 @@
 import BackgroundTasks
 import CloudKit
+import AppIntents
 import SwiftUI
 import SwiftData
 import UIKit
@@ -204,6 +205,9 @@ final class ForegroundSyncPulse {
     init() {
         UITableView.appearance().backgroundColor = .clear
         UICollectionView.appearance().backgroundColor = .clear
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            KyndynAppShortcuts.updateAppShortcutParameters()
+        }
     }
 
     nonisolated private static func makeContainer(
@@ -283,6 +287,11 @@ final class ForegroundSyncPulse {
                 }
                 isPreparingStore = false
                 guard let container else { return }
+                if ProcessInfo.processInfo.environment[
+                    "XCTestConfigurationFilePath"] == nil {
+                    KyndynIntentStore.shared.configure(
+                        container: container, appModel: model)
+                }
                 // Leave the branded preparation overlay before optional network
                 // work. Local SwiftData remains the immediate presentation source.
                 model.finishedPreparing()

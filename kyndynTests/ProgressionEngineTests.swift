@@ -2,6 +2,90 @@ import XCTest
 import SwiftData
 @testable import kyndyn
 
+final class SystemIntelligenceTests: XCTestCase {
+    @MainActor private func fixture() throws -> (
+        ModelContainer, Household, Person, Quest
+    ) {
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(
+            for: Household.self, Person.self, Quest.self,
+            QuestCompletion.self, RewardGoal.self, FamilyBroadcast.self,
+            Companion.self, Background.self, HouseholdSettings.self,
+            LocalDeviceSettings.self, LocalQuestReminder.self,
+            HouseholdImportReceipt.self, HouseholdCloudState.self,
+            SyncRecordMetadata.self, PendingSyncMutation.self,
+            SyncConflict.self, PendingShareInvitation.self,
+            configurations: configuration)
+        let household = Household(
+            name: "Fictional Intent Family", timeZoneIdentifier: "UTC",
+            rewardTitle: "Fictional Movie Night", rewardGoalXP: 100)
+        let person = Person(
+            householdID: household.id, name: "Avery", role: .child,
+            colorHex: "#000000", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Put books away", xp: 10,
+            participantIDs: [person.id], scheduleKind: .daily,
+            startDate: .distantPast)
+        let setting = LocalDeviceSettings()
+        setting.selectedPersonID = person.id
+        let goal = RewardGoal(
+            householdID: household.id, title: household.rewardTitle,
+            targetXP: household.rewardGoalXP)
+        goal.createdAt = .distantPast
+        let cloudState = HouseholdCloudState(householdID: household.id)
+        cloudState.mode = .owner
+        let context = container.mainContext
+        context.insert(household)
+        context.insert(person)
+        context.insert(quest)
+        context.insert(setting)
+        context.insert(goal)
+        context.insert(cloudState)
+        try context.save()
+        KyndynIntentStore.shared.configure(
+            container: container, appModel: AppModel())
+        return (container, household, person, quest)
+    }
+
+    @MainActor func testIntentStoreReturnsPrivateHouseholdSummaries() throws {
+        let (container, _, person, _) = try fixture()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+        XCTAssertEqual(try KyndynIntentStore.shared.people().map(\.name),
+                       ["Avery"])
+        let today = try KyndynIntentStore.shared.todaySummary(
+            personID: person.id)
+        XCTAssertTrue(today.contains("Put books away"))
+        XCTAssertEqual(try KyndynIntentStore.shared.rewardSummary(),
+                       "Fictional Movie Night: 0 of 100 XP.")
+        withExtendedLifetime(container) {}
+    }
+
+    @MainActor func testIntentCompletionAndExactUndoAreIdempotent() throws {
+        let (container, _, _, _) = try fixture()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+        let occurrence = try XCTUnwrap(
+            KyndynIntentStore.shared.occurrences(
+                includeCompleted: true).first)
+        XCTAssertFalse(occurrence.isComplete)
+        XCTAssertTrue(try KyndynIntentStore.shared.complete(
+            occurrenceID: occurrence.id).contains("Completed"))
+        XCTAssertThrowsError(try KyndynIntentStore.shared.complete(
+            occurrenceID: occurrence.id)) {
+            XCTAssertEqual($0 as? KyndynIntentError, .alreadyComplete)
+        }
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<QuestCompletion>()).count, 1)
+        XCTAssertTrue(try KyndynIntentStore.shared.undo(
+            occurrenceID: occurrence.id).contains("Undid"))
+        let completion = try XCTUnwrap(container.mainContext.fetch(
+            FetchDescriptor<QuestCompletion>()).first)
+        XCTAssertNotNil(completion.reversedAt)
+        XCTAssertGreaterThan(try container.mainContext.fetch(
+            FetchDescriptor<PendingSyncMutation>()).count, 0)
+    }
+}
+
 final class ProgressionEngineTests: XCTestCase {
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(

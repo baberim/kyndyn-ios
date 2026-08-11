@@ -125,6 +125,20 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 3))
     }
 
+    func testSettingsExplainsSiriAndShortcutsPrivacy() throws {
+        let app = launch()
+        tapTab("Settings", in: app)
+        let siriHelp = app.buttons["settings-siri-shortcuts"]
+        reveal(siriHelp, in: app)
+        siriHelp.tap()
+        XCTAssertTrue(app.navigationBars["Siri & Shortcuts"]
+            .waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["“Show my quests in kyndyn”"].exists)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "device authentication")
+        ).firstMatch.exists)
+    }
+
     func testEmptyOnboardingOffersNonDestructiveICloudRecovery() throws {
         let app = XCUIApplication()
         app.launchArguments = [
