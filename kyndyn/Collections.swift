@@ -261,7 +261,7 @@ struct ImmersiveProfileHeader: View {
                     .offset(
                         x: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
                                                    ? 0.29 : 0.23), 210),
-                        y: -proxy.size.height * 0.06
+                        y: proxy.size.height * 0.06
                     )
                     .shadow(color: .black.opacity(0.20), radius: 12, y: 8)
                     .accessibilityHidden(true)
@@ -304,12 +304,13 @@ struct ImmersiveProfileHeader: View {
             )
             .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
         }
-        .overlay(alignment: .leading) {
-            Capsule()
-                .fill(accent)
-                .frame(width: 5)
-                .padding(.vertical, 22)
-                .padding(.leading, 12)
+        .overlay {
+            HeaderBottomAccent(cornerRadius: 30)
+                .stroke(
+                    accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round,
+                                       lineJoin: .round)
+                )
                 .accessibilityHidden(true)
         }
         .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
@@ -338,5 +339,27 @@ struct ImmersiveProfileHeader: View {
                 endPoint: .bottomTrailing
             )
         }
+    }
+}
+
+private struct HeaderBottomAccent: Shape {
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX,
+                              y: rect.maxY - cornerRadius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - cornerRadius,
+                                 y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX,
+                        y: rect.maxY - cornerRadius),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        return path
     }
 }
