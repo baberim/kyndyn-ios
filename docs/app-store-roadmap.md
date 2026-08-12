@@ -155,6 +155,8 @@ the remaining physical-device validation boundary.
 - Preserve earned-item rules and synchronized companion/background selection;
   this build changes presentation rather than progression or ownership.
 
+See `docs/build-13-immersive-personal-home.md` for the implemented scope.
+
 ## Later
 
 - Build 14A: read-only calendar integration with explicit permission and

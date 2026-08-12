@@ -51,6 +51,7 @@ struct CompanionDefinition: Identifiable, Equatable {
     let id: String
     let name: String
     let requirement: Requirement
+    var artworkBaselineOffset: CGFloat = 16
 
     var unlockHint: String {
         switch requirement {
@@ -208,5 +209,193 @@ struct ProfileScene: View {
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(accent.opacity(0.45)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)")
+    }
+}
+
+struct ImmersiveProfileHeader: View {
+    let personName: String
+    let message: String
+    let backgroundID: String
+    let companionID: String
+    let accent: Color
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let definition = CollectionCatalog.backgrounds.first {
+            $0.id == backgroundID
+        } ?? CollectionCatalog.backgrounds[0]
+        let companionDefinition = CollectionCatalog.companion(named: companionID)
+
+        GeometryReader { proxy in
+            let widthRatio: CGFloat = dynamicTypeSize.isAccessibilitySize
+                ? 0.31 : 0.42
+            let companionSize = min(
+                proxy.size.width * widthRatio,
+                proxy.size.height * 0.72,
+                230
+            )
+            let companionCenterX = proxy.size.width - 22 - companionSize / 2
+            let companionFeetY = proxy.size.height - 32
+
+            ZStack {
+                background(definition, size: proxy.size)
+
+                background(definition, size: proxy.size)
+                    .blur(radius: 2.2)
+                    .scaleEffect(1.015)
+                    .opacity(0.34)
+
+                background(definition, size: proxy.size)
+                    .blur(radius: 3.4)
+                    .scaleEffect(1.02)
+                    .mask {
+                        RadialGradient(
+                            colors: [.black, .black.opacity(0.50), .clear],
+                            center: UnitPoint(
+                                x: max(0.55, min(0.85,
+                                    companionCenterX / proxy.size.width)),
+                                y: max(0.35, min(0.72,
+                                    (companionFeetY - companionSize * 0.42)
+                                    / proxy.size.height))
+                            ),
+                            startRadius: companionSize * 0.10,
+                            endRadius: companionSize * 1.18
+                        )
+                    }
+                    .accessibilityHidden(true)
+
+                LinearGradient(
+                    colors: [
+                        .black.opacity(0.06),
+                        .clear,
+                        .black.opacity(colorScheme == .dark ? 0.72 : 0.58)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                LinearGradient(
+                    colors: [
+                        .black.opacity(colorScheme == .dark ? 0.48 : 0.30),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+
+                Ellipse()
+                    .fill(.black.opacity(0.22))
+                    .frame(width: companionSize * 0.58, height: 13)
+                    .blur(radius: 3)
+                    .position(x: companionCenterX, y: companionFeetY)
+                    .accessibilityHidden(true)
+
+                CompanionArt(id: companionID)
+                    .frame(width: companionSize, height: companionSize)
+                    .position(
+                        x: companionCenterX,
+                        y: companionFeetY - companionSize / 2
+                            + companionDefinition.artworkBaselineOffset
+                    )
+                    .shadow(color: .black.opacity(0.20), radius: 12, y: 8)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Spacer()
+                    Text("Hi, \(personName)")
+                        .font(.system(.largeTitle, design: .rounded).bold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Text(message)
+                        .font(.headline)
+                        .lineLimit(2)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
+                .frame(maxWidth: proxy.size.width *
+                       (dynamicTypeSize.isAccessibilitySize ? 0.78 : 0.60),
+                       alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .bottomLeading)
+                .padding(22)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: 30,
+            bottomTrailingRadius: 30,
+            topTrailingRadius: 0,
+            style: .continuous
+        ))
+        .overlay {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 30,
+                bottomTrailingRadius: 30,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
+        }
+        .overlay {
+            HeaderBottomAccent(cornerRadius: 30)
+                .stroke(
+                    accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round,
+                                       lineJoin: .round)
+                )
+                .accessibilityHidden(true)
+        }
+        .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Hi, \(personName). \(message) \(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)."
+        )
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private func background(_ definition: BackgroundDefinition,
+                            size: CGSize) -> some View {
+        if let path = Bundle.main.path(
+            forResource: definition.assetName, ofType: "png"),
+           let image = UIImage(contentsOfFile: path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else {
+            LinearGradient(
+                colors: [accent.opacity(0.70), KyndynTheme.purple.opacity(0.75)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+
+private struct HeaderBottomAccent: Shape {
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX,
+                              y: rect.maxY - cornerRadius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - cornerRadius,
+                                 y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX,
+                        y: rect.maxY - cornerRadius),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        return path
     }
 }
