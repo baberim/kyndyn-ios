@@ -1132,12 +1132,14 @@ struct DashboardView: View {
     @ViewBuilder private var dayContext: some View {
         if let setting = deviceSettings.first,
            setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled {
-            HStack(alignment: .top, spacing: 12) {
-                if setting.weatherIntegrationEnabled {
-                    weatherSummary(setting)
-                }
-                if setting.calendarIntegrationEnabled {
-                    calendarSummary
+            Grid(horizontalSpacing: 12) {
+                GridRow(alignment: .top) {
+                    if setting.weatherIntegrationEnabled {
+                        weatherSummary(setting)
+                    }
+                    if setting.calendarIntegrationEnabled {
+                        calendarSummary
+                    }
                 }
             }
             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
@@ -1161,7 +1163,7 @@ struct DashboardView: View {
                 ProgressView().accessibilityLabel("Loading weather")
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .blue)
     }
 
@@ -1178,7 +1180,7 @@ struct DashboardView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .orange)
     }
 
