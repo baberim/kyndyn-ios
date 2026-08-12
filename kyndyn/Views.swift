@@ -759,8 +759,7 @@ struct SiriShortcutsHelpView: View {
                       systemImage: "arrow.uturn.backward.circle.fill")
             }
             Section("Privacy") {
-                Text("Kyndyn requires device authentication before Siri or Shortcuts can reveal profile names, quest details, or reward progress.")
-                Text("Quest changes use the same offline history and family-sync queue as changes made inside the app.")
+                KyndynCallout(kind: .privacy, message: "Device authentication protects profile names, quest details, and reward progress. Shortcut changes use the same offline history and family-sync queue as the app.")
             }
             Section {
                 Text("Apple controls which phrases are recognized and when Siri or Shortcuts can run. Newer Apple Intelligence features vary by device, language, and OS version.")
@@ -785,7 +784,7 @@ struct CalendarSettingsView: View {
     var body: some View {
         List {
             Section {
-                Text("Show events from calendars you choose alongside your day. kyndyn only reads them—it never creates or changes events.")
+                KyndynCallout(kind: .information, message: "Choose calendars to show alongside your day. kyndyn reads upcoming events but never creates or changes them.")
             }
             if permission == .allowed, let setting = settings.first {
                 Section("Calendars") {
@@ -832,7 +831,7 @@ struct CalendarSettingsView: View {
                 }
             }
             Section("Privacy") {
-                Text("Your calendar choices and event details stay on this device. They are not shared with your family, included in backups, or stored in iCloud by kyndyn.")
+                KyndynCallout(kind: .privacy, message: "Calendar choices and event details stay on this device. kyndyn does not family-sync them or include them in backups.")
             }
         }
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
@@ -855,7 +854,7 @@ struct WeatherSettingsView: View {
     var body: some View {
         List {
             Section {
-                Text("Show local conditions alongside your day using Apple Weather. kyndyn requests your location only while it is open.")
+                KyndynCallout(kind: .information, message: "Show local conditions alongside your day using Apple Weather. Location is requested only while kyndyn is open.")
             }
             Section {
                 if let setting = settings.first {
@@ -876,7 +875,7 @@ struct WeatherSettingsView: View {
                 if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
             }
             Section("Privacy") {
-                Text("Your location is not saved by kyndyn. Only a short-lived weather summary is cached on this device; it is never family-synced or included in backups.")
+                KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
             }
         }
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
@@ -2269,17 +2268,13 @@ struct FamilySetupGuideView: View {
                     guideRow(done: hasCloudSync,
                              title: hasCloudSync ? cloudTitle : "Enable family sync",
                              detail: "In Parent › Family sync, enable iCloud sharing, then use Invite or manage family to send the Apple invitation.")
-                    Text("On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.”")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Text("Local-only families remain fully usable on this device. Apple may delay background delivery, so Kyndyn always catches up when opened.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .information, message: "On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.” Apple may delay background delivery, so kyndyn also catches up when opened.")
                 }
                 Section("3. Save a private backup") {
                     guideRow(done: false,
                              title: "Export after setup",
                              detail: "Use Parent › Backup and migration, save the JSON file privately in Files, and export a fresh copy after major changes.")
-                    Text("A backup is separate from iCloud recovery. Restore and import are intentionally limited to an empty installation so existing family data is never replaced silently.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .caution, message: "A backup is separate from iCloud recovery. Restore and import require an empty installation so existing family data is never replaced silently.")
                 }
                 if isFirstRun {
                     Section {
@@ -2845,11 +2840,10 @@ struct HouseholdDataProtectionView: View {
                        systemImage: "square.and.arrow.up") {
                     prepareExport()
                 }
-                Text("The JSON backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                KyndynCallout(kind: .privacy, message: "The backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
             }
             Section("Restore limitation") {
-                Text("For safety, Kyndyn restores backups and Rowan transfers only into an empty installation. It does not merge with or replace this household. Export a fresh backup before changing devices or family-sync environments.")
+                KyndynCallout(kind: .caution, message: "Restores and Rowan transfers require an empty installation. They do not merge with or replace this household. Export a fresh backup before changing devices or sync environments.")
             }
             Section("Backup and family sync") {
                 Label("Two separate protections", systemImage: "lock.icloud.fill")
@@ -3665,8 +3659,7 @@ struct CloudSyncSettingsView: View {
             }
             Section("What family sync does") {
                 Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
-                Text("Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences stay only on this device.")
-                    .foregroundStyle(.secondary)
+                KyndynCallout(kind: .localOnly, message: "Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences never leave this device.")
             }
             if let household {
                 let preview = sync.preview(
@@ -3814,7 +3807,7 @@ struct ParentSecurityView: View {
     var body: some View {
         Form {
             Section {
-                Text("Face ID, Touch ID, or the device passcode is kyndyn’s primary parent check. A kyndyn PIN is an optional fallback stored only in this device’s Keychain.")
+                KyndynCallout(kind: .localOnly, message: "Face ID, Touch ID, or the device passcode is the primary parent check. An optional kyndyn PIN is stored only in this device’s Keychain.")
             }
             Section(access.hasPIN ? "Change kyndyn PIN" : "Add kyndyn PIN") {
                 SecureField("New 6–12 digit PIN", text: $pin).keyboardType(.numberPad)
@@ -3833,7 +3826,7 @@ struct ParentSecurityView: View {
             }
             if let message { Section { Text(message).foregroundStyle(.secondary) } }
             Section("Recovery limitation") {
-                Text("kyndyn has no server account or email recovery. If you forget the kyndyn PIN, use the device owner authentication to enter this screen and replace it. If device authentication is also unavailable, kyndyn cannot safely prove parental identity.")
+                KyndynCallout(kind: .caution, message: "kyndyn has no server account or email recovery. Use device-owner authentication to replace a forgotten PIN. Without either method, kyndyn cannot safely prove parental identity.")
             }
         }
         .navigationTitle("Parent security")
@@ -3892,8 +3885,7 @@ struct NotificationSettingsView: View {
                     Toggle("Show quest titles", isOn: binding(setting, \.showQuestDetailsOnLockScreen))
                     Toggle("Show announcement details", isOn: binding(
                         setting, \.showBroadcastDetailsOnLockScreen))
-                    Text(setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .privacy, message: setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
                 }
             } else {
                 ContentUnavailableView("Settings unavailable", systemImage: "gear.badge.questionmark", description: Text("Reopen kyndyn and try again."))
