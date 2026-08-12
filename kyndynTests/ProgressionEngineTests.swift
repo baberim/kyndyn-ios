@@ -2,6 +2,19 @@ import XCTest
 import SwiftData
 @testable import kyndyn
 
+final class DeviceContextPolicyTests: XCTestCase {
+    func testWeatherCacheExpiresAfterThirtyMinutes() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        XCTAssertTrue(WeatherCachePolicy.isFresh(
+            now.addingTimeInterval(-1_799), now: now))
+        XCTAssertFalse(WeatherCachePolicy.isFresh(
+            now.addingTimeInterval(-1_800), now: now))
+        XCTAssertFalse(WeatherCachePolicy.isFresh(nil, now: now))
+        XCTAssertFalse(WeatherCachePolicy.isFresh(
+            now.addingTimeInterval(1), now: now))
+    }
+}
+
 final class SystemIntelligenceTests: XCTestCase {
     @MainActor private func fixture() throws -> (
         ModelContainer, Household, Person, Quest

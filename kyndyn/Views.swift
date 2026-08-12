@@ -683,15 +683,7 @@ struct SettingsView: View {
                         NavigationLink {
                             MyProfileView(person: activePerson)
                         } label: {
-                            HStack(spacing: 12) {
-                                CompanionArt(id: activePerson.companionID)
-                                    .frame(width: 44, height: 44)
-                                VStack(alignment: .leading) {
-                                    Text("My profile")
-                                    Text("Color, companion, and background")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
+                            profileSettingsRow(activePerson)
                         }
                         .accessibilityIdentifier("settings-my-profile")
                     } else {
@@ -701,32 +693,117 @@ struct SettingsView: View {
                     NavigationLink {
                         AppIconPickerView()
                     } label: {
-                        Label("App icon", systemImage: "app.dashed")
+                        settingsRow(
+                            title: "App icon",
+                            subtitle: "Choose how kyndyn looks on this device",
+                            systemImage: "app.dashed",
+                            tint: KyndynTheme.purple)
                     }
                     .accessibilityIdentifier("settings-app-icon")
+                }
+                Section("Your day") {
+                    NavigationLink {
+                        CalendarSettingsView()
+                    } label: {
+                        settingsRow(
+                            title: "Calendar",
+                            subtitle: "Show events from calendars you choose",
+                            systemImage: "calendar",
+                            tint: KyndynTheme.blue)
+                    }
+                    .accessibilityIdentifier("settings-calendar")
+                    NavigationLink {
+                        WeatherSettingsView()
+                    } label: {
+                        settingsRow(
+                            title: "Weather",
+                            subtitle: "Add local conditions to your day",
+                            systemImage: "cloud.sun.fill",
+                            tint: KyndynTheme.amber)
+                    }
+                    .accessibilityIdentifier("settings-weather")
                 }
                 Section("Help") {
                     NavigationLink {
                         SiriShortcutsHelpView()
                     } label: {
-                        Label("Siri & Shortcuts", systemImage: "waveform")
+                        settingsRow(
+                            title: "Siri & Shortcuts",
+                            subtitle: "See available voice and shortcut actions",
+                            systemImage: "waveform",
+                            tint: KyndynTheme.pink)
                     }
                     .accessibilityIdentifier("settings-siri-shortcuts")
                     NavigationLink {
                         FamilySetupGuideView()
                     } label: {
-                        Label("Family setup guide", systemImage: "questionmark.circle.fill")
+                        settingsRow(
+                            title: "Family setup guide",
+                            subtitle: "Profiles, sharing, and private backups",
+                            systemImage: "questionmark.circle.fill",
+                            tint: KyndynTheme.green)
                     }
                 }
                 Section {
-                    Text("Household management, family sync, reminders, backups, and security remain protected in Parent.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(
+                        kind: .information,
+                        message: "Household management, family sync, reminders, backups, and security remain protected in Parent.",
+                        title: "Looking for family controls?")
                 }
             }
             .scrollContentBackground(.hidden)
             .background(KyndynScreenBackground())
             .navigationTitle("Settings")
         }
+    }
+
+    private func profileSettingsRow(_ person: Person) -> some View {
+        HStack(spacing: 12) {
+            settingsIconTile(tint: Color(hex: person.colorHex)) {
+                CompanionArt(id: person.companionID)
+                    .padding(3)
+            }
+            settingsRowText(
+                title: "My profile",
+                subtitle: "Color, companion, and background")
+        }
+    }
+
+    private func settingsRow(
+        title: String, subtitle: String, systemImage: String, tint: Color
+    ) -> some View {
+        HStack(spacing: 12) {
+            settingsIconTile(tint: tint) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            settingsRowText(title: title, subtitle: subtitle)
+        }
+    }
+
+    private func settingsRowText(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).foregroundStyle(.primary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+    }
+
+    private func settingsIconTile<Content: View>(
+        tint: Color, @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(width: 38, height: 38)
+            .background(tint.opacity(0.11), in: RoundedRectangle(
+                cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(tint.opacity(0.20), lineWidth: 1)
+            }
+            .accessibilityHidden(true)
     }
 }
 
@@ -745,8 +822,7 @@ struct SiriShortcutsHelpView: View {
                       systemImage: "arrow.uturn.backward.circle.fill")
             }
             Section("Privacy") {
-                Text("Kyndyn requires device authentication before Siri or Shortcuts can reveal profile names, quest details, or reward progress.")
-                Text("Quest changes use the same offline history and family-sync queue as changes made inside the app.")
+                KyndynCallout(kind: .privacy, message: "Device authentication protects profile names, quest details, and reward progress. Shortcut changes use the same offline history and family-sync queue as the app.")
             }
             Section {
                 Text("Apple controls which phrases are recognized and when Siri or Shortcuts can run. Newer Apple Intelligence features vary by device, language, and OS version.")
@@ -758,6 +834,142 @@ struct SiriShortcutsHelpView: View {
         .background(KyndynScreenBackground())
         .navigationTitle("Siri & Shortcuts")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct CalendarSettingsView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var settings: [LocalDeviceSettings]
+    @State private var permission: DevicePermissionState = .notRequested
+    @State private var calendars: [DeviceCalendar] = []
+    private let provider = EventKitCalendarProvider()
+
+    var body: some View {
+        List {
+            Section {
+                KyndynCallout(kind: .information, message: "Choose calendars to show alongside your day. kyndyn reads upcoming events but never creates or changes them.")
+            }
+            if permission == .allowed, let setting = settings.first {
+                Section("Calendars") {
+                    ForEach(calendars) { calendar in
+                        Button {
+                            if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                                setting.selectedCalendarIdentifiers.removeAll { $0 == calendar.id }
+                            } else {
+                                setting.selectedCalendarIdentifiers.append(calendar.id)
+                            }
+                            setting.calendarIntegrationEnabled = !setting.selectedCalendarIdentifiers.isEmpty
+                            try? context.save()
+                        } label: {
+                            HStack {
+                                Circle().fill(Color(hex: calendar.colorHex)).frame(width: 12, height: 12)
+                                Text(calendar.title).foregroundStyle(.primary)
+                                Spacer()
+                                if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                                    Image(systemName: "checkmark").fontWeight(.semibold)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button("Stop showing calendars", role: .destructive) {
+                        setting.calendarIntegrationEnabled = false
+                        setting.selectedCalendarIdentifiers = []
+                        try? context.save()
+                    }
+                }
+            } else {
+                Section {
+                    Button("Allow calendar access") {
+                        Task {
+                            _ = await provider.requestAccess()
+                            reload()
+                        }
+                    }
+                    if permission == .denied || permission == .restricted {
+                        Text("Calendar access is off. You can change it in the iPhone or iPad Settings app.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section("Privacy") {
+                KyndynCallout(kind: .privacy, message: "Calendar choices and event details stay on this device. kyndyn does not family-sync them or include them in backups.")
+            }
+        }
+        .scrollContentBackground(.hidden).background(KyndynScreenBackground())
+        .navigationTitle("Calendar").navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: reload)
+    }
+
+    private func reload() {
+        permission = provider.permissionState()
+        calendars = permission == .allowed ? provider.calendars() : []
+    }
+}
+
+struct WeatherSettingsView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var settings: [LocalDeviceSettings]
+    @State private var isLoading = false
+    @State private var message: String?
+
+    var body: some View {
+        List {
+            Section {
+                KyndynCallout(kind: .information, message: "Show local conditions alongside your day using Apple Weather. Location is requested only while kyndyn is open.")
+            }
+            Section {
+                if let setting = settings.first {
+                    Toggle("Show weather on Home", isOn: Binding(
+                        get: { setting.weatherIntegrationEnabled },
+                        set: { enabled in
+                            setting.weatherIntegrationEnabled = enabled
+                            if !enabled { clearCache(setting) }
+                            try? context.save()
+                            if enabled { Task { await load(setting) } }
+                        }))
+                    if setting.weatherIntegrationEnabled {
+                        Button(isLoading ? "Updating…" : "Update weather now") {
+                            Task { await load(setting) }
+                        }.disabled(isLoading)
+                    }
+                }
+                if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+            }
+            Section("Privacy") {
+                KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
+            }
+        }
+        .scrollContentBackground(.hidden).background(KyndynScreenBackground())
+        .navigationTitle("Weather").navigationBarTitleDisplayMode(.inline)
+    }
+
+    @MainActor private func load(_ setting: LocalDeviceSettings) async {
+        isLoading = true; message = nil
+        defer { isLoading = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let value = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = value.temperature
+            setting.cachedWeatherHigh = value.high
+            setting.cachedWeatherLow = value.low
+            setting.cachedWeatherCondition = value.condition
+            setting.cachedWeatherSymbolName = value.symbolName
+            setting.cachedWeatherAt = value.fetchedAt
+            try context.save()
+            message = "Weather is ready on Home."
+        } catch {
+            message = "Weather isn’t available yet. Check location access and your connection, then try again."
+        }
+    }
+
+    private func clearCache(_ setting: LocalDeviceSettings) {
+        setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
+        setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
+        setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
     }
 }
 
@@ -821,6 +1033,8 @@ struct DashboardView: View {
     @State private var showProgress = false
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
+    @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var isLoadingWeather = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -842,6 +1056,8 @@ struct DashboardView: View {
                             .accessibilityIdentifier("home-profile-scene")
                         }
                         dashboardModePicker
+                            .padding(.horizontal)
+                        dayContext
                             .padding(.horizontal)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
                             broadcastNavigation
@@ -904,6 +1120,103 @@ struct DashboardView: View {
                 unlockToPresent = person?.pendingUnlockIDs.first
             }
             .onAppear { rotateGreeting() }
+            .task(id: deviceSettings.first?.calendarIntegrationEnabled) {
+                refreshCalendarEvents()
+            }
+            .task(id: deviceSettings.first?.weatherIntegrationEnabled) {
+                await refreshWeatherIfNeeded()
+            }
+        }
+    }
+
+    @ViewBuilder private var dayContext: some View {
+        if let setting = deviceSettings.first,
+           setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled {
+            HStack(alignment: .top, spacing: 12) {
+                if setting.weatherIntegrationEnabled {
+                    weatherSummary(setting)
+                }
+                if setting.calendarIntegrationEnabled {
+                    calendarSummary
+                }
+            }
+            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+        }
+    }
+
+    private func weatherSummary(_ setting: LocalDeviceSettings) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
+                .font(.headline)
+            if let temperature = setting.cachedWeatherTemperature {
+                Text("\(Int(temperature.rounded()))°")
+                    .font(.title.bold().monospacedDigit())
+                if let high = setting.cachedWeatherHigh, let low = setting.cachedWeatherLow {
+                    Text("H \(Int(high.rounded()))°  L \(Int(low.rounded()))°")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(setting.cachedWeatherCondition ?? "Local weather")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            } else {
+                ProgressView().accessibilityLabel("Loading weather")
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .kyndynCard(tint: .blue)
+    }
+
+    private var calendarSummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Coming up", systemImage: "calendar")
+                .font(.headline)
+            if let event = calendarEvents.first {
+                Text(event.title).font(.subheadline.bold()).lineLimit(1)
+                Text(event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Nothing scheduled soon")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .kyndynCard(tint: .orange)
+    }
+
+    private func refreshCalendarEvents() {
+        guard let setting = deviceSettings.first,
+              setting.calendarIntegrationEnabled else {
+            calendarEvents = []; return
+        }
+        let provider = EventKitCalendarProvider()
+        guard provider.permissionState() == .allowed else {
+            calendarEvents = []; return
+        }
+        calendarEvents = Array(provider.events(
+            from: .now,
+            through: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
+            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(3))
+    }
+
+    @MainActor private func refreshWeatherIfNeeded() async {
+        guard let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        if WeatherCachePolicy.isFresh(setting.cachedWeatherAt) { return }
+        isLoadingWeather = true
+        defer { isLoadingWeather = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let snapshot = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = snapshot.temperature
+            setting.cachedWeatherHigh = snapshot.high
+            setting.cachedWeatherLow = snapshot.low
+            setting.cachedWeatherCondition = snapshot.condition
+            setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherAt = snapshot.fetchedAt
+            try? context.save()
+        } catch {
+            // Cached weather remains visible. Permission guidance lives in Settings.
         }
     }
 
@@ -2018,17 +2331,13 @@ struct FamilySetupGuideView: View {
                     guideRow(done: hasCloudSync,
                              title: hasCloudSync ? cloudTitle : "Enable family sync",
                              detail: "In Parent › Family sync, enable iCloud sharing, then use Invite or manage family to send the Apple invitation.")
-                    Text("On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.”")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Text("Local-only families remain fully usable on this device. Apple may delay background delivery, so Kyndyn always catches up when opened.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .information, message: "On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.” Apple may delay background delivery, so kyndyn also catches up when opened.")
                 }
                 Section("3. Save a private backup") {
                     guideRow(done: false,
                              title: "Export after setup",
                              detail: "Use Parent › Backup and migration, save the JSON file privately in Files, and export a fresh copy after major changes.")
-                    Text("A backup is separate from iCloud recovery. Restore and import are intentionally limited to an empty installation so existing family data is never replaced silently.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .caution, message: "A backup is separate from iCloud recovery. Restore and import require an empty installation so existing family data is never replaced silently.")
                 }
                 if isFirstRun {
                     Section {
@@ -2322,10 +2631,10 @@ struct ParentAreaView: View {
             List {
                 if households.first?.isSample == true {
                     Section {
-                        Label("Sample family", systemImage: "sparkles")
-                            .foregroundStyle(.purple)
-                        Text("This household contains fictional practice data and is kept separate from personal setup.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                        KyndynCallout(
+                            kind: .information,
+                            message: "This household contains fictional practice data and stays separate from personal setup.",
+                            title: "Sample family")
                     }
                 }
                 if let household = households.first {
@@ -2349,48 +2658,60 @@ struct ParentAreaView: View {
                     }
                     Section("Quick actions") {
                         NavigationLink { QuestEditorView(quest: nil) } label: {
-                            Label("Create a quest", systemImage: "plus.circle.fill")
+                            parentRow("Create a quest", "Add a task and choose who it belongs to", "plus.circle.fill", .blue)
                         }
                         NavigationLink { PersonEditorView(person: nil) } label: {
-                            Label("Add a person", systemImage: "person.badge.plus")
+                            parentRow("Add a person", "Create another family profile", "person.badge.plus", .green)
                         }
                         NavigationLink { FamilyRewardSettingsView() } label: {
-                            Label("Update family reward", systemImage: "gift")
+                            parentRow("Update family reward", "Change the shared goal and XP target", "gift.fill", KyndynTheme.pink)
                         }
                         NavigationLink { FamilyBroadcastManagementView() } label: {
-                            Label("Share an announcement", systemImage: "megaphone.fill")
+                            parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
                         NavigationLink { CloudSyncSettingsView() } label: {
-                            Label(syncSummary, systemImage: "icloud")
+                            parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
                         }
                     }
                 }
-                Section {
+                Section("Manage family") {
                     NavigationLink { FamilySetupGuideView() } label: {
-                        Label("Family setup guide", systemImage: "questionmark.circle")
+                        parentRow("Family setup guide", "Profiles, sharing, and private backups", "questionmark.circle.fill", KyndynTheme.green)
                     }
-                    NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
-                    NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
+                    NavigationLink { PeopleManagementView() } label: {
+                        parentRow("People", "Names, roles, colors, and collections", "person.2.fill", .blue)
+                    }
+                    NavigationLink { QuestManagementView() } label: {
+                        parentRow("Quests", "Create, edit, archive, and restore", "checklist", KyndynTheme.purple)
+                    }
                     NavigationLink { QuestPlanningView() } label: {
-                        Label("Quest planning", systemImage: "calendar.badge.clock")
+                        parentRow("Quest planning", "Templates and two-week schedule overview", "calendar.badge.clock", KyndynTheme.amber)
                     }
                     NavigationLink { FamilyRewardSettingsView() } label: {
-                        Label("Family reward", systemImage: "gift.fill")
+                        parentRow("Family reward", "Shared progress, goals, and resets", "gift.fill", KyndynTheme.pink)
                     }
                     NavigationLink { FamilyBroadcastManagementView() } label: {
-                        Label("Announcements", systemImage: "megaphone.fill")
+                        parentRow("Announcements", "Current and archived family updates", "megaphone.fill", .orange)
                     }
+                }
+                Section("Device and privacy") {
                     NavigationLink { CloudSyncSettingsView() } label: {
-                        Label("Family sync", systemImage: "icloud")
+                        parentRow("Family sync", "iCloud sharing and sync status", "icloud.fill", KyndynTheme.purple)
                     }
-                    NavigationLink { NotificationSettingsView() } label: { Label("Reminders", systemImage: "bell.fill") }
+                    NavigationLink { NotificationSettingsView() } label: {
+                        parentRow("Reminders", "Timing, quiet hours, and lock-screen privacy", "bell.fill", .blue)
+                    }
                     NavigationLink { HouseholdDataProtectionView() } label: {
-                        Label("Backup and migration", systemImage: "externaldrive.fill")
+                        parentRow("Backup and migration", "Export, restore, and Rowan transfer", "externaldrive.fill", KyndynTheme.green)
                     }
-                    NavigationLink { ParentSecurityView() } label: { Label("Parent security", systemImage: "lock.shield.fill") }
+                    NavigationLink { ParentSecurityView() } label: {
+                        parentRow("Parent security", "Face ID, device passcode, and fallback PIN", "lock.shield.fill", KyndynTheme.pink)
+                    }
                 }
                 Section {
-                    Button("Lock Parent area", systemImage: "lock.fill") { access.lock() }
+                    Button { access.lock() } label: {
+                        parentRow("Lock Parent area", "Require authentication for parent tools", "lock.fill", .red)
+                    }
                 }
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
@@ -2402,6 +2723,35 @@ struct ParentAreaView: View {
             .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
+    }
+
+    private func parentRow(
+        _ title: String, _ subtitle: String, _ systemImage: String, _ tint: Color
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(tint.opacity(0.11), in: RoundedRectangle(
+                    cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(0.20), lineWidth: 1)
+                }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle)
     }
 
     private func statuses(_ household: Household) -> [QuestTemporalStatus] {
@@ -2594,11 +2944,10 @@ struct HouseholdDataProtectionView: View {
                        systemImage: "square.and.arrow.up") {
                     prepareExport()
                 }
-                Text("The JSON backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                KyndynCallout(kind: .privacy, message: "The backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
             }
             Section("Restore limitation") {
-                Text("For safety, Kyndyn restores backups and Rowan transfers only into an empty installation. It does not merge with or replace this household. Export a fresh backup before changing devices or family-sync environments.")
+                KyndynCallout(kind: .caution, message: "Restores and Rowan transfers require an empty installation. They do not merge with or replace this household. Export a fresh backup before changing devices or sync environments.")
             }
             Section("Backup and family sync") {
                 Label("Two separate protections", systemImage: "lock.icloud.fill")
@@ -3414,8 +3763,7 @@ struct CloudSyncSettingsView: View {
             }
             Section("What family sync does") {
                 Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
-                Text("Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences stay only on this device.")
-                    .foregroundStyle(.secondary)
+                KyndynCallout(kind: .localOnly, message: "Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences never leave this device.")
             }
             if let household {
                 let preview = sync.preview(
@@ -3563,7 +3911,7 @@ struct ParentSecurityView: View {
     var body: some View {
         Form {
             Section {
-                Text("Face ID, Touch ID, or the device passcode is kyndyn’s primary parent check. A kyndyn PIN is an optional fallback stored only in this device’s Keychain.")
+                KyndynCallout(kind: .localOnly, message: "Face ID, Touch ID, or the device passcode is the primary parent check. An optional kyndyn PIN is stored only in this device’s Keychain.")
             }
             Section(access.hasPIN ? "Change kyndyn PIN" : "Add kyndyn PIN") {
                 SecureField("New 6–12 digit PIN", text: $pin).keyboardType(.numberPad)
@@ -3582,7 +3930,7 @@ struct ParentSecurityView: View {
             }
             if let message { Section { Text(message).foregroundStyle(.secondary) } }
             Section("Recovery limitation") {
-                Text("kyndyn has no server account or email recovery. If you forget the kyndyn PIN, use the device owner authentication to enter this screen and replace it. If device authentication is also unavailable, kyndyn cannot safely prove parental identity.")
+                KyndynCallout(kind: .caution, message: "kyndyn has no server account or email recovery. Use device-owner authentication to replace a forgotten PIN. Without either method, kyndyn cannot safely prove parental identity.")
             }
         }
         .navigationTitle("Parent security")
@@ -3641,8 +3989,7 @@ struct NotificationSettingsView: View {
                     Toggle("Show quest titles", isOn: binding(setting, \.showQuestDetailsOnLockScreen))
                     Toggle("Show announcement details", isOn: binding(
                         setting, \.showBroadcastDetailsOnLockScreen))
-                    Text(setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(kind: .privacy, message: setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
                 }
             } else {
                 ContentUnavailableView("Settings unavailable", systemImage: "gear.badge.questionmark", description: Text("Reopen kyndyn and try again."))

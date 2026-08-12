@@ -198,8 +198,12 @@ final class KyndynUITests: XCTestCase {
         tapTab("Switch", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
-        XCTAssertTrue(app.staticTexts["People"].waitForExistence(timeout: 3))
-        app.staticTexts["People"].tap()
+        let people = app.buttons.matching(
+            NSPredicate(format: "label == %@", "People")
+        ).firstMatch
+        reveal(people, in: app)
+        XCTAssertTrue(people.waitForExistence(timeout: 3))
+        people.tap()
         app.buttons["Add"].tap()
         let name = app.textFields["Name"]
         XCTAssertTrue(name.waitForExistence(timeout: 3))
@@ -237,7 +241,11 @@ final class KyndynUITests: XCTestCase {
         tapTab("Switch", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
-        app.staticTexts["People"].tap()
+        let people = app.buttons.matching(
+            NSPredicate(format: "label == %@", "People")
+        ).firstMatch
+        reveal(people, in: app)
+        people.tap()
         app.buttons["Add"].tap()
         let teal = app.buttons["profile-color-#00A6A6"]
         XCTAssertTrue(teal.waitForExistence(timeout: 3))
@@ -310,6 +318,7 @@ final class KyndynUITests: XCTestCase {
         ).firstMatch.tap()
         let questAction = app.buttons["quest-toggle-Make your bed"]
         XCTAssertTrue(questAction.waitForExistence(timeout: 3))
+        reveal(questAction, in: app)
         XCTAssertTrue(questAction.isHittable,
                       "Quest action should remain usable in the constrained layout")
     }

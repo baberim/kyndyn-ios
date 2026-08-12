@@ -18,7 +18,7 @@
 | Broadcasts | Native v1.1 | Model boundary included |
 | Full collections/backgrounds | Native v1.1 | Architecture supports them |
 | PWA JSON migration | Native v1.1 | Versioned dry-run design and fixtures |
-| Calendar read-only feeds | Later | Prefer EventKit/approved import |
+| Calendar read-only feeds | Build 14 | Optional EventKit calendars; read-only and device-local |
 | Weather | Later | Derived cache, never shared source truth |
 | kyndyn assistant | Later | Privacy and parent-control review required |
 | Web push/VAPID | Intentionally replaced | Native local/remote notification stack |

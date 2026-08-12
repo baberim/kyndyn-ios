@@ -117,3 +117,68 @@ struct KyndynStatusPill: View {
             .background(tint.opacity(0.12), in: Capsule())
     }
 }
+
+enum KyndynCalloutKind {
+    case information, privacy, localOnly, caution
+
+    var title: String {
+        switch self {
+        case .information: "Good to know"
+        case .privacy: "Privacy"
+        case .localOnly: "On this device"
+        case .caution: "Before you continue"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .information: "info.circle.fill"
+        case .privacy: "hand.raised.fill"
+        case .localOnly: "iphone"
+        case .caution: "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .information: KyndynTheme.blue
+        case .privacy: KyndynTheme.purple
+        case .localOnly: KyndynTheme.green
+        case .caution: KyndynTheme.amber
+        }
+    }
+}
+
+struct KyndynCallout: View {
+    let kind: KyndynCalloutKind
+    let message: String
+    var title: String? = nil
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: kind.icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(kind.tint)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title ?? kind.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(kind.tint.opacity(0.09), in: RoundedRectangle(
+            cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(kind.tint.opacity(0.22), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
