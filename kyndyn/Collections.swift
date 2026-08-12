@@ -287,10 +287,22 @@ struct ImmersiveProfileHeader: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: 30,
+            bottomTrailingRadius: 30,
+            topTrailingRadius: 0,
+            style: .continuous
+        ))
         .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 30,
+                bottomTrailingRadius: 30,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
         }
         .overlay(alignment: .leading) {
             Capsule()

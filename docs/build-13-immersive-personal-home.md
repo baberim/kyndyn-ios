@@ -5,12 +5,16 @@ it as a separate preview card.
 
 ## Home composition
 
-- The selected background fills a responsive Home header.
+- The selected background fills a responsive, edge-to-edge Home header that
+  extends behind the status bar and Dynamic Island on iPhone and through the
+  top safe-area region on iPad.
 - The selected companion is composed into that scene as foreground artwork.
 - The person's greeting and rotating encouragement are rendered inside the
   scene with contrast gradients and shadows for legibility.
 - Family announcements follow the personal header, so communication remains
   prominent without displacing the active person's identity.
+- The My day / Everyone control follows the header, and the redundant Today
+  navigation title is removed.
 - The former Home profile shortcut was removed because the same customization
   is now clearly available from Settings.
 

@@ -828,9 +828,21 @@ struct DashboardView: View {
             ScrollView {
                 if let household = households.first {
                     VStack(spacing: 16) {
+                        if let person {
+                            ImmersiveProfileHeader(
+                                personName: person.name,
+                                message: greetingMessage,
+                                backgroundID: person.backgroundID,
+                                companionID: person.companionID,
+                                accent: Color(hex: person.colorHex)
+                            )
+                            .frame(height: dynamicTypeSize.isAccessibilitySize
+                                   ? 430
+                                   : (horizontalSizeClass == .regular ? 410 : 355))
+                            .accessibilityIdentifier("home-profile-scene")
+                        }
                         dashboardModePicker
                             .padding(.horizontal)
-                            .padding(.top, 8)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
                             broadcastNavigation
                                 .padding(.horizontal)
@@ -838,16 +850,6 @@ struct DashboardView: View {
                         } else if let person {
                             let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                             VStack(spacing: 18) {
-                                ImmersiveProfileHeader(
-                                    personName: person.name,
-                                    message: greetingMessage,
-                                    backgroundID: person.backgroundID,
-                                    companionID: person.companionID,
-                                    accent: Color(hex: person.colorHex))
-                                    .frame(height: dynamicTypeSize.isAccessibilitySize
-                                           ? 320
-                                           : (horizontalSizeClass == .regular ? 300 : 238))
-                                    .accessibilityIdentifier("home-profile-scene")
                                 broadcastNavigation
                                 progressSummary(progress, tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
@@ -877,13 +879,14 @@ struct DashboardView: View {
                     }
                 }
             }
+            .ignoresSafeArea(edges: .top)
             .refreshable {
                 automaticSync.request(.manual)
                 await automaticSync.waitUntilIdle()
                 rotateGreeting()
             }
             .background(KyndynScreenBackground())
-            .navigationTitle("Today")
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProgress) {
                 if let person, let household = households.first {
                     ProgressDetailView(person: person, household: household)
