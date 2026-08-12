@@ -242,6 +242,22 @@ struct ImmersiveProfileHeader: View {
             ZStack {
                 background(definition, size: proxy.size)
 
+                background(definition, size: proxy.size)
+                    .blur(radius: 4.5)
+                    .scaleEffect(1.025)
+                    .mask {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.46),
+                                .init(color: .black.opacity(0.35), location: 0.66),
+                                .init(color: .black, location: 1.0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    }
+                    .accessibilityHidden(true)
+
                 LinearGradient(
                     colors: [
                         .black.opacity(0.06),
