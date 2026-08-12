@@ -57,6 +57,7 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var earnedCompanionIDs: [String]? = nil
         var backgroundID: String? = nil
         var earnedBackgroundIDs: [String]? = nil
+        var startingXPAdjustment: Int? = nil
         var createdAt: Date
         var deletedAt: Date?
     }
@@ -160,6 +161,7 @@ enum HouseholdTransferCodec {
                       earnedCompanionIDs: $0.earnedCompanionIDs,
                       backgroundID: $0.backgroundID,
                       earnedBackgroundIDs: $0.earnedBackgroundIDs,
+                      startingXPAdjustment: $0.startingXPAdjustment,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
             quests: quests.map {
@@ -236,6 +238,8 @@ enum HouseholdTransferCodec {
             !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && $0.name.count <= 40 && $0.colorHex.count <= 16
                 && $0.companionID.count <= 40
+                && (-1_000_000...1_000_000).contains(
+                    $0.startingXPAdjustment ?? 0)
         }) else {
             throw HouseholdTransferError.malformed("A profile is invalid.")
         }
@@ -313,6 +317,7 @@ enum HouseholdRestoreService {
                person.earnedBackgroundIDs.contains(background) {
                 person.backgroundID = background
             }
+            person.startingXPAdjustment = value.startingXPAdjustment ?? 0
             context.insert(person); insertedPeople.append(person)
         }
         var insertedQuests: [Quest] = []

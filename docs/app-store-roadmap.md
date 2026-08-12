@@ -159,6 +159,11 @@ See `docs/build-13-immersive-personal-home.md` for the implemented scope.
 
 ## Later
 
+- Expand badges into a full recognition experience with a dedicated gallery,
+  additional deterministic milestones, accessible earned-badge celebrations,
+  and an explicit legacy Rowan badge migration strategy. Do not infer badges
+  from a parent-entered starting XP adjustment.
+
 - Build 14A: read-only calendar integration with explicit permission and
   privacy design.
 - Build 14B: weather as derived, replaceable cache data rather than shared

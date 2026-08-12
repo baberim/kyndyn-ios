@@ -560,6 +560,7 @@ struct ProfilePickerView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
+    @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
     let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
 
@@ -605,13 +606,16 @@ struct ProfilePickerView: View {
                                 Text(person.role == .parent ? "Parent" : "Family member")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                Text("Level \(level(for: person))")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color(hex: person.colorHex))
                             }
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                        .accessibilityValue("\(ProfilePalette.name(for: person.colorHex)) profile color")
+                        .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
                         .accessibilityHint("Shows this person’s kyndyn dashboard")
                         .accessibilityIdentifier("profile-\(person.name)")
                     }
@@ -623,6 +627,13 @@ struct ProfilePickerView: View {
             .background(KyndynScreenBackground())
             .navigationTitle("kyndyn")
         }
+    }
+
+    private func level(for person: Person) -> Int {
+        let questXP = completions.lazy
+            .filter { $0.personID == person.id && $0.reversedAt == nil }
+            .reduce(0) { $0 + $1.awardedXP }
+        return max(0, questXP + person.startingXPAdjustment) / 100 + 1
     }
 }
 
@@ -1064,7 +1075,11 @@ struct DashboardView: View {
                                 .padding(.horizontal)
                             householdDashboard(household)
                         } else if let person {
-                            let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                            let progress = ProgressionEngine.progress(
+                                personID: person.id, completions: completions,
+                                now: .now,
+                                timeZoneIdentifier: household.timeZoneIdentifier,
+                                startingXPAdjustment: person.startingXPAdjustment)
                             VStack(spacing: 18) {
                                 broadcastNavigation
                                 progressSummary(progress, tint: Color(hex: person.colorHex))
@@ -1132,12 +1147,14 @@ struct DashboardView: View {
     @ViewBuilder private var dayContext: some View {
         if let setting = deviceSettings.first,
            setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled {
-            HStack(alignment: .top, spacing: 12) {
-                if setting.weatherIntegrationEnabled {
-                    weatherSummary(setting)
-                }
-                if setting.calendarIntegrationEnabled {
-                    calendarSummary
+            Grid(horizontalSpacing: 12) {
+                GridRow(alignment: .top) {
+                    if setting.weatherIntegrationEnabled {
+                        weatherSummary(setting)
+                    }
+                    if setting.calendarIntegrationEnabled {
+                        calendarSummary
+                    }
                 }
             }
             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
@@ -1161,7 +1178,7 @@ struct DashboardView: View {
                 ProgressView().accessibilityLabel("Loading weather")
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .blue)
     }
 
@@ -1178,7 +1195,7 @@ struct DashboardView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .orange)
     }
 
@@ -1329,7 +1346,8 @@ struct DashboardView: View {
         let completed = memberQuests.filter { $0.1 == .completed }.count
         let progress = ProgressionEngine.progress(
             personID: member.id, completions: completions, now: .now,
-            timeZoneIdentifier: household.timeZoneIdentifier)
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            startingXPAdjustment: member.startingXPAdjustment)
 
         return Button {
             app.selectedPersonID = member.id
@@ -1456,8 +1474,21 @@ struct DashboardView: View {
         } label: {
             VStack(spacing: 14) {
                 HStack {
-                    Label("Your progress", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.headline)
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Your progress")
+                                .font(.title3.bold())
+                            Text("Level \(progress.level) journey")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.title3.bold())
+                            .foregroundStyle(tint)
+                            .frame(width: 38, height: 38)
+                            .background(tint.opacity(0.14), in: Circle())
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.bold())
@@ -1471,14 +1502,31 @@ struct DashboardView: View {
                     ProgressStat(
                         value: "\(progress.currentStreak)", label: "Day streak")
                 }
+                VStack(spacing: 6) {
+                    ProgressView(
+                        value: Double(progress.xp % 100), total: 100)
+                        .tint(tint)
+                    HStack {
+                        Text("Level \(progress.level)")
+                        Spacer()
+                        Text("\(xpToNextLevel(progress)) XP to Level \(progress.level + 1)")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                }
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .kyndynCard(tint: tint)
+        .kyndynCard(tint: tint, raised: true)
         .accessibilityIdentifier("home-progress-summary")
         .accessibilityHint("Shows progress details")
+    }
+
+    private func xpToNextLevel(_ progress: PersonProgress) -> Int {
+        100 - (progress.xp % 100)
     }
 }
 
@@ -1502,7 +1550,8 @@ struct ProgressDetailView: View {
     private var progress: PersonProgress {
         ProgressionEngine.progress(
             personID: person.id, completions: completions, now: .now,
-            timeZoneIdentifier: household.timeZoneIdentifier)
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            startingXPAdjustment: person.startingXPAdjustment)
     }
 
     var body: some View {
@@ -3086,13 +3135,18 @@ struct PersonEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
+    @Query private var completions: [QuestCompletion]
     let person: Person?
     @State private var draft: PersonDraft
+    @State private var targetXP = 0
+    @State private var loadedTargetXP = false
 
     init(person: Person?) {
         self.person = person
         _draft = State(initialValue: person.map {
-            PersonDraft(name: $0.name, role: $0.role, colorHex: $0.colorHex, companionID: $0.companionID)
+            PersonDraft(name: $0.name, role: $0.role, colorHex: $0.colorHex,
+                        companionID: $0.companionID,
+                        startingXPAdjustment: $0.startingXPAdjustment)
         } ?? PersonDraft())
     }
 
@@ -3127,6 +3181,15 @@ struct PersonEditorView: View {
                 }
             }
             if let person {
+                Section("Progress") {
+                    LabeledContent("Current level", value: "\(targetXP / 100 + 1)")
+                    TextField("Total XP", value: $targetXP,
+                              format: .number.grouping(.never))
+                        .keyboardType(.numberPad)
+                    Text("Set the XP they should begin with in kyndyn. Quest history, streaks, badges, and family reward progress are not created or changed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 Section("Collection access") {
                     Text("Parents can make collection items available without changing earned progress.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -3151,13 +3214,25 @@ struct PersonEditorView: View {
         .background(KyndynScreenBackground())
         .navigationTitle(person == nil ? "New person" : "Edit person")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard !loadedTargetXP, let person else { return }
+            targetXP = max(0, questXP(for: person) + person.startingXPAdjustment)
+            loadedTargetXP = true
+        }
         .toolbar {
             if person == nil { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     guard let household = households.first else { return }
                     do {
-                        if let person { try app.updatePerson(person, draft: draft, context: context) }
+                        if let person {
+                            guard (0...1_000_000).contains(targetXP) else {
+                                app.errorMessage = "Total XP must be between 0 and 1,000,000."
+                                return
+                            }
+                            draft.startingXPAdjustment = targetXP - questXP(for: person)
+                            try app.updatePerson(person, draft: draft, context: context)
+                        }
                         else { try app.createPerson(draft, householdID: household.id, context: context) }
                         dismiss()
                     } catch { app.errorMessage = error.localizedDescription }
@@ -3170,6 +3245,11 @@ struct PersonEditorView: View {
     private var availableCompanions: [String] {
         person.map { CollectionCatalog.normalizedCompanions($0.earnedCompanionIDs) }
             ?? CollectionCatalog.starterCompanionIDs
+    }
+
+    private func questXP(for person: Person) -> Int {
+        completions.filter { $0.personID == person.id && $0.reversedAt == nil }
+            .reduce(0) { $0 + $1.awardedXP }
     }
 
     private func grantCompanion(_ id: String, to person: Person) {

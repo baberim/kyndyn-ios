@@ -71,6 +71,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var backgroundID: String = CollectionCatalog.defaultBackgroundID
     var earnedBackgroundIDs: [String] = CollectionCatalog.starterBackgroundIDs
     var pendingUnlockIDs: [String] = []
+    var startingXPAdjustment: Int = 0
     var createdAt: Date
     var deletedAt: Date?
 
@@ -90,6 +91,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.backgroundID = CollectionCatalog.defaultBackgroundID
         self.earnedBackgroundIDs = CollectionCatalog.starterBackgroundIDs
         self.pendingUnlockIDs = []
+        self.startingXPAdjustment = 0
         self.createdAt = .now
     }
 }

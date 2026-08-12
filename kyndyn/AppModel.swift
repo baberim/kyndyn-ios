@@ -42,6 +42,7 @@ struct PersonDraft {
     var role: ProfileRole = .child
     var colorHex = "#6F2DBD"
     var companionID = "spark"
+    var startingXPAdjustment = 0
 }
 
 struct QuestDraft {
@@ -279,9 +280,15 @@ enum LifecycleRules {
         person.role = draft.role
         person.colorHex = draft.colorHex
         person.companionID = draft.companionID
+        person.startingXPAdjustment = draft.startingXPAdjustment
         try context.save()
         try SyncQueue.enqueue(SyncSnapshot.person(person), operation: .createOrUpdate,
                               context: context)
+        if let household = try context.fetch(FetchDescriptor<Household>())
+            .first(where: { $0.id == person.householdID }) {
+            try evaluateCollections(for: person.id, household: household,
+                                    context: context)
+        }
         refreshReminders(context: context)
     }
 
@@ -616,7 +623,8 @@ enum LifecycleRules {
         let goals = try context.fetch(FetchDescriptor<RewardGoal>())
         let progress = ProgressionEngine.progress(
             personID: personID, completions: completions, now: now,
-            timeZoneIdentifier: household.timeZoneIdentifier)
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            startingXPAdjustment: person.startingXPAdjustment)
         let goal = ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
         let rewardReached = goal.map {
             ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
