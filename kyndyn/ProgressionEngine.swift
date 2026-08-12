@@ -206,3 +206,158 @@ enum ProgressionEngine {
         }.reduce(0) { $0 + $1.awardedXP }
     }
 }
+
+struct DailyInsight: Identifiable, Equatable {
+    let date: Date
+    let completed: Int
+    let notCompleted: Int
+    let waiting: Int
+    let xp: Int
+    var id: Date { date }
+}
+
+struct PersonInsight: Identifiable, Equatable {
+    let personID: UUID
+    let name: String
+    let colorHex: String
+    let completed: Int
+    let notCompleted: Int
+    let waiting: Int
+    let xp: Int
+    let currentStreak: Int
+    let level: Int
+    var id: UUID { personID }
+    var concluded: Int { completed + notCompleted }
+    var completionRate: Int {
+        concluded == 0 ? 0 : Int((Double(completed) / Double(concluded) * 100).rounded())
+    }
+}
+
+struct WeeklyInsight: Identifiable, Equatable {
+    let start: Date
+    let end: Date
+    let days: [DailyInsight]
+    let people: [PersonInsight]
+    let observations: [String]
+    var id: Date { start }
+    var completed: Int { days.reduce(0) { $0 + $1.completed } }
+    var notCompleted: Int { days.reduce(0) { $0 + $1.notCompleted } }
+    var waiting: Int { days.reduce(0) { $0 + $1.waiting } }
+    var xp: Int { days.reduce(0) { $0 + $1.xp } }
+    var concluded: Int { completed + notCompleted }
+    var completionRate: Int {
+        concluded == 0 ? 0 : Int((Double(completed) / Double(concluded) * 100).rounded())
+    }
+}
+
+enum InsightsEngine {
+    static func week(
+        containing selectedDate: Date, now: Date, household: Household,
+        people: [Person], quests: [Quest], completions: [QuestCompletion]
+    ) -> WeeklyInsight {
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let selectedDay = calendar.startOfDay(for: selectedDate)
+        let start = calendar.dateInterval(of: .weekOfYear, for: selectedDay)?.start
+            ?? selectedDay
+        let end = calendar.date(byAdding: .day, value: 6, to: start) ?? start
+        let today = calendar.startOfDay(for: now)
+        let activePeople = people.filter {
+            $0.householdID == household.id
+                && ($0.deletedAt == nil || $0.deletedAt! >= start)
+        }
+        let householdQuests = quests.filter { $0.householdID == household.id }
+        let activeEvents = completions.filter {
+            $0.householdID == household.id && $0.reversedAt == nil
+        }
+        var personCounts: [UUID: (
+            completed: Int, missed: Int, waiting: Int, xp: Int
+        )] = [:]
+        let days = (0..<7).compactMap { offset -> DailyInsight? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start)
+            else { return nil }
+            var completed = 0, missed = 0, waiting = 0, xp = 0
+            let dayEnd = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+            for quest in householdQuests where quest.startDate <= dayEnd {
+                if let deleted = quest.deletedAt, deleted < day { continue }
+                guard ProgressionEngine.isScheduled(
+                    quest, on: day,
+                    timeZoneIdentifier: household.timeZoneIdentifier) else { continue }
+                let key = ProgressionEngine.dayKey(
+                    day, timeZoneIdentifier: household.timeZoneIdentifier)
+                for person in activePeople where quest.participantIDs.contains(person.id) {
+                    let event = activeEvents.first {
+                        $0.questID == quest.id && $0.personID == person.id
+                            && $0.occurrenceDay == key
+                    }
+                    var counts = personCounts[person.id]
+                        ?? (completed: 0, missed: 0, waiting: 0, xp: 0)
+                    if let event {
+                        completed += 1; xp += event.awardedXP
+                        counts.completed += 1; counts.xp += event.awardedXP
+                    } else if day < today {
+                        missed += 1; counts.missed += 1
+                    } else if day == today {
+                        waiting += 1; counts.waiting += 1
+                    }
+                    personCounts[person.id] = counts
+                }
+            }
+            return DailyInsight(date: day, completed: completed,
+                                notCompleted: missed, waiting: waiting, xp: xp)
+        }
+        let personInsights: [PersonInsight] = activePeople.map { person in
+            let counts = personCounts[person.id]
+                ?? (completed: 0, missed: 0, waiting: 0, xp: 0)
+            let progress = ProgressionEngine.progress(
+                personID: person.id, completions: completions, now: now,
+                timeZoneIdentifier: household.timeZoneIdentifier,
+                startingXPAdjustment: person.startingXPAdjustment)
+            return PersonInsight(
+                personID: person.id, name: person.name, colorHex: person.colorHex,
+                completed: counts.completed, notCompleted: counts.missed,
+                waiting: counts.waiting, xp: counts.xp,
+                currentStreak: progress.currentStreak, level: progress.level)
+        }.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        return WeeklyInsight(
+            start: start, end: end, days: days, people: personInsights,
+            observations: observations(people: personInsights, days: days))
+    }
+
+    static func recentWeeks(
+        count: Int, now: Date, household: Household, people: [Person],
+        quests: [Quest], completions: [QuestCompletion]
+    ) -> [WeeklyInsight] {
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        return (0..<max(1, count)).compactMap { offset in
+            calendar.date(byAdding: .weekOfYear, value: -offset, to: now)
+        }.map {
+            week(containing: $0, now: now, household: household, people: people,
+                 quests: quests, completions: completions)
+        }.reversed()
+    }
+
+    private static func observations(
+        people: [PersonInsight], days: [DailyInsight]
+    ) -> [String] {
+        var values: [String] = []
+        let missed = days.reduce(0) { $0 + $1.notCompleted }
+        if missed > 0 {
+            values.append("\(missed) scheduled \(missed == 1 ? "quest was" : "quests were") not completed after the day ended.")
+        }
+        if let strongest = days.max(by: { $0.completed < $1.completed }),
+           strongest.completed > 0 {
+            values.append("\(strongest.date.formatted(.dateTime.weekday(.wide))) had the most completed quests this week.")
+        }
+        if let person = people.first(where: { $0.waiting > 0 }) {
+            values.append("\(person.name) still has \(person.waiting) \(person.waiting == 1 ? "quest" : "quests") waiting today.")
+        }
+        if values.isEmpty {
+            values.append("There is nothing that needs attention in this week’s activity yet.")
+        }
+        return Array(values.prefix(3))
+    }
+}
