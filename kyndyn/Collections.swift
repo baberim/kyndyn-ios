@@ -210,3 +210,121 @@ struct ProfileScene: View {
         .accessibilityLabel("\(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)")
     }
 }
+
+struct ImmersiveProfileHeader: View {
+    let personName: String
+    let message: String
+    let backgroundID: String
+    let companionID: String
+    let accent: Color
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let definition = CollectionCatalog.backgrounds.first {
+            $0.id == backgroundID
+        } ?? CollectionCatalog.backgrounds[0]
+
+        GeometryReader { proxy in
+            ZStack {
+                background(definition, size: proxy.size)
+
+                LinearGradient(
+                    colors: [
+                        .black.opacity(0.06),
+                        .clear,
+                        .black.opacity(colorScheme == .dark ? 0.72 : 0.58)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                LinearGradient(
+                    colors: [
+                        .black.opacity(colorScheme == .dark ? 0.48 : 0.30),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+
+                CompanionArt(id: companionID)
+                    .frame(
+                        width: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
+                                                       ? 0.34 : 0.46),
+                                   proxy.size.height * 0.86),
+                        height: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
+                                                        ? 0.34 : 0.46),
+                                    proxy.size.height * 0.86)
+                    )
+                    .offset(
+                        x: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
+                                                   ? 0.29 : 0.23), 210),
+                        y: -proxy.size.height * 0.06
+                    )
+                    .shadow(color: .black.opacity(0.20), radius: 12, y: 8)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Spacer()
+                    Text("Hi, \(personName)")
+                        .font(.system(.largeTitle, design: .rounded).bold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Text(message)
+                        .font(.headline)
+                        .lineLimit(2)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
+                .frame(maxWidth: proxy.size.width *
+                       (dynamicTypeSize.isAccessibilitySize ? 0.82 : 0.66),
+                       alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .bottomLeading)
+                .padding(22)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
+        }
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(accent)
+                .frame(width: 5)
+                .padding(.vertical, 22)
+                .padding(.leading, 12)
+                .accessibilityHidden(true)
+        }
+        .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Hi, \(personName). \(message) \(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)."
+        )
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private func background(_ definition: BackgroundDefinition,
+                            size: CGSize) -> some View {
+        if let path = Bundle.main.path(
+            forResource: definition.assetName, ofType: "png"),
+           let image = UIImage(contentsOfFile: path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else {
+            LinearGradient(
+                colors: [accent.opacity(0.70), KyndynTheme.purple.opacity(0.75)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}

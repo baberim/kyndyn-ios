@@ -809,6 +809,8 @@ struct DashboardView: View {
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var completions: [QuestCompletion]
@@ -816,7 +818,6 @@ struct DashboardView: View {
     @Query private var deviceSettings: [LocalDeviceSettings]
     @Query private var quests: [Quest]
     @Query private var broadcasts: [FamilyBroadcast]
-    @State private var showMyProfile = false
     @State private var showProgress = false
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
@@ -830,34 +831,24 @@ struct DashboardView: View {
                         dashboardModePicker
                             .padding(.horizontal)
                             .padding(.top, 8)
-                        if let announcement = activeBroadcasts.first {
-                            NavigationLink {
-                                FamilyBroadcastListView()
-                            } label: {
-                                BroadcastCard(
-                                    broadcast: announcement,
-                                    additionalCount: max(0, activeBroadcasts.count - 1))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal)
-                        }
                         if deviceSettings.first?.showsHouseholdDashboard == true {
+                            broadcastNavigation
+                                .padding(.horizontal)
                             householdDashboard(household)
                         } else if let person {
                             let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
                             VStack(spacing: 18) {
-                                ProfileScene(
+                                ImmersiveProfileHeader(
+                                    personName: person.name,
+                                    message: greetingMessage,
                                     backgroundID: person.backgroundID,
                                     companionID: person.companionID,
                                     accent: Color(hex: person.colorHex))
-                                    .frame(height: 220)
+                                    .frame(height: dynamicTypeSize.isAccessibilitySize
+                                           ? 320
+                                           : (horizontalSizeClass == .regular ? 300 : 238))
                                     .accessibilityIdentifier("home-profile-scene")
-                                    .shadow(
-                                        color: Color(hex: person.colorHex).opacity(0.16),
-                                        radius: 14, y: 7)
-                                greeting(person)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 4)
+                                broadcastNavigation
                                 progressSummary(progress, tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
@@ -893,18 +884,6 @@ struct DashboardView: View {
             }
             .background(KyndynScreenBackground())
             .navigationTitle("Today")
-            .toolbar {
-                if person != nil && deviceSettings.first?.showsHouseholdDashboard != true {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("My profile", systemImage: "person.crop.circle") {
-                            showMyProfile = true
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $showMyProfile) {
-                if let person { MyProfileView(person: person) }
-            }
             .sheet(isPresented: $showProgress) {
                 if let person, let household = households.first {
                     ProgressDetailView(person: person, household: household)
@@ -929,6 +908,19 @@ struct DashboardView: View {
         broadcasts.filter {
             $0.deletedAt == nil && ($0.expiresAt == nil || $0.expiresAt! > .now)
         }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    @ViewBuilder private var broadcastNavigation: some View {
+        if let announcement = activeBroadcasts.first {
+            NavigationLink {
+                FamilyBroadcastListView()
+            } label: {
+                BroadcastCard(
+                    broadcast: announcement,
+                    additionalCount: max(0, activeBroadcasts.count - 1))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func unlockMessage(_ value: String?) -> String {
@@ -1101,15 +1093,6 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 4)
             }
-        }
-    }
-
-    private func greeting(_ person: Person) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Hi, \(person.name)")
-                .font(.largeTitle.bold())
-                .accessibilityAddTraits(.isHeader)
-            Text(greetingMessage).foregroundStyle(.secondary)
         }
     }
 
