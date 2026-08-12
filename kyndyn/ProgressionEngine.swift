@@ -2,10 +2,21 @@ import Foundation
 
 struct PersonProgress: Equatable {
     let xp: Int
+    let questXP: Int
     let level: Int
     let currentStreak: Int
     let bestStreak: Int
     let completedCount: Int
+
+    init(xp: Int, level: Int, currentStreak: Int, bestStreak: Int,
+         completedCount: Int, questXP: Int? = nil) {
+        self.xp = xp
+        self.questXP = questXP ?? xp
+        self.level = level
+        self.currentStreak = currentStreak
+        self.bestStreak = bestStreak
+        self.completedCount = completedCount
+    }
 }
 
 enum QuestTemporalStatus: String, Equatable {
@@ -130,9 +141,12 @@ enum ProgressionEngine {
         return max(1, Int((Double(base) * Double(100 - penalty) / 100).rounded()))
     }
 
-    static func progress(personID: UUID, completions: [QuestCompletion], now: Date, timeZoneIdentifier: String) -> PersonProgress {
+    static func progress(personID: UUID, completions: [QuestCompletion], now: Date,
+                         timeZoneIdentifier: String,
+                         startingXPAdjustment: Int = 0) -> PersonProgress {
         let active = completions.filter { $0.personID == personID && $0.reversedAt == nil }
-        let xp = active.reduce(0) { $0 + $1.awardedXP }
+        let questXP = active.reduce(0) { $0 + $1.awardedXP }
+        let xp = max(0, questXP + startingXPAdjustment)
         let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
         let days = Set(active.map { calendar.startOfDay(for: $0.completedAt) }).sorted()
         var best = 0
@@ -161,7 +175,9 @@ enum ProgressionEngine {
         } else {
             current = 0
         }
-        return PersonProgress(xp: xp, level: xp / 100 + 1, currentStreak: current, bestStreak: best, completedCount: active.count)
+        return PersonProgress(xp: xp, level: xp / 100 + 1,
+                              currentStreak: current, bestStreak: best,
+                              completedCount: active.count, questXP: questXP)
     }
 
     static func familyXP(_ completions: [QuestCompletion]) -> Int {

@@ -131,7 +131,7 @@ enum RecognitionEngine {
         if progress.completedCount >= 10 { values.append(.init(id: "quest-ten", title: "Quest Keeper", detail: "Completed 10 quests", systemImage: "checkmark.seal.fill")) }
         if progress.currentStreak >= 3 { values.append(.init(id: "streak-three", title: "On a Roll", detail: "Reached a 3-day streak", systemImage: "flame.fill")) }
         if progress.currentStreak >= 7 { values.append(.init(id: "streak-seven", title: "Steady Star", detail: "Reached a 7-day streak", systemImage: "star.fill")) }
-        if progress.level >= 2 { values.append(.init(id: "level-two", title: "Leveling Up", detail: "Reached level 2", systemImage: "arrow.up.circle.fill")) }
+        if progress.questXP / 100 + 1 >= 2 { values.append(.init(id: "level-two", title: "Leveling Up", detail: "Reached level 2 through quests", systemImage: "arrow.up.circle.fill")) }
         return values
     }
 

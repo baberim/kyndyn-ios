@@ -100,6 +100,33 @@ final class SystemIntelligenceTests: XCTestCase {
 }
 
 final class ProgressionEngineTests: XCTestCase {
+    func testStartingXPAdjustmentChangesXPAndLevelWithoutInventingHistory() {
+        let household = Household(
+            name: "Fictional Family", timeZoneIdentifier: "UTC")
+        let person = Person(
+            householdID: household.id, name: "Avery", role: .child,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Tidy books", xp: 25,
+            participantIDs: [person.id])
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-08-11",
+            completedAt: .now, awardedXP: 25)
+
+        let progress = ProgressionEngine.progress(
+            personID: person.id, completions: [completion], now: .now,
+            timeZoneIdentifier: "UTC", startingXPAdjustment: 225)
+
+        XCTAssertEqual(progress.xp, 250)
+        XCTAssertEqual(progress.questXP, 25)
+        XCTAssertEqual(progress.level, 3)
+        XCTAssertEqual(progress.completedCount, 1)
+        XCTAssertEqual(progress.currentStreak, 1)
+        XCTAssertEqual(RecognitionEngine.badges(progress: progress).map(\.id),
+                       ["first-step"])
+    }
+
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)

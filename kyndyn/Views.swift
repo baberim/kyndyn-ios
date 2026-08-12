@@ -1064,7 +1064,11 @@ struct DashboardView: View {
                                 .padding(.horizontal)
                             householdDashboard(household)
                         } else if let person {
-                            let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                            let progress = ProgressionEngine.progress(
+                                personID: person.id, completions: completions,
+                                now: .now,
+                                timeZoneIdentifier: household.timeZoneIdentifier,
+                                startingXPAdjustment: person.startingXPAdjustment)
                             VStack(spacing: 18) {
                                 broadcastNavigation
                                 progressSummary(progress, tint: Color(hex: person.colorHex))
@@ -1331,7 +1335,8 @@ struct DashboardView: View {
         let completed = memberQuests.filter { $0.1 == .completed }.count
         let progress = ProgressionEngine.progress(
             personID: member.id, completions: completions, now: .now,
-            timeZoneIdentifier: household.timeZoneIdentifier)
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            startingXPAdjustment: member.startingXPAdjustment)
 
         return Button {
             app.selectedPersonID = member.id
@@ -1504,7 +1509,8 @@ struct ProgressDetailView: View {
     private var progress: PersonProgress {
         ProgressionEngine.progress(
             personID: person.id, completions: completions, now: .now,
-            timeZoneIdentifier: household.timeZoneIdentifier)
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            startingXPAdjustment: person.startingXPAdjustment)
     }
 
     var body: some View {
@@ -3088,13 +3094,18 @@ struct PersonEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query private var households: [Household]
+    @Query private var completions: [QuestCompletion]
     let person: Person?
     @State private var draft: PersonDraft
+    @State private var targetXP = 0
+    @State private var loadedTargetXP = false
 
     init(person: Person?) {
         self.person = person
         _draft = State(initialValue: person.map {
-            PersonDraft(name: $0.name, role: $0.role, colorHex: $0.colorHex, companionID: $0.companionID)
+            PersonDraft(name: $0.name, role: $0.role, colorHex: $0.colorHex,
+                        companionID: $0.companionID,
+                        startingXPAdjustment: $0.startingXPAdjustment)
         } ?? PersonDraft())
     }
 
@@ -3129,6 +3140,15 @@ struct PersonEditorView: View {
                 }
             }
             if let person {
+                Section("Progress") {
+                    LabeledContent("Current level", value: "\(targetXP / 100 + 1)")
+                    TextField("Total XP", value: $targetXP,
+                              format: .number.grouping(.never))
+                        .keyboardType(.numberPad)
+                    Text("Set the XP they should begin with in kyndyn. Quest history, streaks, badges, and family reward progress are not created or changed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 Section("Collection access") {
                     Text("Parents can make collection items available without changing earned progress.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -3153,13 +3173,25 @@ struct PersonEditorView: View {
         .background(KyndynScreenBackground())
         .navigationTitle(person == nil ? "New person" : "Edit person")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard !loadedTargetXP, let person else { return }
+            targetXP = max(0, questXP(for: person) + person.startingXPAdjustment)
+            loadedTargetXP = true
+        }
         .toolbar {
             if person == nil { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     guard let household = households.first else { return }
                     do {
-                        if let person { try app.updatePerson(person, draft: draft, context: context) }
+                        if let person {
+                            guard (0...1_000_000).contains(targetXP) else {
+                                app.errorMessage = "Total XP must be between 0 and 1,000,000."
+                                return
+                            }
+                            draft.startingXPAdjustment = targetXP - questXP(for: person)
+                            try app.updatePerson(person, draft: draft, context: context)
+                        }
                         else { try app.createPerson(draft, householdID: household.id, context: context) }
                         dismiss()
                     } catch { app.errorMessage = error.localizedDescription }
@@ -3172,6 +3204,11 @@ struct PersonEditorView: View {
     private var availableCompanions: [String] {
         person.map { CollectionCatalog.normalizedCompanions($0.earnedCompanionIDs) }
             ?? CollectionCatalog.starterCompanionIDs
+    }
+
+    private func questXP(for person: Person) -> Int {
+        completions.filter { $0.personID == person.id && $0.reversedAt == nil }
+            .reduce(0) { $0 + $1.awardedXP }
     }
 
     private func grantCompanion(_ id: String, to person: Person) {

@@ -356,6 +356,7 @@ enum SyncSnapshot {
                 "earnedCompanionIDs": value.earnedCompanionIDs.sorted().joined(separator: ","),
                 "backgroundID": value.backgroundID,
                 "earnedBackgroundIDs": value.earnedBackgroundIDs.sorted().joined(separator: ","),
+                "startingXPAdjustment": String(value.startingXPAdjustment),
                 "createdAt": value.createdAt.ISO8601Format(),
                 "deletedAt": value.deletedAt?.ISO8601Format() ?? ""
             ], mutationID: mutationID, tombstone: value.deletedAt != nil)
@@ -1046,6 +1047,9 @@ enum SyncRemoteApplier {
                    person.earnedBackgroundIDs.contains(background) {
                     person.backgroundID = background
                 }
+                person.startingXPAdjustment = Int(
+                    record.fields["startingXPAdjustment"] ?? "")
+                    ?? person.startingXPAdjustment
                 person.deletedAt = date(record.fields["deletedAt"])
             case .quest:
                 let id = record.entityID
