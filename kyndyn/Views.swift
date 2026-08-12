@@ -815,6 +815,7 @@ struct DashboardView: View {
     @Query private var goals: [RewardGoal]
     @Query private var deviceSettings: [LocalDeviceSettings]
     @Query private var quests: [Quest]
+    @Query private var broadcasts: [FamilyBroadcast]
     @State private var showMyProfile = false
     @State private var showProgress = false
     @State private var unlockToPresent: String?
@@ -829,6 +830,17 @@ struct DashboardView: View {
                         dashboardModePicker
                             .padding(.horizontal)
                             .padding(.top, 8)
+                        if let announcement = activeBroadcasts.first {
+                            NavigationLink {
+                                FamilyBroadcastListView()
+                            } label: {
+                                BroadcastCard(
+                                    broadcast: announcement,
+                                    additionalCount: max(0, activeBroadcasts.count - 1))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal)
+                        }
                         if deviceSettings.first?.showsHouseholdDashboard == true {
                             householdDashboard(household)
                         } else if let person {
@@ -911,6 +923,12 @@ struct DashboardView: View {
             }
             .onAppear { rotateGreeting() }
         }
+    }
+
+    private var activeBroadcasts: [FamilyBroadcast] {
+        broadcasts.filter {
+            $0.deletedAt == nil && ($0.expiresAt == nil || $0.expiresAt! > .now)
+        }.sorted { $0.createdAt > $1.createdAt }
     }
 
     private func unlockMessage(_ value: String?) -> String {
@@ -2083,6 +2101,228 @@ struct FamilySetupGuideView: View {
     }
 }
 
+struct BroadcastCard: View {
+    let broadcast: FamilyBroadcast
+    let additionalCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Family announcement", systemImage: "megaphone.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(KyndynTheme.purple)
+                Spacer()
+                if additionalCount > 0 {
+                    Text("+\(additionalCount)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(broadcast.title).font(.headline)
+            Text(broadcast.message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            if let expiresAt = broadcast.expiresAt {
+                Text("Available until \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .kyndynCard(tint: KyndynTheme.purple)
+        .accessibilityIdentifier("home-family-announcement")
+    }
+}
+
+struct FamilyBroadcastListView: View {
+    @Query private var broadcasts: [FamilyBroadcast]
+    private var active: [FamilyBroadcast] {
+        broadcasts.filter {
+            $0.deletedAt == nil && ($0.expiresAt == nil || $0.expiresAt! > .now)
+        }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var body: some View {
+        List {
+            if active.isEmpty {
+                ContentUnavailableView(
+                    "No announcements", systemImage: "megaphone",
+                    description: Text("Family updates will appear here."))
+            } else {
+                ForEach(active) { broadcast in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(broadcast.title).font(.headline)
+                        Text(broadcast.message)
+                        Text(broadcast.createdAt.formatted(
+                            date: .abbreviated, time: .shortened))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Announcements")
+    }
+}
+
+struct FamilyBroadcastManagementView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @Query private var broadcasts: [FamilyBroadcast]
+    @Query private var cloudStates: [HouseholdCloudState]
+    @State private var showNew = false
+
+    private var canPublish: Bool {
+        cloudStates.first?.mode != .participant
+    }
+    private var ordered: [FamilyBroadcast] {
+        broadcasts.filter { $0.deletedAt == nil }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var body: some View {
+        List {
+            if !canPublish {
+                Section {
+                    Label("Only the household owner can publish announcements in this version.",
+                          systemImage: "person.crop.circle.badge.exclamationmark")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            if ordered.isEmpty {
+                ContentUnavailableView(
+                    "No announcements", systemImage: "megaphone",
+                    description: Text("Publish a short update for the family."))
+            } else {
+                ForEach(ordered) { broadcast in
+                    NavigationLink {
+                        FamilyBroadcastEditorView(broadcast: broadcast)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(broadcast.title).font(.headline)
+                            Text(broadcast.message).lineLimit(2)
+                                .foregroundStyle(.secondary)
+                            Text(status(broadcast))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(!canPublish)
+                    .swipeActions {
+                        if canPublish {
+                            Button("Archive", role: .destructive) {
+                                do {
+                                    try app.archiveBroadcast(
+                                        broadcast, context: context)
+                                } catch {
+                                    app.errorMessage = error.localizedDescription
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Announcements")
+        .toolbar {
+            if canPublish {
+                Button("New announcement", systemImage: "plus") {
+                    showNew = true
+                }
+                .accessibilityIdentifier("new-family-announcement")
+            }
+        }
+        .sheet(isPresented: $showNew) {
+            NavigationStack {
+                FamilyBroadcastEditorView(broadcast: nil)
+            }
+        }
+    }
+
+    private func status(_ broadcast: FamilyBroadcast) -> String {
+        guard let expiresAt = broadcast.expiresAt else { return "No expiration" }
+        return expiresAt > .now
+            ? "Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))"
+            : "Expired"
+    }
+}
+
+struct FamilyBroadcastEditorView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var households: [Household]
+    let broadcast: FamilyBroadcast?
+    @State private var draft: FamilyBroadcastDraft
+    @State private var hasExpiration: Bool
+    @State private var errorMessage: String?
+
+    init(broadcast: FamilyBroadcast?) {
+        self.broadcast = broadcast
+        _draft = State(initialValue: FamilyBroadcastDraft(
+            title: broadcast?.title ?? "Family update",
+            message: broadcast?.message ?? "",
+            expiresAt: broadcast?.expiresAt ?? Calendar.current.date(
+                byAdding: .day, value: 1, to: .now)))
+        _hasExpiration = State(initialValue: broadcast?.expiresAt != nil || broadcast == nil)
+    }
+
+    var body: some View {
+        Form {
+            Section("Announcement") {
+                TextField("Title", text: $draft.title)
+                    .textInputAutocapitalization(.sentences)
+                TextField("Message", text: $draft.message, axis: .vertical)
+                    .lineLimit(4...8)
+                Text("\(draft.message.count) / 500")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Availability") {
+                Toggle("Automatically expire", isOn: $hasExpiration)
+                if hasExpiration {
+                    DatePicker(
+                        "Expires", selection: Binding(
+                            get: { draft.expiresAt ?? .now.addingTimeInterval(86_400) },
+                            set: { draft.expiresAt = $0 }),
+                        in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                }
+                Text("Expired announcements leave the family Home screen but remain available to the owner until archived.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle(broadcast == nil ? "New announcement" : "Edit announcement")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                if broadcast == nil { Button("Cancel") { dismiss() } }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Publish") { save() }
+                    .accessibilityIdentifier("publish-family-announcement")
+            }
+        }
+        .alert("Couldn’t publish", isPresented: Binding(
+            get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
+        )) { Button("OK") {} } message: { Text(errorMessage ?? "Try again.") }
+    }
+
+    private func save() {
+        guard let household = households.first else { return }
+        draft.expiresAt = hasExpiration ? draft.expiresAt : nil
+        do {
+            try app.saveBroadcast(
+                broadcast, draft: draft, household: household,
+                context: context)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
     @Query private var households: [Household]
@@ -2131,6 +2371,9 @@ struct ParentAreaView: View {
                         NavigationLink { FamilyRewardSettingsView() } label: {
                             Label("Update family reward", systemImage: "gift")
                         }
+                        NavigationLink { FamilyBroadcastManagementView() } label: {
+                            Label("Share an announcement", systemImage: "megaphone.fill")
+                        }
                         NavigationLink { CloudSyncSettingsView() } label: {
                             Label(syncSummary, systemImage: "icloud")
                         }
@@ -2147,6 +2390,9 @@ struct ParentAreaView: View {
                     }
                     NavigationLink { FamilyRewardSettingsView() } label: {
                         Label("Family reward", systemImage: "gift.fill")
+                    }
+                    NavigationLink { FamilyBroadcastManagementView() } label: {
+                        Label("Announcements", systemImage: "megaphone.fill")
                     }
                     NavigationLink { CloudSyncSettingsView() } label: {
                         Label("Family sync", systemImage: "icloud")
@@ -3143,6 +3389,7 @@ struct CloudSyncSettingsView: View {
     @Query private var completions: [QuestCompletion]
     @Query private var goals: [RewardGoal]
     @Query private var sharedSettings: [HouseholdSettings]
+    @Query private var broadcasts: [FamilyBroadcast]
     @Query private var cloudStates: [HouseholdCloudState]
     @Query private var pending: [PendingSyncMutation]
     @State private var confirmEnable = false
@@ -3187,11 +3434,13 @@ struct CloudSyncSettingsView: View {
             if let household {
                 let preview = sync.preview(
                     household: household, people: people, quests: quests,
-                    completions: completions, goals: goals)
+                    completions: completions, goals: goals,
+                    broadcasts: broadcasts)
                 Section("Ready to synchronize") {
                     LabeledContent("People", value: "\(preview.people)")
                     LabeledContent("Quests", value: "\(preview.quests)")
                     LabeledContent("Completion events", value: "\(preview.completions)")
+                    LabeledContent("Announcements", value: "\(preview.broadcasts)")
                     LabeledContent("Cloud records", value: "\(preview.totalRecords)")
                 }
                 Section {
@@ -3306,6 +3555,7 @@ struct CloudSyncSettingsView: View {
         records += completions.map { SyncSnapshot.completion($0) }
         records += goals.map { SyncSnapshot.reward($0) }
         records += sharedSettings.map { SyncSnapshot.settings($0) }
+        records += broadcasts.map { SyncSnapshot.broadcast($0) }
         Task {
             await sync.provisionOwner(
                 household: household, records: records,
@@ -3386,7 +3636,9 @@ struct NotificationSettingsView: View {
                     }
                 }
                 Section("This device") {
-                    Toggle("Enable quest reminders", isOn: binding(setting, \.notificationsEnabled))
+                    Toggle("Enable notifications", isOn: binding(setting, \.notificationsEnabled))
+                    Toggle("Family announcements", isOn: binding(
+                        setting, \.broadcastNotificationsEnabled))
                     Picker("Device profile", selection: optionalBinding(setting, \.devicePersonID)) {
                         Text("Not assigned").tag(UUID?.none)
                         ForEach(people.filter { $0.deletedAt == nil }) { Text($0.name).tag(Optional($0.id)) }
@@ -3401,6 +3653,8 @@ struct NotificationSettingsView: View {
                 }
                 Section("Lock screen privacy") {
                     Toggle("Show quest titles", isOn: binding(setting, \.showQuestDetailsOnLockScreen))
+                    Toggle("Show announcement details", isOn: binding(
+                        setting, \.showBroadcastDetailsOnLockScreen))
                     Text(setting.showQuestDetailsOnLockScreen ? "Reminder previews may reveal quest names on the lock screen." : "Reminders use general wording until kyndyn is opened.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }

@@ -417,6 +417,23 @@ enum SyncSnapshot {
             fields: ["parentProtectionEnabled": String(value.parentProtectionEnabled)],
             mutationID: mutationID)
     }
+
+    static func broadcast(
+        _ value: FamilyBroadcast, mutationID: UUID = UUID()
+    ) -> CloudRecordEnvelope {
+        CloudRecordEnvelope(
+            type: .familyBroadcast, entityID: value.id,
+            householdID: value.householdID,
+            fields: [
+                "title": value.title,
+                "message": value.message,
+                "createdAt": value.createdAt.ISO8601Format(),
+                "updatedAt": value.updatedAt.ISO8601Format(),
+                "expiresAt": value.expiresAt?.ISO8601Format() ?? "",
+                "deletedAt": value.deletedAt?.ISO8601Format() ?? ""
+            ], modifiedAt: value.updatedAt, mutationID: mutationID,
+            tombstone: value.deletedAt != nil)
+    }
 }
 
 @MainActor
@@ -464,6 +481,7 @@ struct ProvisioningPreview: Equatable {
     var quests: Int
     var completions: Int
     var goals: Int
+    var broadcasts: Int
     var totalRecords: Int
 }
 
@@ -556,6 +574,7 @@ struct ProvisioningPreview: Equatable {
             statusMessage = "Your family was recovered from iCloud."
             lastErrorCategory = nil
             await refreshRemindersIfNeeded(candidate.records, context: context)
+            await notifyNewBroadcasts(candidate.records, context: context)
             return state
         } catch let error as CloudGatewayError {
             context.rollback()
@@ -590,11 +609,13 @@ struct ProvisioningPreview: Equatable {
     }
 
     func preview(household: Household, people: [Person], quests: [Quest],
-                 completions: [QuestCompletion], goals: [RewardGoal]) -> ProvisioningPreview {
+                 completions: [QuestCompletion], goals: [RewardGoal],
+                 broadcasts: [FamilyBroadcast] = []) -> ProvisioningPreview {
         ProvisioningPreview(people: people.count, quests: quests.count,
             completions: completions.count, goals: goals.count,
+            broadcasts: broadcasts.count,
             totalRecords: 1 + people.count + quests.count * 2 +
-                completions.count + goals.count)
+                completions.count + goals.count + broadcasts.count)
     }
 
     func provisionOwner(household: Household, records: [CloudRecordEnvelope],
@@ -731,6 +752,7 @@ struct ProvisioningPreview: Equatable {
                     after: state.changeToken)
                 try SyncRemoteApplier.apply(changes.records, context: context)
                 await refreshRemindersIfNeeded(changes.records, context: context)
+                await notifyNewBroadcasts(changes.records, context: context)
                 state.changeToken = changes.changeToken
             } catch CloudGatewayError.staleChangeToken {
                 state.changeToken = nil
@@ -739,6 +761,7 @@ struct ProvisioningPreview: Equatable {
                     zoneOwnerName: state.zoneOwnerName, after: nil)
                 try SyncRemoteApplier.apply(changes.records, context: context)
                 await refreshRemindersIfNeeded(changes.records, context: context)
+                await notifyNewBroadcasts(changes.records, context: context)
                 state.changeToken = changes.changeToken
             }
             state.mode = state.databaseScope == .privateDatabase ? .owner : .participant
@@ -808,6 +831,7 @@ struct ProvisioningPreview: Equatable {
             statusMessage = "Joined family"
             try context.save()
             await refreshRemindersIfNeeded(changes.records, context: context)
+            await notifyNewBroadcasts(changes.records, context: context)
             return state
         } catch let error as CloudGatewayError {
             lastErrorCategory = error.category
@@ -866,6 +890,9 @@ struct ProvisioningPreview: Equatable {
         records += try context.fetch(FetchDescriptor<HouseholdSettings>())
             .filter { $0.householdID == householdID }
             .map { SyncSnapshot.settings($0) }
+        records += try context.fetch(FetchDescriptor<FamilyBroadcast>())
+            .filter { $0.householdID == householdID }
+            .map { SyncSnapshot.broadcast($0) }
         return records
     }
 
@@ -888,6 +915,51 @@ struct ProvisioningPreview: Equatable {
             household: household, completions: completions,
             reminderPreferences: reminders, now: .now)
         try? await notificationScheduler.replaceKyndynReminders(with: candidates)
+    }
+
+    private func notifyNewBroadcasts(
+        _ records: [CloudRecordEnvelope], context: ModelContext,
+        now: Date = .now
+    ) async {
+        guard let settings = try? context.fetch(
+            FetchDescriptor<LocalDeviceSettings>()).first,
+              settings.notificationsEnabled,
+              settings.broadcastNotificationsEnabled else { return }
+        let metadata = (try? context.fetch(
+            FetchDescriptor<SyncRecordMetadata>())) ?? []
+        for record in records where record.type == .familyBroadcast &&
+            !record.tombstone && !settings.notifiedBroadcastIDs.contains(
+                record.entityID) {
+            guard let broadcast = try? context.fetch(
+                FetchDescriptor<FamilyBroadcast>(predicate: #Predicate {
+                    $0.id == record.entityID
+                })).first,
+                  broadcast.deletedAt == nil,
+                  broadcast.expiresAt == nil || broadcast.expiresAt! > now else {
+                continue
+            }
+            var localMetadata: SyncRecordMetadata?
+            for item in metadata {
+                if item.entityID == record.entityID,
+                   item.entityTypeRaw == SyncEntityType.familyBroadcast.rawValue {
+                    localMetadata = item
+                    break
+                }
+            }
+            if localMetadata?.lastMutationID != record.mutationID {
+                do {
+                    try await notificationScheduler.notifyBroadcast(
+                        id: broadcast.id, title: broadcast.title,
+                        message: broadcast.message,
+                        showDetails: settings.showBroadcastDetailsOnLockScreen)
+                } catch { continue }
+            }
+            settings.notifiedBroadcastIDs.append(broadcast.id)
+            if settings.notifiedBroadcastIDs.count > 200 {
+                settings.notifiedBroadcastIDs.removeFirst(
+                    settings.notifiedBroadcastIDs.count - 200)
+            }
+        }
     }
 
     private func apply(error: CloudGatewayError, state: HouseholdCloudState) {
@@ -923,7 +995,8 @@ enum SyncRemoteApplier {
                       context: ModelContext) throws {
         let order: [SyncEntityType: Int] = [
             .household: 0, .person: 1, .quest: 2, .questSchedule: 3,
-            .questCompletion: 4, .rewardGoal: 5, .householdSettings: 6
+            .questCompletion: 4, .rewardGoal: 5, .householdSettings: 6,
+            .familyBroadcast: 7
         ]
         for record in records.sorted(by: {
             order[$0.type, default: 99] < order[$1.type, default: 99]
@@ -1067,6 +1140,26 @@ enum SyncRemoteApplier {
                 }
                 settings.parentProtectionEnabled =
                     record.fields["parentProtectionEnabled"] == "true"
+            case .familyBroadcast:
+                let id = record.entityID
+                let existing = try context.fetch(
+                    FetchDescriptor<FamilyBroadcast>(
+                        predicate: #Predicate { $0.id == id })).first
+                let broadcast = existing ?? FamilyBroadcast(
+                    id: id, householdID: record.householdID,
+                    title: record.fields["title"] ?? "Family update",
+                    message: record.fields["message"] ?? "",
+                    createdAt: date(record.fields["createdAt"]) ?? .now)
+                if existing == nil { context.insert(broadcast) }
+                broadcast.title = record.fields["title"] ?? broadcast.title
+                broadcast.message = record.fields["message"] ?? broadcast.message
+                broadcast.updatedAt = date(record.fields["updatedAt"])
+                    ?? record.modifiedAt
+                broadcast.expiresAt = date(record.fields["expiresAt"])
+                broadcast.deletedAt = date(record.fields["deletedAt"])
+                if record.tombstone, broadcast.deletedAt == nil {
+                    broadcast.deletedAt = record.modifiedAt
+                }
             }
             let metadataID = "\(record.type.rawValue):\(record.entityID.uuidString.lowercased())"
             let metadata = try context.fetch(FetchDescriptor<SyncRecordMetadata>())
@@ -1556,6 +1649,7 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
         case .questCompletion: return "kyndynQuestCompletion"
         case .rewardGoal: return "kyndynRewardGoal"
         case .householdSettings: return "kyndynHouseholdSettings"
+        case .familyBroadcast: return "kyndynFamilyBroadcast"
         }
     }
 

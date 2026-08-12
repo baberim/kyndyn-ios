@@ -8,6 +8,7 @@ enum KyndynValidationError: LocalizedError, Equatable {
     case invalidXP, noParticipants, noWeekdays, invalidWeekdays
     case invalidRepeatInterval, deadlineBeforeStart, lastParent, archivedParticipant
     case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
+    case emptyBroadcastMessage, broadcastMessageTooLong, broadcastExpired
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,11 @@ enum KyndynValidationError: LocalizedError, Equatable {
         case .emptyRewardTitle: return "Enter a family reward."
         case .rewardTitleTooLong: return "Keep family rewards to 80 characters or fewer."
         case .invalidRewardTarget: return "The family XP goal must be between 1 and 1,000,000."
+        case .emptyBroadcastMessage: return "Enter an announcement message."
+        case .broadcastMessageTooLong:
+            return "Keep announcement messages to 500 characters or fewer."
+        case .broadcastExpired:
+            return "Choose an expiration time in the future."
         }
     }
 }
@@ -54,6 +60,13 @@ struct QuestDraft {
     var dueTime = Date()
     var reminderEnabled = false
     var reminderTime = Date()
+}
+
+struct FamilyBroadcastDraft {
+    var title = "Family update"
+    var message = ""
+    var expiresAt: Date? = Calendar.current.date(
+        byAdding: .day, value: 1, to: .now)
 }
 
 enum CompletionIdentity {
@@ -469,6 +482,57 @@ enum LifecycleRules {
         try SyncQueue.enqueue(
             SyncSnapshot.household(household), operation: .createOrUpdate,
             context: context)
+    }
+
+    @discardableResult
+    func saveBroadcast(
+        _ existing: FamilyBroadcast?, draft: FamilyBroadcastDraft,
+        household: Household, context: ModelContext, now: Date = .now
+    ) throws -> FamilyBroadcast {
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = draft.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw KyndynValidationError.emptyTitle }
+        guard title.count <= 80 else { throw KyndynValidationError.titleTooLong }
+        guard !message.isEmpty else {
+            throw KyndynValidationError.emptyBroadcastMessage
+        }
+        guard message.count <= 500 else {
+            throw KyndynValidationError.broadcastMessageTooLong
+        }
+        if let expiresAt = draft.expiresAt, expiresAt <= now {
+            throw KyndynValidationError.broadcastExpired
+        }
+        let value = existing ?? FamilyBroadcast(
+            householdID: household.id, title: title, message: message,
+            createdAt: now)
+        value.title = title
+        value.message = message
+        value.expiresAt = draft.expiresAt
+        value.updatedAt = now
+        value.deletedAt = nil
+        if existing == nil { context.insert(value) }
+        try context.save()
+        try SyncQueue.enqueue(
+            SyncSnapshot.broadcast(value), operation: .createOrUpdate,
+            context: context)
+        NotificationCenter.default.post(
+            name: .kyndynAutomaticSyncRequested, object: nil,
+            userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
+        return value
+    }
+
+    func archiveBroadcast(
+        _ broadcast: FamilyBroadcast, context: ModelContext, now: Date = .now
+    ) throws {
+        broadcast.deletedAt = now
+        broadcast.updatedAt = now
+        try context.save()
+        try SyncQueue.enqueue(
+            SyncSnapshot.broadcast(broadcast), operation: .archive,
+            context: context)
+        NotificationCenter.default.post(
+            name: .kyndynAutomaticSyncRequested, object: nil,
+            userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
     }
 
     private func dueAt(_ draft: QuestDraft, household: Household) -> Date? {

@@ -344,6 +344,9 @@ protocol NotificationScheduling: Sendable {
     func permissionState() async -> NotificationPermissionState
     func requestPermission() async -> NotificationPermissionState
     func replaceKyndynReminders(with candidates: [ReminderCandidate]) async throws
+    func notifyBroadcast(
+        id: UUID, title: String, message: String, showDetails: Bool
+    ) async throws
 }
 
 struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
@@ -389,6 +392,20 @@ struct UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
                 trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             ))
         }
+    }
+
+    func notifyBroadcast(
+        id: UUID, title: String, message: String, showDetails: Bool
+    ) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = showDetails ? title : "New Kyndyn announcement"
+        content.body = showDetails
+            ? message : "Open Kyndyn to read the family update."
+        content.sound = .default
+        content.userInfo = ["kyndynBroadcastID": id.uuidString]
+        try await center.add(UNNotificationRequest(
+            identifier: "kyndyn.broadcast.\(id.uuidString.lowercased())",
+            content: content, trigger: nil))
     }
 }
 

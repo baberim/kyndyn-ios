@@ -64,11 +64,17 @@ private actor InterruptingTransport: HouseholdCloudTransport {
 private actor RecordingNotificationScheduler: NotificationScheduling {
     private(set) var replacements = 0
     private(set) var latest: [ReminderCandidate] = []
+    private(set) var broadcastIDs: [UUID] = []
     func permissionState() async -> NotificationPermissionState { .authorized }
     func requestPermission() async -> NotificationPermissionState { .authorized }
     func replaceKyndynReminders(with candidates: [ReminderCandidate]) async throws {
         replacements += 1
         latest = candidates
+    }
+    func notifyBroadcast(
+        id: UUID, title: String, message: String, showDetails: Bool
+    ) async throws {
+        broadcastIDs.append(id)
     }
 }
 
