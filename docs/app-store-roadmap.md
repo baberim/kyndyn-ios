@@ -139,10 +139,31 @@ the remaining physical-device validation boundary.
 - Keep announcements separate from synchronization notifications and quest
   reminders.
 
+### Build 13 — Immersive Personal Home
+
+- Replace the ambiguous Home personalization shortcut with a familiar,
+  clearly labeled route to Settings, or remove it when the existing profile
+  and Settings navigation makes it redundant.
+- Recompose the selected background and companion as the Home header itself:
+  the scene supplies the header atmosphere, the companion sits within it, and
+  greeting, encouragement, and profile context remain legible parts of one
+  responsive composition rather than a separate image card.
+- Use safe-area-aware crops, gradients, and contrast treatments so the header
+  works in light and dark mode without obscuring navigation or text.
+- Adapt the composition for compact iPhones, larger Dynamic Type, iPad,
+  landscape, VoiceOver, and Reduce Motion.
+- Preserve earned-item rules and synchronized companion/background selection;
+  this build changes presentation rather than progression or ownership.
+
 ## Later
 
-- Read-only calendar integration with explicit permission and privacy design.
-- Weather as derived, replaceable cache data rather than shared source truth.
+- Build 14A: read-only calendar integration with explicit permission and
+  privacy design.
+- Build 14B: weather as derived, replaceable cache data rather than shared
+  source truth.
+- A later hosted-notification build may add APNs-backed prompt broadcast
+  delivery; Build 12 remains CloudKit-driven and best-effort without claiming
+  guaranteed background delivery.
 - Business Model and Entitlements must be designed and approved before adding
   StoreKit:
   - Keep the core family loop free: one household, parent and child profiles,

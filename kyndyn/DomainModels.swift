@@ -176,11 +176,14 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var title: String
     var message: String
     var createdAt: Date
+    var updatedAt: Date = Date()
     var expiresAt: Date?
     var deletedAt: Date?
-    init(householdID: UUID, title: String, message: String) {
-        self.id = UUID(); self.householdID = householdID; self.title = title
-        self.message = message; self.createdAt = .now
+    init(id: UUID = UUID(), householdID: UUID, title: String,
+         message: String, createdAt: Date = .now) {
+        self.id = id; self.householdID = householdID; self.title = title
+        self.message = message; self.createdAt = createdAt
+        self.updatedAt = createdAt
     }
 }
 
@@ -226,6 +229,9 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var defaultReminderHour: Int = 16
     var defaultReminderMinute: Int = 0
     var showQuestDetailsOnLockScreen: Bool = false
+    var broadcastNotificationsEnabled: Bool = true
+    var showBroadcastDetailsOnLockScreen: Bool = false
+    var notifiedBroadcastIDs: [UUID] = []
     var showsHouseholdDashboard: Bool = false
     init() {
         self.id = UUID()
@@ -239,6 +245,9 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.defaultReminderHour = 16
         self.defaultReminderMinute = 0
         self.showQuestDetailsOnLockScreen = false
+        self.broadcastNotificationsEnabled = true
+        self.showBroadcastDetailsOnLockScreen = false
+        self.notifiedBroadcastIDs = []
         self.showsHouseholdDashboard = false
     }
 }
@@ -277,7 +286,7 @@ enum ProvisioningStage: String, Codable, CaseIterable {
 
 enum SyncEntityType: String, Codable, CaseIterable {
     case household, person, quest, questSchedule, questCompletion
-    case rewardGoal, householdSettings
+    case rewardGoal, householdSettings, familyBroadcast
 }
 
 enum SyncOperation: String, Codable {

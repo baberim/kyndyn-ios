@@ -4,6 +4,7 @@ import AppIntents
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 
 private final class SendableBackgroundRefreshTask: @unchecked Sendable {
     let value: BGAppRefreshTask
@@ -32,7 +33,8 @@ private final class SendableBackgroundRefreshTask: @unchecked Sendable {
     func clear() { pending = nil }
 }
 
-final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
+final class CloudShareAppDelegate: NSObject, UIApplicationDelegate,
+    UNUserNotificationCenterDelegate {
     static let refreshIdentifier = "com.kyndynfamily.kyndyn.sync-refresh"
 
     func application(
@@ -40,6 +42,7 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions:
             [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
         application.registerForRemoteNotifications()
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.refreshIdentifier,
@@ -47,6 +50,13 @@ final class CloudShareAppDelegate: NSObject, UIApplicationDelegate {
             launchHandler: Self.handleBackgroundRefresh
         )
         return true
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .list]
     }
 
     nonisolated private static func handleBackgroundRefresh(_ task: BGTask) {
