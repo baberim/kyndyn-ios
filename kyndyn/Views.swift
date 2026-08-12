@@ -837,8 +837,8 @@ struct DashboardView: View {
                                 accent: Color(hex: person.colorHex)
                             )
                             .frame(height: dynamicTypeSize.isAccessibilitySize
-                                   ? 430
-                                   : (horizontalSizeClass == .regular ? 410 : 355))
+                                   ? 380
+                                   : (horizontalSizeClass == .regular ? 350 : 300))
                             .accessibilityIdentifier("home-profile-scene")
                         }
                         dashboardModePicker

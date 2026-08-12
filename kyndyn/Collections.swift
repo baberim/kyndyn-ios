@@ -227,6 +227,16 @@ struct ImmersiveProfileHeader: View {
         } ?? CollectionCatalog.backgrounds[0]
 
         GeometryReader { proxy in
+            let widthRatio: CGFloat = dynamicTypeSize.isAccessibilitySize
+                ? 0.31 : 0.42
+            let companionSize = min(
+                proxy.size.width * widthRatio,
+                proxy.size.height * 0.72,
+                230
+            )
+            let companionCenterX = proxy.size.width - 22 - companionSize / 2
+            let companionFeetY = proxy.size.height - 32
+
             ZStack {
                 background(definition, size: proxy.size)
 
@@ -249,19 +259,18 @@ struct ImmersiveProfileHeader: View {
                     endPoint: .trailing
                 )
 
+                Ellipse()
+                    .fill(.black.opacity(0.22))
+                    .frame(width: companionSize * 0.58, height: 13)
+                    .blur(radius: 3)
+                    .position(x: companionCenterX, y: companionFeetY)
+                    .accessibilityHidden(true)
+
                 CompanionArt(id: companionID)
-                    .frame(
-                        width: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
-                                                       ? 0.34 : 0.46),
-                                   proxy.size.height * 0.86),
-                        height: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
-                                                        ? 0.34 : 0.46),
-                                    proxy.size.height * 0.86)
-                    )
-                    .offset(
-                        x: min(proxy.size.width * (dynamicTypeSize.isAccessibilitySize
-                                                   ? 0.29 : 0.23), 210),
-                        y: proxy.size.height * 0.06
+                    .frame(width: companionSize, height: companionSize)
+                    .position(
+                        x: companionCenterX,
+                        y: companionFeetY - companionSize / 2
                     )
                     .shadow(color: .black.opacity(0.20), radius: 12, y: 8)
                     .accessibilityHidden(true)
@@ -279,7 +288,7 @@ struct ImmersiveProfileHeader: View {
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
                 .frame(maxWidth: proxy.size.width *
-                       (dynamicTypeSize.isAccessibilitySize ? 0.82 : 0.66),
+                       (dynamicTypeSize.isAccessibilitySize ? 0.78 : 0.60),
                        alignment: .leading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity,
                        alignment: .bottomLeading)
