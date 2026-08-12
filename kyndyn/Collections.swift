@@ -51,6 +51,7 @@ struct CompanionDefinition: Identifiable, Equatable {
     let id: String
     let name: String
     let requirement: Requirement
+    var artworkBaselineOffset: CGFloat = 16
 
     var unlockHint: String {
         switch requirement {
@@ -225,6 +226,7 @@ struct ImmersiveProfileHeader: View {
         let definition = CollectionCatalog.backgrounds.first {
             $0.id == backgroundID
         } ?? CollectionCatalog.backgrounds[0]
+        let companionDefinition = CollectionCatalog.companion(named: companionID)
 
         GeometryReader { proxy in
             let widthRatio: CGFloat = dynamicTypeSize.isAccessibilitySize
@@ -271,6 +273,7 @@ struct ImmersiveProfileHeader: View {
                     .position(
                         x: companionCenterX,
                         y: companionFeetY - companionSize / 2
+                            + companionDefinition.artworkBaselineOffset
                     )
                     .shadow(color: .black.opacity(0.20), radius: 12, y: 8)
                     .accessibilityHidden(true)

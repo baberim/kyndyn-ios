@@ -9,6 +9,9 @@ it as a separate preview card.
   extends behind the status bar and Dynamic Island on iPhone and through the
   top safe-area region on iPad.
 - The selected companion is composed into that scene as foreground artwork.
+- Companion art uses a shared contact shadow plus a catalog-defined optical
+  baseline. Most companions use the common default, while unusually padded
+  artwork can be tuned without adding character-specific layout code.
 - The person's greeting and rotating encouragement are rendered inside the
   scene with contrast gradients and shadows for legibility.
 - Family announcements follow the personal header, so communication remains
