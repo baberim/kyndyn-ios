@@ -560,6 +560,7 @@ struct ProfilePickerView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
+    @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
     let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
 
@@ -605,13 +606,16 @@ struct ProfilePickerView: View {
                                 Text(person.role == .parent ? "Parent" : "Family member")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                Text("Level \(level(for: person))")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color(hex: person.colorHex))
                             }
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                        .accessibilityValue("\(ProfilePalette.name(for: person.colorHex)) profile color")
+                        .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
                         .accessibilityHint("Shows this person’s kyndyn dashboard")
                         .accessibilityIdentifier("profile-\(person.name)")
                     }
@@ -623,6 +627,13 @@ struct ProfilePickerView: View {
             .background(KyndynScreenBackground())
             .navigationTitle("kyndyn")
         }
+    }
+
+    private func level(for person: Person) -> Int {
+        let questXP = completions.lazy
+            .filter { $0.personID == person.id && $0.reversedAt == nil }
+            .reduce(0) { $0 + $1.awardedXP }
+        return max(0, questXP + person.startingXPAdjustment) / 100 + 1
     }
 }
 
@@ -1463,8 +1474,21 @@ struct DashboardView: View {
         } label: {
             VStack(spacing: 14) {
                 HStack {
-                    Label("Your progress", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.headline)
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Your progress")
+                                .font(.title3.bold())
+                            Text("Level \(progress.level) journey")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.title3.bold())
+                            .foregroundStyle(tint)
+                            .frame(width: 38, height: 38)
+                            .background(tint.opacity(0.14), in: Circle())
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.bold())
@@ -1478,14 +1502,31 @@ struct DashboardView: View {
                     ProgressStat(
                         value: "\(progress.currentStreak)", label: "Day streak")
                 }
+                VStack(spacing: 6) {
+                    ProgressView(
+                        value: Double(progress.xp % 100), total: 100)
+                        .tint(tint)
+                    HStack {
+                        Text("Level \(progress.level)")
+                        Spacer()
+                        Text("\(xpToNextLevel(progress)) XP to Level \(progress.level + 1)")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                }
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .kyndynCard(tint: tint)
+        .kyndynCard(tint: tint, raised: true)
         .accessibilityIdentifier("home-progress-summary")
         .accessibilityHint("Shows progress details")
+    }
+
+    private func xpToNextLevel(_ progress: PersonProgress) -> Int {
+        100 - (progress.xp % 100)
     }
 }
 
