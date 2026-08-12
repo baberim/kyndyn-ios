@@ -2705,6 +2705,14 @@ struct ParentAreaView: View {
                                          total: Double(rewardTarget(household)))
                         }
                     }
+                    Section("This week") {
+                        NavigationLink {
+                            FamilyInsightsView()
+                        } label: {
+                            weeklyPreview(household)
+                        }
+                        .accessibilityIdentifier("parent-weekly-insights")
+                    }
                     Section("Quick actions") {
                         NavigationLink { QuestEditorView(quest: nil) } label: {
                             parentRow("Create a quest", "Add a task and choose who it belongs to", "plus.circle.fill", .blue)
@@ -2741,6 +2749,9 @@ struct ParentAreaView: View {
                     }
                     NavigationLink { FamilyBroadcastManagementView() } label: {
                         parentRow("Announcements", "Current and archived family updates", "megaphone.fill", .orange)
+                    }
+                    NavigationLink { FamilyInsightsView() } label: {
+                        parentRow("Insights", "Weekly family and individual progress", "chart.xyaxis.line", KyndynTheme.green)
                     }
                 }
                 Section("Device and privacy") {
@@ -2834,6 +2845,32 @@ struct ParentAreaView: View {
     private func rewardXP(_ household: Household) -> Int {
         ProgressionEngine.rewardXP(completions, goal: currentGoal(household))
     }
+    private func weeklyPreview(_ household: Household) -> some View {
+        let insight = InsightsEngine.week(
+            containing: .now, now: .now, household: household,
+            people: people, quests: quests, completions: completions)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Weekly insights", systemImage: "chart.bar.fill")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text("\(insight.xp) XP")
+                    .font(.subheadline.bold().monospacedDigit())
+                    .foregroundStyle(KyndynTheme.green)
+            }
+            HStack(spacing: 16) {
+                Label("\(insight.completed) done", systemImage: "checkmark.circle.fill")
+                Label("\(insight.notCompleted) not completed", systemImage: "minus.circle.fill")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Text("See daily activity and individual trends")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
     private var syncSummary: String {
         guard let state = cloudStates.first else { return "Set up family sync" }
         switch state.mode {
@@ -2846,6 +2883,213 @@ struct ParentAreaView: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         return "\(version) (\(build))"
+    }
+}
+
+struct FamilyInsightsView: View {
+    @Query private var households: [Household]
+    @Query private var people: [Person]
+    @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+    @State private var weekOffset = 0
+
+    private var household: Household? { households.first }
+    private var selectedDate: Date {
+        let zone = household?.timeZoneIdentifier ?? TimeZone.current.identifier
+        return ProgressionEngine.calendar(timeZoneIdentifier: zone)
+            .date(byAdding: .weekOfYear, value: weekOffset, to: .now) ?? .now
+    }
+    private var insight: WeeklyInsight? {
+        household.map {
+            InsightsEngine.week(
+                containing: selectedDate, now: .now, household: $0,
+                people: people, quests: quests, completions: completions)
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            if let household, let insight {
+                VStack(alignment: .leading, spacing: 20) {
+                    weekPicker(insight)
+                    familyTotals(insight)
+                    dailyActivity(insight)
+                    peopleSection(insight, household: household)
+                    observations(insight)
+                }
+                .padding()
+                .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+                .frame(maxWidth: .infinity)
+            } else {
+                ContentUnavailableView("Insights unavailable", systemImage: "chart.bar")
+            }
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle("Insights")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func weekPicker(_ insight: WeeklyInsight) -> some View {
+        HStack {
+            Button("Previous week", systemImage: "chevron.left") {
+                weekOffset -= 1
+            }.labelStyle(.iconOnly)
+            Spacer()
+            VStack(spacing: 2) {
+                Text(weekOffset == 0 ? "This week" : weekOffset == -1 ? "Last week" : "Weekly summary")
+                    .font(.headline)
+                Text("\(insight.start.formatted(date: .abbreviated, time: .omitted)) – \(insight.end.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Next week", systemImage: "chevron.right") {
+                weekOffset += 1
+            }.labelStyle(.iconOnly).disabled(weekOffset >= 0)
+        }
+        .kyndynCard(tint: KyndynTheme.green)
+    }
+
+    private func familyTotals(_ insight: WeeklyInsight) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Family overview", systemImage: "person.3.fill").font(.headline)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 10) {
+                InsightMetric(value: insight.completed, label: "Completed", tint: .green)
+                InsightMetric(value: insight.notCompleted, label: "Not completed", tint: .orange)
+                InsightMetric(value: insight.waiting, label: "Waiting", tint: .blue)
+                InsightMetric(value: insight.xp, label: "XP earned", tint: KyndynTheme.purple)
+            }
+            if insight.concluded > 0 {
+                Text("\(insight.completionRate)% of concluded scheduled quests were completed.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }.kyndynCard(tint: KyndynTheme.green)
+    }
+
+    private func dailyActivity(_ insight: WeeklyInsight) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Daily activity", systemImage: "chart.bar.xaxis").font(.headline)
+            let peak = max(1, insight.days.map(\.completed).max() ?? 1)
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(insight.days) { day in
+                    VStack(spacing: 6) {
+                        Text("\(day.completed)").font(.caption2.monospacedDigit())
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(KyndynTheme.green.gradient)
+                            .frame(height: max(5, CGFloat(day.completed) / CGFloat(peak) * 78))
+                        Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity)
+                }
+            }.frame(height: 118, alignment: .bottom)
+            Text("Bars show completed quest occurrences. Today’s unfinished quests remain waiting until the day ends.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }.kyndynCard(tint: KyndynTheme.green)
+    }
+
+    private func peopleSection(_ insight: WeeklyInsight, household: Household) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Individual progress").font(.title3.bold())
+            ForEach(insight.people) { personInsight in
+                if let person = people.first(where: { $0.id == personInsight.personID }) {
+                    NavigationLink {
+                        PersonInsightsView(person: person, household: household)
+                    } label: {
+                        HStack(spacing: 12) {
+                            CompanionArt(id: person.companionID).frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(person.name).font(.headline).foregroundStyle(.primary)
+                                Text("\(personInsight.completed) completed · \(personInsight.xp) XP · Level \(personInsight.level)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if personInsight.concluded > 0 {
+                                    Text("\(personInsight.completionRate)% of concluded quests")
+                                        .font(.caption2).foregroundStyle(Color(hex: person.colorHex))
+                                }
+                            }
+                            Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }.kyndynCard(tint: Color(hex: person.colorHex))
+                    }.buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func observations(_ insight: WeeklyInsight) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Worth a look", systemImage: "eye.fill").font(.headline)
+            ForEach(insight.observations, id: \.self) { value in
+                Label(value, systemImage: "sparkle").font(.subheadline)
+            }
+            Text("These are factual summaries of family activity—not ratings or comparisons between people.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }.kyndynCard(tint: KyndynTheme.amber)
+    }
+}
+
+struct PersonInsightsView: View {
+    let person: Person
+    let household: Household
+    @Query private var people: [Person]
+    @Query private var quests: [Quest]
+    @Query private var completions: [QuestCompletion]
+
+    private var weeks: [WeeklyInsight] {
+        InsightsEngine.recentWeeks(
+            count: 4, now: .now, household: household, people: people,
+            quests: quests, completions: completions)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 14) {
+                    CompanionArt(id: person.companionID).frame(width: 64, height: 64)
+                    VStack(alignment: .leading) {
+                        Text(person.name).font(.title2.bold())
+                        Text("Four-week progress").foregroundStyle(.secondary)
+                    }
+                }.kyndynCard(tint: Color(hex: person.colorHex), raised: true)
+                VStack(alignment: .leading, spacing: 14) {
+                    Label("Weekly trend", systemImage: "chart.line.uptrend.xyaxis").font(.headline)
+                    ForEach(weeks) { week in
+                        if let value = week.people.first(where: { $0.personID == person.id }) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(week.start.formatted(.dateTime.month(.abbreviated).day()))
+                                    Spacer()
+                                    Text("\(value.completed) completed · \(value.xp) XP")
+                                        .monospacedDigit()
+                                }.font(.subheadline)
+                                ProgressView(value: Double(value.completionRate), total: 100)
+                                    .tint(Color(hex: person.colorHex))
+                                Text(value.concluded == 0 ? "No concluded scheduled quests" : "\(value.completionRate)% of concluded quests")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }.kyndynCard(tint: Color(hex: person.colorHex))
+                if let latest = weeks.last?.people.first(where: { $0.personID == person.id }) {
+                    HStack(spacing: 10) {
+                        InsightMetric(value: latest.currentStreak, label: "Day streak", tint: .orange)
+                        InsightMetric(value: latest.level, label: "Current level", tint: Color(hex: person.colorHex))
+                    }
+                }
+                KyndynCallout(kind: .information, message: "Progress compares this person only with their own activity. Starting XP affects total level but is never reported as XP earned during a week.")
+            }.padding().frame(maxWidth: AdaptiveLayout.managementContentMaximum).frame(maxWidth: .infinity)
+        }.background(KyndynScreenBackground()).navigationTitle(person.name)
+    }
+}
+
+private struct InsightMetric: View {
+    let value: Int
+    let label: String
+    let tint: Color
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(value)").font(.title2.bold()).monospacedDigit()
+            Text(label).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }.frame(maxWidth: .infinity, minHeight: 68)
+            .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
+            .accessibilityElement(children: .combine)
     }
 }
 

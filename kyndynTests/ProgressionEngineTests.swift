@@ -100,6 +100,66 @@ final class SystemIntelligenceTests: XCTestCase {
 }
 
 final class ProgressionEngineTests: XCTestCase {
+    func testWeeklyInsightsSeparateCompletedMissedWaitingAndStartingXP() throws {
+        let household = Household(
+            name: "Fictional Insight Family", timeZoneIdentifier: "UTC")
+        let person = Person(
+            householdID: household.id, name: "Avery", role: .child,
+            colorHex: "#6F2DBD", companionID: "spark")
+        person.startingXPAdjustment = 250
+        let quest = Quest(
+            householdID: household.id, title: "Morning routine", xp: 10,
+            participantIDs: [person.id], scheduleKind: .daily,
+            startDate: ISO8601DateFormatter().date(from: "2026-08-10T00:00:00Z")!)
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-08-10",
+            completedAt: ISO8601DateFormatter().date(from: "2026-08-10T12:00:00Z")!,
+            awardedXP: 10)
+        let now = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-08-12T12:00:00Z"))
+
+        let result = InsightsEngine.week(
+            containing: now, now: now, household: household,
+            people: [person], quests: [quest], completions: [completion])
+
+        XCTAssertEqual(result.completed, 1)
+        XCTAssertEqual(result.notCompleted, 1)
+        XCTAssertEqual(result.waiting, 1)
+        XCTAssertEqual(result.xp, 10)
+        XCTAssertEqual(result.people.first?.level, 3)
+        XCTAssertEqual(result.people.first?.xp, 10)
+    }
+
+    func testWeeklyInsightsIgnoreUndoneAndFutureOccurrences() throws {
+        let household = Household(
+            name: "Fictional Insight Family", timeZoneIdentifier: "UTC")
+        let person = Person(
+            householdID: household.id, name: "Avery", role: .child,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Daily routine", xp: 15,
+            participantIDs: [person.id], scheduleKind: .daily,
+            startDate: ISO8601DateFormatter().date(from: "2026-08-10T00:00:00Z")!)
+        let event = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id, occurrenceDay: "2026-08-10",
+            completedAt: ISO8601DateFormatter().date(from: "2026-08-10T12:00:00Z")!,
+            awardedXP: 15)
+        event.reversedAt = ISO8601DateFormatter().date(from: "2026-08-10T13:00:00Z")!
+        let now = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-08-10T18:00:00Z"))
+
+        let result = InsightsEngine.week(
+            containing: now, now: now, household: household,
+            people: [person], quests: [quest], completions: [event])
+
+        XCTAssertEqual(result.completed, 0)
+        XCTAssertEqual(result.notCompleted, 0)
+        XCTAssertEqual(result.waiting, 1)
+        XCTAssertEqual(result.xp, 0)
+    }
+
     func testStartingXPAdjustmentChangesXPAndLevelWithoutInventingHistory() {
         let household = Household(
             name: "Fictional Family", timeZoneIdentifier: "UTC")

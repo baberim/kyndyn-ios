@@ -129,7 +129,7 @@ See `docs/build-10-quest-planning.md` for the implemented scope.
 See `docs/build-11-system-intelligence.md` for the implemented foundation and
 the remaining physical-device validation boundary.
 
-## Next
+## Completed through Build 14
 
 ### Build 12 — Family Communication
 
@@ -156,6 +156,26 @@ the remaining physical-device validation boundary.
   this build changes presentation rather than progression or ownership.
 
 See `docs/build-13-immersive-personal-home.md` for the implemented scope.
+
+## Next
+
+### Build 17A — Weekly Family Insights
+
+- Protected weekly family overview and daily activity chart.
+- Individual four-week completion and earned-XP trends.
+- Completed, not-completed, and waiting summaries using household-time-zone
+  boundaries.
+- Deterministic parent observations without rankings, sibling comparisons, or
+  behavioral profiling.
+- Starting XP contributes to current level but not weekly earned-XP reporting.
+
+See `docs/build-17a-weekly-insights.md` for the implemented scope.
+
+### Build 17B — Reward History and Private Reports
+
+- Durable reward-cycle history, including reached and replaced goals.
+- Locally generated, parent-previewed weekly or monthly report exports.
+- Accessibility and multi-device validation for the expanded insights flow.
 
 ## Later
 
