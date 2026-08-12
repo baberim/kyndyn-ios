@@ -243,17 +243,25 @@ struct ImmersiveProfileHeader: View {
                 background(definition, size: proxy.size)
 
                 background(definition, size: proxy.size)
-                    .blur(radius: 4.5)
-                    .scaleEffect(1.025)
+                    .blur(radius: 2.2)
+                    .scaleEffect(1.015)
+                    .opacity(0.34)
+
+                background(definition, size: proxy.size)
+                    .blur(radius: 3.4)
+                    .scaleEffect(1.02)
                     .mask {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.46),
-                                .init(color: .black.opacity(0.35), location: 0.66),
-                                .init(color: .black, location: 1.0)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                        RadialGradient(
+                            colors: [.black, .black.opacity(0.50), .clear],
+                            center: UnitPoint(
+                                x: max(0.55, min(0.85,
+                                    companionCenterX / proxy.size.width)),
+                                y: max(0.35, min(0.72,
+                                    (companionFeetY - companionSize * 0.42)
+                                    / proxy.size.height))
+                            ),
+                            startRadius: companionSize * 0.10,
+                            endRadius: companionSize * 1.18
                         )
                     }
                     .accessibilityHidden(true)
