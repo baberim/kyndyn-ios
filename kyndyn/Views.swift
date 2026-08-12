@@ -683,15 +683,7 @@ struct SettingsView: View {
                         NavigationLink {
                             MyProfileView(person: activePerson)
                         } label: {
-                            HStack(spacing: 12) {
-                                CompanionArt(id: activePerson.companionID)
-                                    .frame(width: 44, height: 44)
-                                VStack(alignment: .leading) {
-                                    Text("My profile")
-                                    Text("Color, companion, and background")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
+                            profileSettingsRow(activePerson)
                         }
                         .accessibilityIdentifier("settings-my-profile")
                     } else {
@@ -701,7 +693,11 @@ struct SettingsView: View {
                     NavigationLink {
                         AppIconPickerView()
                     } label: {
-                        Label("App icon", systemImage: "app.dashed")
+                        settingsRow(
+                            title: "App icon",
+                            subtitle: "Choose how kyndyn looks on this device",
+                            systemImage: "app.dashed",
+                            tint: KyndynTheme.purple)
                     }
                     .accessibilityIdentifier("settings-app-icon")
                 }
@@ -709,13 +705,21 @@ struct SettingsView: View {
                     NavigationLink {
                         CalendarSettingsView()
                     } label: {
-                        Label("Calendar", systemImage: "calendar")
+                        settingsRow(
+                            title: "Calendar",
+                            subtitle: "Show events from calendars you choose",
+                            systemImage: "calendar",
+                            tint: KyndynTheme.blue)
                     }
                     .accessibilityIdentifier("settings-calendar")
                     NavigationLink {
                         WeatherSettingsView()
                     } label: {
-                        Label("Weather", systemImage: "cloud.sun.fill")
+                        settingsRow(
+                            title: "Weather",
+                            subtitle: "Add local conditions to your day",
+                            systemImage: "cloud.sun.fill",
+                            tint: KyndynTheme.amber)
                     }
                     .accessibilityIdentifier("settings-weather")
                 }
@@ -723,24 +727,83 @@ struct SettingsView: View {
                     NavigationLink {
                         SiriShortcutsHelpView()
                     } label: {
-                        Label("Siri & Shortcuts", systemImage: "waveform")
+                        settingsRow(
+                            title: "Siri & Shortcuts",
+                            subtitle: "See available voice and shortcut actions",
+                            systemImage: "waveform",
+                            tint: KyndynTheme.pink)
                     }
                     .accessibilityIdentifier("settings-siri-shortcuts")
                     NavigationLink {
                         FamilySetupGuideView()
                     } label: {
-                        Label("Family setup guide", systemImage: "questionmark.circle.fill")
+                        settingsRow(
+                            title: "Family setup guide",
+                            subtitle: "Profiles, sharing, and private backups",
+                            systemImage: "questionmark.circle.fill",
+                            tint: KyndynTheme.green)
                     }
                 }
                 Section {
-                    Text("Household management, family sync, reminders, backups, and security remain protected in Parent.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    KyndynCallout(
+                        kind: .information,
+                        message: "Household management, family sync, reminders, backups, and security remain protected in Parent.",
+                        title: "Looking for family controls?")
                 }
             }
             .scrollContentBackground(.hidden)
             .background(KyndynScreenBackground())
             .navigationTitle("Settings")
         }
+    }
+
+    private func profileSettingsRow(_ person: Person) -> some View {
+        HStack(spacing: 12) {
+            settingsIconTile(tint: Color(hex: person.colorHex)) {
+                CompanionArt(id: person.companionID)
+                    .padding(3)
+            }
+            settingsRowText(
+                title: "My profile",
+                subtitle: "Color, companion, and background")
+        }
+    }
+
+    private func settingsRow(
+        title: String, subtitle: String, systemImage: String, tint: Color
+    ) -> some View {
+        HStack(spacing: 12) {
+            settingsIconTile(tint: tint) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            settingsRowText(title: title, subtitle: subtitle)
+        }
+    }
+
+    private func settingsRowText(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).foregroundStyle(.primary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+    }
+
+    private func settingsIconTile<Content: View>(
+        tint: Color, @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(width: 38, height: 38)
+            .background(tint.opacity(0.11), in: RoundedRectangle(
+                cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(tint.opacity(0.20), lineWidth: 1)
+            }
+            .accessibilityHidden(true)
     }
 }
 
