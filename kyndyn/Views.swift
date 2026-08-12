@@ -2631,10 +2631,10 @@ struct ParentAreaView: View {
             List {
                 if households.first?.isSample == true {
                     Section {
-                        Label("Sample family", systemImage: "sparkles")
-                            .foregroundStyle(.purple)
-                        Text("This household contains fictional practice data and is kept separate from personal setup.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                        KyndynCallout(
+                            kind: .information,
+                            message: "This household contains fictional practice data and stays separate from personal setup.",
+                            title: "Sample family")
                     }
                 }
                 if let household = households.first {
@@ -2658,48 +2658,60 @@ struct ParentAreaView: View {
                     }
                     Section("Quick actions") {
                         NavigationLink { QuestEditorView(quest: nil) } label: {
-                            Label("Create a quest", systemImage: "plus.circle.fill")
+                            parentRow("Create a quest", "Add a task and choose who it belongs to", "plus.circle.fill", .blue)
                         }
                         NavigationLink { PersonEditorView(person: nil) } label: {
-                            Label("Add a person", systemImage: "person.badge.plus")
+                            parentRow("Add a person", "Create another family profile", "person.badge.plus", .green)
                         }
                         NavigationLink { FamilyRewardSettingsView() } label: {
-                            Label("Update family reward", systemImage: "gift")
+                            parentRow("Update family reward", "Change the shared goal and XP target", "gift.fill", KyndynTheme.pink)
                         }
                         NavigationLink { FamilyBroadcastManagementView() } label: {
-                            Label("Share an announcement", systemImage: "megaphone.fill")
+                            parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
                         NavigationLink { CloudSyncSettingsView() } label: {
-                            Label(syncSummary, systemImage: "icloud")
+                            parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
                         }
                     }
                 }
-                Section {
+                Section("Manage family") {
                     NavigationLink { FamilySetupGuideView() } label: {
-                        Label("Family setup guide", systemImage: "questionmark.circle")
+                        parentRow("Family setup guide", "Profiles, sharing, and private backups", "questionmark.circle.fill", KyndynTheme.green)
                     }
-                    NavigationLink { PeopleManagementView() } label: { Label("People", systemImage: "person.2.fill") }
-                    NavigationLink { QuestManagementView() } label: { Label("Quests", systemImage: "checklist") }
+                    NavigationLink { PeopleManagementView() } label: {
+                        parentRow("People", "Names, roles, colors, and collections", "person.2.fill", .blue)
+                    }
+                    NavigationLink { QuestManagementView() } label: {
+                        parentRow("Quests", "Create, edit, archive, and restore", "checklist", KyndynTheme.purple)
+                    }
                     NavigationLink { QuestPlanningView() } label: {
-                        Label("Quest planning", systemImage: "calendar.badge.clock")
+                        parentRow("Quest planning", "Templates and two-week schedule overview", "calendar.badge.clock", KyndynTheme.amber)
                     }
                     NavigationLink { FamilyRewardSettingsView() } label: {
-                        Label("Family reward", systemImage: "gift.fill")
+                        parentRow("Family reward", "Shared progress, goals, and resets", "gift.fill", KyndynTheme.pink)
                     }
                     NavigationLink { FamilyBroadcastManagementView() } label: {
-                        Label("Announcements", systemImage: "megaphone.fill")
+                        parentRow("Announcements", "Current and archived family updates", "megaphone.fill", .orange)
                     }
+                }
+                Section("Device and privacy") {
                     NavigationLink { CloudSyncSettingsView() } label: {
-                        Label("Family sync", systemImage: "icloud")
+                        parentRow("Family sync", "iCloud sharing and sync status", "icloud.fill", KyndynTheme.purple)
                     }
-                    NavigationLink { NotificationSettingsView() } label: { Label("Reminders", systemImage: "bell.fill") }
+                    NavigationLink { NotificationSettingsView() } label: {
+                        parentRow("Reminders", "Timing, quiet hours, and lock-screen privacy", "bell.fill", .blue)
+                    }
                     NavigationLink { HouseholdDataProtectionView() } label: {
-                        Label("Backup and migration", systemImage: "externaldrive.fill")
+                        parentRow("Backup and migration", "Export, restore, and Rowan transfer", "externaldrive.fill", KyndynTheme.green)
                     }
-                    NavigationLink { ParentSecurityView() } label: { Label("Parent security", systemImage: "lock.shield.fill") }
+                    NavigationLink { ParentSecurityView() } label: {
+                        parentRow("Parent security", "Face ID, device passcode, and fallback PIN", "lock.shield.fill", KyndynTheme.pink)
+                    }
                 }
                 Section {
-                    Button("Lock Parent area", systemImage: "lock.fill") { access.lock() }
+                    Button { access.lock() } label: {
+                        parentRow("Lock Parent area", "Require authentication for parent tools", "lock.fill", .red)
+                    }
                 }
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
@@ -2711,6 +2723,35 @@ struct ParentAreaView: View {
             .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
+    }
+
+    private func parentRow(
+        _ title: String, _ subtitle: String, _ systemImage: String, _ tint: Color
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(tint.opacity(0.11), in: RoundedRectangle(
+                    cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(0.20), lineWidth: 1)
+                }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle)
     }
 
     private func statuses(_ household: Household) -> [QuestTemporalStatus] {
