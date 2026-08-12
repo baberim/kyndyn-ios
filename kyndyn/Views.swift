@@ -825,33 +825,26 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                if let household = households.first {
-                    VStack(spacing: 16) {
-                        if let person {
-                            ImmersiveProfileHeader(
-                                personName: person.name,
-                                message: greetingMessage,
-                                backgroundID: person.backgroundID,
-                                companionID: person.companionID,
-                                accent: Color(hex: person.colorHex)
-                            )
-                            .frame(height: dynamicTypeSize.isAccessibilitySize
-                                   ? 430
-                                   : (horizontalSizeClass == .regular ? 410 : 355))
-                            .accessibilityIdentifier("home-profile-scene")
-                        }
-                        dashboardModePicker
-                            .padding(.horizontal)
-                        if deviceSettings.first?.showsHouseholdDashboard == true {
-                            broadcastNavigation
+            ZStack(alignment: .top) {
+                ScrollView {
+                    if let household = households.first {
+                        VStack(spacing: 16) {
+                            if person != nil {
+                                Color.clear
+                                    .frame(height: profileHeaderHeight)
+                                    .accessibilityHidden(true)
+                            }
+                            dashboardModePicker
                                 .padding(.horizontal)
-                            householdDashboard(household)
-                        } else if let person {
-                            let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
-                            VStack(spacing: 18) {
+                            if deviceSettings.first?.showsHouseholdDashboard == true {
                                 broadcastNavigation
-                                progressSummary(progress, tint: Color(hex: person.colorHex))
+                                    .padding(.horizontal)
+                                householdDashboard(household)
+                            } else if let person {
+                                let progress = ProgressionEngine.progress(personID: person.id, completions: completions, now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                                VStack(spacing: 18) {
+                                    broadcastNavigation
+                                    progressSummary(progress, tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
@@ -875,15 +868,30 @@ struct DashboardView: View {
                             .padding()
                             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                             .frame(maxWidth: .infinity)
+                            }
                         }
                     }
                 }
-            }
-            .ignoresSafeArea(edges: .top)
-            .refreshable {
-                automaticSync.request(.manual)
-                await automaticSync.waitUntilIdle()
-                rotateGreeting()
+                .ignoresSafeArea(edges: .top)
+                .refreshable {
+                    automaticSync.request(.manual)
+                    await automaticSync.waitUntilIdle()
+                    rotateGreeting()
+                }
+
+                if let person {
+                    ImmersiveProfileHeader(
+                        personName: person.name,
+                        message: greetingMessage,
+                        backgroundID: person.backgroundID,
+                        companionID: person.companionID,
+                        accent: Color(hex: person.colorHex)
+                    )
+                    .frame(height: profileHeaderHeight)
+                    .accessibilityIdentifier("home-profile-scene")
+                    .allowsHitTesting(false)
+                    .zIndex(1)
+                }
             }
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
@@ -905,6 +913,11 @@ struct DashboardView: View {
             }
             .onAppear { rotateGreeting() }
         }
+    }
+
+    private var profileHeaderHeight: CGFloat {
+        if dynamicTypeSize.isAccessibilitySize { return 430 }
+        return horizontalSizeClass == .regular ? 410 : 355
     }
 
     private var activeBroadcasts: [FamilyBroadcast] {

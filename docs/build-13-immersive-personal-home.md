@@ -15,6 +15,8 @@ it as a separate preview card.
   prominent without displacing the active person's identity.
 - The My day / Everyone control follows the header, and the redundant Today
   navigation title is removed.
+- The header remains pinned while the dashboard content scrolls beneath it;
+  the artwork does not intercept scrolling or pull-to-refresh gestures.
 - The former Home profile shortcut was removed because the same customization
   is now clearly available from Settings.
 
