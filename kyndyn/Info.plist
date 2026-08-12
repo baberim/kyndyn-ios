@@ -51,6 +51,10 @@
 	<string>public.app-category.lifestyle</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>kyndyn uses Face ID to protect parent-only family settings and actions.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>kyndyn can show selected calendar events beside your family’s day. It never changes your calendars.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>kyndyn uses your approximate location while the app is open to show local weather.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

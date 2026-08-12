@@ -1,5 +1,7 @@
 import CloudKit
+import CoreLocation
 import CryptoKit
+import EventKit
 import Foundation
 import LocalAuthentication
 import OSLog
@@ -7,6 +9,172 @@ import Security
 import SwiftUI
 import UIKit
 import UserNotifications
+import WeatherKit
+
+// MARK: - Device calendar and weather
+
+enum DevicePermissionState: Equatable, Sendable {
+    case notRequested, allowed, denied, restricted
+}
+
+struct DeviceCalendar: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let colorHex: String
+}
+
+struct DeviceCalendarEvent: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let startDate: Date
+    let endDate: Date
+    let isAllDay: Bool
+    let calendarID: String
+}
+
+protocol CalendarProviding: Sendable {
+    func permissionState() -> DevicePermissionState
+    func requestAccess() async -> Bool
+    func calendars() -> [DeviceCalendar]
+    func events(from: Date, through: Date, calendarIDs: Set<String>) -> [DeviceCalendarEvent]
+}
+
+final class EventKitCalendarProvider: CalendarProviding, @unchecked Sendable {
+    private let store = EKEventStore()
+
+    func permissionState() -> DevicePermissionState {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess: .allowed
+        case .denied: .denied
+        case .restricted: .restricted
+        case .notDetermined, .writeOnly: .notRequested
+        @unknown default: .restricted
+        }
+    }
+
+    func requestAccess() async -> Bool {
+        (try? await store.requestFullAccessToEvents()) == true
+    }
+
+    func calendars() -> [DeviceCalendar] {
+        store.calendars(for: .event).map {
+            DeviceCalendar(id: $0.calendarIdentifier, title: $0.title,
+                           colorHex: UIColor(cgColor: $0.cgColor).hexString)
+        }.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    func events(from: Date, through: Date,
+                calendarIDs: Set<String>) -> [DeviceCalendarEvent] {
+        let selected = store.calendars(for: .event).filter {
+            calendarIDs.contains($0.calendarIdentifier)
+        }
+        guard !selected.isEmpty else { return [] }
+        return store.events(matching: store.predicateForEvents(
+            withStart: from, end: through, calendars: selected)).map {
+                DeviceCalendarEvent(
+                    id: $0.eventIdentifier ?? UUID().uuidString,
+                    title: $0.title ?? "Calendar event",
+                    startDate: $0.startDate,
+                    endDate: $0.endDate,
+                    isAllDay: $0.isAllDay,
+                    calendarID: $0.calendar.calendarIdentifier)
+            }.sorted { $0.startDate < $1.startDate }
+    }
+}
+
+struct DeviceWeatherSnapshot: Equatable, Sendable {
+    let temperature: Double
+    let high: Double
+    let low: Double
+    let condition: String
+    let symbolName: String
+    let fetchedAt: Date
+}
+
+enum WeatherCachePolicy {
+    static let lifetime: TimeInterval = 30 * 60
+    static func isFresh(_ fetchedAt: Date?, now: Date = .now) -> Bool {
+        guard let fetchedAt else { return false }
+        let age = now.timeIntervalSince(fetchedAt)
+        return age >= 0 && age < lifetime
+    }
+}
+
+protocol WeatherProviding: Sendable {
+    func weather(latitude: Double, longitude: Double) async throws -> DeviceWeatherSnapshot
+}
+
+struct AppleWeatherProvider: WeatherProviding {
+    func weather(latitude: Double, longitude: Double) async throws -> DeviceWeatherSnapshot {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        let (current, daily) = try await WeatherService.shared.weather(
+            for: location, including: .current, .daily)
+        let today = daily.forecast.first
+        return DeviceWeatherSnapshot(
+            temperature: current.temperature.converted(to: .fahrenheit).value,
+            high: today?.highTemperature.converted(to: .fahrenheit).value
+                ?? current.temperature.converted(to: .fahrenheit).value,
+            low: today?.lowTemperature.converted(to: .fahrenheit).value
+                ?? current.temperature.converted(to: .fahrenheit).value,
+            condition: current.condition.description,
+            symbolName: current.symbolName,
+            fetchedAt: .now)
+    }
+}
+
+enum DeviceLocationError: Error { case unavailable, denied }
+
+@MainActor
+final class OneShotLocationProvider: NSObject, @preconcurrency CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocation, Error>?
+
+    func currentLocation() async throws -> CLLocation {
+        guard continuation == nil else { throw DeviceLocationError.unavailable }
+        manager.delegate = self
+        switch manager.authorizationStatus {
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse: manager.requestLocation()
+        case .denied, .restricted: throw DeviceLocationError.denied
+        @unknown default: throw DeviceLocationError.unavailable
+        }
+        return try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse: manager.requestLocation()
+        case .denied, .restricted:
+            continuation?.resume(throwing: DeviceLocationError.denied)
+            continuation = nil
+        default: break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager,
+                         didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        continuation?.resume(returning: location)
+        continuation = nil
+    }
+
+    func locationManager(_ manager: CLLocationManager,
+                         didFailWithError error: Error) {
+        continuation?.resume(throwing: error)
+        continuation = nil
+    }
+}
+
+private extension UIColor {
+    var hexString: String {
+        guard let components = cgColor.components else { return "#888888" }
+        let red = components[0]
+        let green = components.count > 2 ? components[1] : red
+        let blue = components.count > 2 ? components[2] : red
+        return String(format: "#%02X%02X%02X", Int(red * 255),
+                      Int(green * 255), Int(blue * 255))
+    }
+}
 
 protocol HouseholdSyncing: Sendable {
     func synchronize() async throws

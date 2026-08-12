@@ -705,6 +705,20 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings-app-icon")
                 }
+                Section("Your day") {
+                    NavigationLink {
+                        CalendarSettingsView()
+                    } label: {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    .accessibilityIdentifier("settings-calendar")
+                    NavigationLink {
+                        WeatherSettingsView()
+                    } label: {
+                        Label("Weather", systemImage: "cloud.sun.fill")
+                    }
+                    .accessibilityIdentifier("settings-weather")
+                }
                 Section("Help") {
                     NavigationLink {
                         SiriShortcutsHelpView()
@@ -758,6 +772,142 @@ struct SiriShortcutsHelpView: View {
         .background(KyndynScreenBackground())
         .navigationTitle("Siri & Shortcuts")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct CalendarSettingsView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var settings: [LocalDeviceSettings]
+    @State private var permission: DevicePermissionState = .notRequested
+    @State private var calendars: [DeviceCalendar] = []
+    private let provider = EventKitCalendarProvider()
+
+    var body: some View {
+        List {
+            Section {
+                Text("Show events from calendars you choose alongside your day. kyndyn only reads them—it never creates or changes events.")
+            }
+            if permission == .allowed, let setting = settings.first {
+                Section("Calendars") {
+                    ForEach(calendars) { calendar in
+                        Button {
+                            if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                                setting.selectedCalendarIdentifiers.removeAll { $0 == calendar.id }
+                            } else {
+                                setting.selectedCalendarIdentifiers.append(calendar.id)
+                            }
+                            setting.calendarIntegrationEnabled = !setting.selectedCalendarIdentifiers.isEmpty
+                            try? context.save()
+                        } label: {
+                            HStack {
+                                Circle().fill(Color(hex: calendar.colorHex)).frame(width: 12, height: 12)
+                                Text(calendar.title).foregroundStyle(.primary)
+                                Spacer()
+                                if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                                    Image(systemName: "checkmark").fontWeight(.semibold)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button("Stop showing calendars", role: .destructive) {
+                        setting.calendarIntegrationEnabled = false
+                        setting.selectedCalendarIdentifiers = []
+                        try? context.save()
+                    }
+                }
+            } else {
+                Section {
+                    Button("Allow calendar access") {
+                        Task {
+                            _ = await provider.requestAccess()
+                            reload()
+                        }
+                    }
+                    if permission == .denied || permission == .restricted {
+                        Text("Calendar access is off. You can change it in the iPhone or iPad Settings app.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section("Privacy") {
+                Text("Your calendar choices and event details stay on this device. They are not shared with your family, included in backups, or stored in iCloud by kyndyn.")
+            }
+        }
+        .scrollContentBackground(.hidden).background(KyndynScreenBackground())
+        .navigationTitle("Calendar").navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: reload)
+    }
+
+    private func reload() {
+        permission = provider.permissionState()
+        calendars = permission == .allowed ? provider.calendars() : []
+    }
+}
+
+struct WeatherSettingsView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var settings: [LocalDeviceSettings]
+    @State private var isLoading = false
+    @State private var message: String?
+
+    var body: some View {
+        List {
+            Section {
+                Text("Show local conditions alongside your day using Apple Weather. kyndyn requests your location only while it is open.")
+            }
+            Section {
+                if let setting = settings.first {
+                    Toggle("Show weather on Home", isOn: Binding(
+                        get: { setting.weatherIntegrationEnabled },
+                        set: { enabled in
+                            setting.weatherIntegrationEnabled = enabled
+                            if !enabled { clearCache(setting) }
+                            try? context.save()
+                            if enabled { Task { await load(setting) } }
+                        }))
+                    if setting.weatherIntegrationEnabled {
+                        Button(isLoading ? "Updating…" : "Update weather now") {
+                            Task { await load(setting) }
+                        }.disabled(isLoading)
+                    }
+                }
+                if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+            }
+            Section("Privacy") {
+                Text("Your location is not saved by kyndyn. Only a short-lived weather summary is cached on this device; it is never family-synced or included in backups.")
+            }
+        }
+        .scrollContentBackground(.hidden).background(KyndynScreenBackground())
+        .navigationTitle("Weather").navigationBarTitleDisplayMode(.inline)
+    }
+
+    @MainActor private func load(_ setting: LocalDeviceSettings) async {
+        isLoading = true; message = nil
+        defer { isLoading = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let value = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = value.temperature
+            setting.cachedWeatherHigh = value.high
+            setting.cachedWeatherLow = value.low
+            setting.cachedWeatherCondition = value.condition
+            setting.cachedWeatherSymbolName = value.symbolName
+            setting.cachedWeatherAt = value.fetchedAt
+            try context.save()
+            message = "Weather is ready on Home."
+        } catch {
+            message = "Weather isn’t available yet. Check location access and your connection, then try again."
+        }
+    }
+
+    private func clearCache(_ setting: LocalDeviceSettings) {
+        setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
+        setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
+        setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
     }
 }
 
@@ -821,6 +971,8 @@ struct DashboardView: View {
     @State private var showProgress = false
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
+    @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var isLoadingWeather = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -842,6 +994,8 @@ struct DashboardView: View {
                             .accessibilityIdentifier("home-profile-scene")
                         }
                         dashboardModePicker
+                            .padding(.horizontal)
+                        dayContext
                             .padding(.horizontal)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
                             broadcastNavigation
@@ -904,6 +1058,103 @@ struct DashboardView: View {
                 unlockToPresent = person?.pendingUnlockIDs.first
             }
             .onAppear { rotateGreeting() }
+            .task(id: deviceSettings.first?.calendarIntegrationEnabled) {
+                refreshCalendarEvents()
+            }
+            .task(id: deviceSettings.first?.weatherIntegrationEnabled) {
+                await refreshWeatherIfNeeded()
+            }
+        }
+    }
+
+    @ViewBuilder private var dayContext: some View {
+        if let setting = deviceSettings.first,
+           setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled {
+            HStack(alignment: .top, spacing: 12) {
+                if setting.weatherIntegrationEnabled {
+                    weatherSummary(setting)
+                }
+                if setting.calendarIntegrationEnabled {
+                    calendarSummary
+                }
+            }
+            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+        }
+    }
+
+    private func weatherSummary(_ setting: LocalDeviceSettings) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
+                .font(.headline)
+            if let temperature = setting.cachedWeatherTemperature {
+                Text("\(Int(temperature.rounded()))°")
+                    .font(.title.bold().monospacedDigit())
+                if let high = setting.cachedWeatherHigh, let low = setting.cachedWeatherLow {
+                    Text("H \(Int(high.rounded()))°  L \(Int(low.rounded()))°")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(setting.cachedWeatherCondition ?? "Local weather")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            } else {
+                ProgressView().accessibilityLabel("Loading weather")
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .kyndynCard(tint: .blue)
+    }
+
+    private var calendarSummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Coming up", systemImage: "calendar")
+                .font(.headline)
+            if let event = calendarEvents.first {
+                Text(event.title).font(.subheadline.bold()).lineLimit(1)
+                Text(event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Nothing scheduled soon")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+        .kyndynCard(tint: .orange)
+    }
+
+    private func refreshCalendarEvents() {
+        guard let setting = deviceSettings.first,
+              setting.calendarIntegrationEnabled else {
+            calendarEvents = []; return
+        }
+        let provider = EventKitCalendarProvider()
+        guard provider.permissionState() == .allowed else {
+            calendarEvents = []; return
+        }
+        calendarEvents = Array(provider.events(
+            from: .now,
+            through: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
+            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(3))
+    }
+
+    @MainActor private func refreshWeatherIfNeeded() async {
+        guard let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        if WeatherCachePolicy.isFresh(setting.cachedWeatherAt) { return }
+        isLoadingWeather = true
+        defer { isLoadingWeather = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let snapshot = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = snapshot.temperature
+            setting.cachedWeatherHigh = snapshot.high
+            setting.cachedWeatherLow = snapshot.low
+            setting.cachedWeatherCondition = snapshot.condition
+            setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherAt = snapshot.fetchedAt
+            try? context.save()
+        } catch {
+            // Cached weather remains visible. Permission guidance lives in Settings.
         }
     }
 

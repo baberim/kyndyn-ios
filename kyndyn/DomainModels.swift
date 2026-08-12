@@ -233,6 +233,15 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var showBroadcastDetailsOnLockScreen: Bool = false
     var notifiedBroadcastIDs: [UUID] = []
     var showsHouseholdDashboard: Bool = false
+    var calendarIntegrationEnabled: Bool = false
+    var selectedCalendarIdentifiers: [String] = []
+    var weatherIntegrationEnabled: Bool = false
+    var cachedWeatherTemperature: Double?
+    var cachedWeatherHigh: Double?
+    var cachedWeatherLow: Double?
+    var cachedWeatherCondition: String?
+    var cachedWeatherSymbolName: String?
+    var cachedWeatherAt: Date?
     init() {
         self.id = UUID()
         self.notificationsEnabled = false
@@ -249,6 +258,9 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.showBroadcastDetailsOnLockScreen = false
         self.notifiedBroadcastIDs = []
         self.showsHouseholdDashboard = false
+        self.calendarIntegrationEnabled = false
+        self.selectedCalendarIdentifiers = []
+        self.weatherIntegrationEnabled = false
     }
 }
 
