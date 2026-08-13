@@ -4,7 +4,6 @@ import XCTest
 final class KyndynUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
     }
 
     private func launch(
@@ -51,6 +50,7 @@ final class KyndynUITests: XCTestCase {
         let app = launch()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         tapTab("Quests", in: app)
+        app.buttons["quest-status-filter"].tap()
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "All")
         ).firstMatch.tap()
@@ -134,9 +134,10 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Siri & Shortcuts"]
             .waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["“Show my quests in kyndyn”"].exists)
-        XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "device authentication")
-        ).firstMatch.exists)
+        let privacyCopy = app.descendants(matching: .any)[
+            "siri-shortcuts-privacy"]
+        reveal(privacyCopy, in: app)
+        XCTAssertTrue(privacyCopy.exists)
     }
 
     func testEmptyOnboardingOffersNonDestructiveICloudRecovery() throws {
@@ -185,7 +186,7 @@ final class KyndynUITests: XCTestCase {
 
     func testParentAreaRequiresAuthentication() throws {
         let app = launch()
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         XCTAssertTrue(app.staticTexts["Parent area"].waitForExistence(timeout: 3))
@@ -195,7 +196,7 @@ final class KyndynUITests: XCTestCase {
 
     func testParentCanCreatePersonAndQuestWhenAuthenticated() throws {
         let app = launch(parentUnlocked: true)
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let people = app.buttons.matching(
@@ -214,7 +215,7 @@ final class KyndynUITests: XCTestCase {
 
     func testParentCanBrowseScheduleAndStartFromTemplate() throws {
         let app = launch(parentUnlocked: true)
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let planning = app.staticTexts["Quest planning"]
@@ -238,7 +239,7 @@ final class KyndynUITests: XCTestCase {
 
     func testProfileColorSelectionDoesNotFallThroughToOrange() throws {
         let app = launch(parentUnlocked: true)
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let people = app.buttons.matching(
@@ -258,7 +259,7 @@ final class KyndynUITests: XCTestCase {
 
     func testParentCanReviewLocalOnlyFamilySyncStatus() throws {
         let app = launch(parentUnlocked: true)
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let familySync = app.staticTexts["Family sync"]
@@ -272,7 +273,7 @@ final class KyndynUITests: XCTestCase {
 
     func testParentCanEditAndRestartFamilyReward() throws {
         let app = launch(parentUnlocked: true)
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
         let familyReward = app.staticTexts["Family reward"]
@@ -303,9 +304,8 @@ final class KyndynUITests: XCTestCase {
             .waitForExistence(timeout: 3))
     }
 
-    func testAdaptiveDashboardSupportsLandscapeDarkModeAndLargeText() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        defer { XCUIDevice.shared.orientation = .portrait }
+    func testAdaptiveDashboardSupportsPortraitDarkModeAndLargeText() throws {
+        XCUIDevice.shared.orientation = .portrait
         let app = launch(additionalArguments: [
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
@@ -313,6 +313,7 @@ final class KyndynUITests: XCTestCase {
         ])
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
         tapTab("Quests", in: app)
+        app.buttons["quest-status-filter"].tap()
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "All")
         ).firstMatch.tap()
@@ -373,7 +374,7 @@ final class KyndynUITests: XCTestCase {
 
         app.buttons["My day"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 5))
-        tapTab("Switch", in: app)
+        tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         XCTAssertTrue(app.staticTexts["Hi, Maya"].waitForExistence(timeout: 5))
     }

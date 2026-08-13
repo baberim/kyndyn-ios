@@ -214,7 +214,11 @@ struct OnboardingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                Image(systemName: "leaf.fill").font(.system(size: 58)).foregroundStyle(.purple)
+                Image("KyndynMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 64)
+                    .accessibilityHidden(true)
                 Text("Welcome to kyndyn").font(.largeTitle.bold()).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
                 if introductionComplete {
@@ -566,66 +570,74 @@ struct ProfilePickerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 8) {
-                    Text("Who’s using kyndyn?").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                    Text("Choose your profile to see the right quests.").foregroundStyle(.secondary)
-                }.padding(.vertical, 28)
-                LazyVGrid(columns: columns, spacing: 26) {
-                    ForEach(people.filter { $0.deletedAt == nil }) { person in
-                        Button {
-                            app.selectedPersonID = person.id
-                            app.selectedTab = 0
-                            if let setting = settings.first {
-                                setting.selectedPersonID = person.id
-                                setting.showsHouseholdDashboard = false
-                            }
-                            try? context.save()
-                            dismiss()
-                        } label: {
-                            VStack(spacing: 10) {
-                                CompanionArt(id: person.companionID)
-                                    .frame(width: 94, height: 94)
-                                    .padding(10)
-                                    .background(
-                                        Color(hex: person.colorHex).opacity(0.15),
-                                        in: Circle())
-                                    .overlay {
-                                        Circle().stroke(
-                                            Color(hex: person.colorHex),
-                                            lineWidth: app.selectedPersonID == person.id ? 6 : 3
-                                        )
-                                    }
-                                    .shadow(
-                                        color: Color(hex: person.colorHex).opacity(0.22),
-                                        radius: 10, y: 5)
-                                Text(person.name)
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                Text(person.role == .parent ? "Parent" : "Family member")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text("Level \(level(for: person))")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color(hex: person.colorHex))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: 28) {
+                        VStack(spacing: 8) {
+                            Text("Who’s using kyndyn?")
+                                .font(.largeTitle.bold())
+                                .accessibilityAddTraits(.isHeader)
+                            Text("Choose a profile to see the right quests.")
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                        .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
-                        .accessibilityHint("Shows this person’s kyndyn dashboard")
-                        .accessibilityIdentifier("profile-\(person.name)")
+                        LazyVGrid(columns: columns, spacing: 26) {
+                            ForEach(people.filter { $0.deletedAt == nil }) { person in
+                                Button {
+                                    app.selectedPersonID = person.id
+                                    app.selectedTab = 0
+                                    if let setting = settings.first {
+                                        setting.selectedPersonID = person.id
+                                        setting.showsHouseholdDashboard = false
+                                    }
+                                    try? context.save()
+                                    dismiss()
+                                } label: {
+                                    VStack(spacing: 10) {
+                                        CompanionArt(id: person.companionID)
+                                            .frame(width: 94, height: 94)
+                                            .padding(10)
+                                            .background(
+                                                Color(hex: person.colorHex).opacity(0.15),
+                                                in: Circle())
+                                            .overlay {
+                                                Circle().stroke(
+                                                    Color(hex: person.colorHex),
+                                                    lineWidth: app.selectedPersonID == person.id ? 6 : 3
+                                                )
+                                            }
+                                            .shadow(
+                                                color: Color(hex: person.colorHex).opacity(0.22),
+                                                radius: 10, y: 5)
+                                        Text(person.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Text(person.role == .parent ? "Parent" : "Family member")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text("Level \(level(for: person))")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(Color(hex: person.colorHex))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
+                                .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
+                                .accessibilityHint("Opens this person’s home")
+                                .accessibilityIdentifier("profile-\(person.name)")
+                            }
+                        }
+                        .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                     }
+                    .padding(24)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: proxy.size.height, alignment: .center)
                 }
-                .padding()
-                .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
-                .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
-            .navigationTitle("kyndyn")
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -661,7 +673,7 @@ struct MainView: View {
                 }
                 .tabItem { Label("Parent", systemImage: "lock.shield.fill") }.tag(3)
             }
-            ProfilePickerView().tabItem { Label("Switch", systemImage: "person.2.fill") }.tag(4)
+            ProfilePickerView().tabItem { Label("Profiles", systemImage: "person.2.fill") }.tag(4)
         }
         .tabViewStyle(.tabBarOnly)
         .background(KyndynScreenBackground())
@@ -698,7 +710,7 @@ struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings-my-profile")
                     } else {
-                        Text("Choose a person from Switch to customize a profile.")
+                        Text("Choose a person from Profiles to customize a profile.")
                             .foregroundStyle(.secondary)
                     }
                     NavigationLink {
@@ -834,6 +846,7 @@ struct SiriShortcutsHelpView: View {
             }
             Section("Privacy") {
                 KyndynCallout(kind: .privacy, message: "Device authentication protects profile names, quest details, and reward progress. Shortcut changes use the same offline history and family-sync queue as the app.")
+                    .accessibilityIdentifier("siri-shortcuts-privacy")
             }
             Section {
                 Text("Apple controls which phrases are recognized and when Siri or Shortcuts can run. Newer Apple Intelligence features vary by device, language, and OS version.")
@@ -1046,6 +1059,7 @@ struct DashboardView: View {
     @State private var greetingMessage = "Small steps count."
     @State private var calendarEvents: [DeviceCalendarEvent] = []
     @State private var isLoadingWeather = false
+    @State private var isPullRefreshing = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
 
     var body: some View {
@@ -1082,7 +1096,9 @@ struct DashboardView: View {
                                 startingXPAdjustment: person.startingXPAdjustment)
                             VStack(spacing: 18) {
                                 broadcastNavigation
-                                progressSummary(progress, tint: Color(hex: person.colorHex))
+                                progressSummary(
+                                    progress, person: person, household: household,
+                                    tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
@@ -1112,10 +1128,37 @@ struct DashboardView: View {
             }
             .ignoresSafeArea(edges: .top)
             .refreshable {
+                isPullRefreshing = true
+                defer { isPullRefreshing = false }
+                async let minimumVisibleTime: Void = Task.sleep(
+                    for: .milliseconds(550))
                 automaticSync.request(.manual)
                 await automaticSync.waitUntilIdle()
+                try? await minimumVisibleTime
                 rotateGreeting()
             }
+            .overlay(alignment: .top) {
+                if isPullRefreshing {
+                    HStack(spacing: 9) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing…")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(.ultraThickMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.22)))
+                    .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                    .padding(.top, horizontalSizeClass == .regular ? 20 : 58)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Refreshing family updates")
+                    .accessibilityIdentifier("home-refresh-indicator")
+                }
+            }
+            .animation(.easeInOut(duration: 0.18), value: isPullRefreshing)
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProgress) {
@@ -1260,6 +1303,12 @@ struct DashboardView: View {
         guard let value else { return "A new item is ready in My profile." }
         let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return "A new item is ready in My profile." }
+        if parts[0] == "badge",
+           let badge = RecognitionEngine.badgeCatalog.first(where: {
+               $0.id == parts[1]
+           }) {
+            return "You earned the \(badge.title) badge!"
+        }
         return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
     }
 
@@ -1301,7 +1350,7 @@ struct DashboardView: View {
 
     private func householdDashboard(_ household: Household) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            householdHeading(household)
+            householdHeading
             VStack(alignment: .leading, spacing: 10) {
                 Text(rewardTitle(household)).font(.headline)
                 ProgressView(
@@ -1325,12 +1374,9 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func householdHeading(_ household: Household) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Everyone’s day").font(.largeTitle.bold())
-                .accessibilityAddTraits(.isHeader)
-            Text(household.name).foregroundStyle(.secondary)
-        }
+    private var householdHeading: some View {
+        Text("Everyone’s day").font(.largeTitle.bold())
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func householdMemberSummary(
@@ -1468,8 +1514,15 @@ struct DashboardView: View {
         ProgressionEngine.rewardXP(completions, goal: currentReward(household))
     }
 
-    private func progressSummary(_ progress: PersonProgress, tint: Color) -> some View {
-        Button {
+    private func progressSummary(
+        _ progress: PersonProgress, person: Person, household: Household,
+        tint: Color
+    ) -> some View {
+        let badgeCount = RecognitionEngine.badges(
+            progress: progress,
+            familyRewardReached: rewardXP(household) >= rewardTarget(household),
+            earnedBadgeIDs: person.earnedBadgeIDs).count
+        return Button {
             showProgress = true
         } label: {
             VStack(spacing: 14) {
@@ -1499,8 +1552,7 @@ struct DashboardView: View {
                     Divider().frame(height: 34)
                     ProgressStat(value: "\(progress.level)", label: "Level")
                     Divider().frame(height: 34)
-                    ProgressStat(
-                        value: "\(progress.currentStreak)", label: "Day streak")
+                    ProgressStat(value: "\(badgeCount)", label: "Badges")
                 }
                 VStack(spacing: 6) {
                     ProgressView(
@@ -1534,6 +1586,15 @@ private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
     case waiting, completed, overdue, upcoming, all
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
+    var systemImage: String {
+        switch self {
+        case .waiting: "circle.dashed"
+        case .completed: "checkmark.circle.fill"
+        case .overdue: "exclamationmark.circle.fill"
+        case .upcoming: "calendar"
+        case .all: "line.3.horizontal.decrease.circle"
+        }
+    }
 }
 
 struct ProgressDetailView: View {
@@ -1542,6 +1603,7 @@ struct ProgressDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var completions: [QuestCompletion]
     @Query private var quests: [Quest]
+    @Query private var goals: [RewardGoal]
 
     private var activeEvents: [QuestCompletion] {
         completions.filter { $0.personID == person.id && $0.reversedAt == nil }
@@ -1552,6 +1614,13 @@ struct ProgressDetailView: View {
             personID: person.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
             startingXPAdjustment: person.startingXPAdjustment)
+    }
+    private var familyRewardReached: Bool {
+        let goal = ProgressionEngine.currentRewardGoal(
+            goals, householdID: household.id)
+        return goal.map {
+            ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
+        } ?? false
     }
 
     var body: some View {
@@ -1565,22 +1634,22 @@ struct ProgressDetailView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Badges") {
-                    let badges = RecognitionEngine.badges(progress: progress)
-                    if badges.isEmpty {
-                        Text("Complete quests to begin earning badges.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(badges) { badge in
-                            Label {
-                                VStack(alignment: .leading) {
-                                    Text(badge.title)
-                                    Text(badge.detail).font(.caption).foregroundStyle(.secondary)
-                                }
-                            } icon: {
-                                Image(systemName: badge.systemImage)
-                            }
-                        }
+                    NavigationLink {
+                        BadgeGalleryView(
+                            person: person, household: household,
+                            progress: progress,
+                            familyRewardReached: familyRewardReached)
+                    } label: {
+                        let earned = RecognitionEngine.badges(
+                            progress: progress,
+                            familyRewardReached: familyRewardReached,
+                            earnedBadgeIDs: person.earnedBadgeIDs)
+                        Label(
+                            "\(earned.count) of \(RecognitionEngine.badgeCatalog.count) earned",
+                            systemImage: "medal.fill")
                     }
+                    Text("Badges come only from quest activity and family milestones. Starting XP changes levels, not badges.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Recent XP") {
                     if activeEvents.isEmpty {
@@ -1610,6 +1679,96 @@ struct ProgressDetailView: View {
                 }
             }
         }
+    }
+}
+
+struct BadgeGalleryView: View {
+    let person: Person
+    let household: Household
+    let progress: PersonProgress
+    let familyRewardReached: Bool
+
+    private var badges: [BadgeProgress] {
+        RecognitionEngine.badgeProgress(
+            progress: progress, familyRewardReached: familyRewardReached,
+            earnedBadgeIDs: person.earnedBadgeIDs)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(badges.filter(\.isEarned).count) of \(badges.count) earned")
+                        .font(.title2.bold())
+                    ProgressView(
+                        value: Double(badges.filter(\.isEarned).count),
+                        total: Double(badges.count))
+                        .tint(Color(hex: person.colorHex))
+                    Text("Each badge marks something you did in kyndyn. Keep going at your own pace.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .kyndynCard(tint: Color(hex: person.colorHex), raised: true)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)],
+                    spacing: 12
+                ) {
+                    ForEach(badges) { item in
+                        BadgeTile(item: item)
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+            .frame(maxWidth: .infinity)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle("\(person.name)’s badges")
+        .accessibilityIdentifier("badge-gallery")
+    }
+}
+
+private struct BadgeTile: View {
+    let item: BadgeProgress
+
+    var body: some View {
+        let tint = Color(hex: item.badge.colorHex)
+        VStack(spacing: 10) {
+            Image(systemName: item.isEarned ? item.badge.systemImage : "lock.fill")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(item.isEarned ? tint : .secondary)
+                .frame(width: 66, height: 66)
+                .background(
+                    item.isEarned ? tint.opacity(0.16) : Color.secondary.opacity(0.10),
+                    in: Circle())
+                .overlay(Circle().stroke(
+                    item.isEarned ? tint.opacity(0.65) : Color.secondary.opacity(0.25),
+                    lineWidth: 2))
+            Text(item.badge.title)
+                .font(.headline).multilineTextAlignment(.center).lineLimit(2)
+            Text(item.badge.detail)
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).lineLimit(2)
+            if !item.isEarned {
+                ProgressView(value: item.fraction).tint(tint)
+                Text(item.progressText)
+                    .font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+            } else {
+                Label("Earned", systemImage: "checkmark.circle.fill")
+                    .font(.caption.bold()).foregroundStyle(tint)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 245, alignment: .top)
+        .background(.regularMaterial, in: RoundedRectangle(
+            cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .stroke(tint.opacity(item.isEarned ? 0.55 : 0.20)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(item.badge.title), \(item.isEarned ? "earned" : "locked"), \(item.badge.detail)")
+        .accessibilityValue(item.isEarned ? "Earned" : item.progressText)
+        .accessibilityIdentifier("badge-\(item.badge.id)")
     }
 }
 
@@ -1882,7 +2041,6 @@ struct QuestListView: View {
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var households: [Household]
     @Query(sort: \Quest.createdAt) private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
@@ -2019,7 +2177,7 @@ struct QuestListView: View {
     }
 
     private var browseControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Picker("Whose quests", selection: $browseEveryone) {
                 Text("My quests").tag(false)
                 Text("Everyone").tag(true)
@@ -2027,42 +2185,66 @@ struct QuestListView: View {
             .pickerStyle(.segmented)
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity, alignment: .center)
-            Group {
-                if horizontalSizeClass == .regular {
-                    filterButtons
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        filterButtons
-                    }
-                }
+
+            HStack(spacing: 12) {
+                questScopeLabel
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                statusFilterMenu
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .accessibilityIdentifier("quest-status-filter")
-            Text(browseEveryone ? "Showing the whole family" :
-                    "Showing quests for \(people.first { $0.id == selectedPersonID }?.name ?? "the selected profile")")
-                .font(.caption).foregroundStyle(.secondary)
+            .frame(minHeight: 36)
         }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(
+            cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .stroke(Color.primary.opacity(0.08)))
     }
 
-    private var filterButtons: some View {
-        HStack(spacing: 8) {
+    private var questScopeLabel: some View {
+        Label(
+            browseEveryone
+                ? "Everyone"
+                : (people.first { $0.id == selectedPersonID }?.name
+                   ?? "Selected profile"),
+            systemImage: browseEveryone ? "person.2.fill" : "person.fill")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+
+    private var statusFilterMenu: some View {
+        Menu {
             ForEach(QuestBrowseFilter.allCases) { filter in
                 Button {
                     browseFilter = filter
                 } label: {
-                    HStack(spacing: 6) {
-                        Text(filter.title)
-                        Text("\(count(for: filter))")
-                            .font(.caption.bold().monospacedDigit())
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.secondary.opacity(0.13), in: Capsule())
-                    }
+                    Label(
+                        "\(filter.title) (\(count(for: filter)))",
+                        systemImage: browseFilter == filter
+                            ? "checkmark" : filter.systemImage)
                 }
-                .buttonStyle(.bordered)
-                .tint(browseFilter == filter ? .accentColor : .secondary)
-                .accessibilityValue(browseFilter == filter ? "Selected" : "Not selected")
             }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: browseFilter.systemImage)
+                Text(browseFilter.title)
+                Text("\(count(for: browseFilter))")
+                    .font(.caption.bold().monospacedDigit())
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(.secondary.opacity(0.14), in: Capsule())
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 32)
         }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .accessibilityLabel("Quest status filter")
+        .accessibilityValue("\(browseFilter.title), \(count(for: browseFilter)) quests")
+        .accessibilityIdentifier("quest-status-filter")
     }
 
     private func count(for filter: QuestBrowseFilter) -> Int {

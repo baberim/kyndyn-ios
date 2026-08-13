@@ -1,11 +1,42 @@
 import Foundation
 import SwiftUI
 
-struct BadgeAward: Identifiable, Equatable {
+struct BadgeDefinition: Identifiable, Equatable {
+    enum Requirement: Equatable {
+        case completions(Int)
+        case streak(Int)
+        case questXP(Int)
+        case familyReward
+    }
+
     let id: String
     let title: String
     let detail: String
     let systemImage: String
+    let requirement: Requirement
+    let colorHex: String
+}
+
+struct BadgeProgress: Identifiable, Equatable {
+    let badge: BadgeDefinition
+    let current: Int
+    let target: Int
+    let isEarned: Bool
+
+    var id: String { badge.id }
+    var fraction: Double {
+        guard target > 0 else { return isEarned ? 1 : 0 }
+        return min(1, Double(current) / Double(target))
+    }
+
+    var progressText: String {
+        switch badge.requirement {
+        case .completions: return "\(min(current, target)) of \(target) quests"
+        case .streak: return "\(min(current, target)) of \(target) days"
+        case .questXP: return "\(min(current, target)) of \(target) quest XP"
+        case .familyReward: return isEarned ? "Family reward reached" : "Reach a family reward"
+        }
+    }
 }
 
 struct BackgroundDefinition: Identifiable, Equatable {
@@ -125,14 +156,58 @@ enum CollectionCatalog {
 }
 
 enum RecognitionEngine {
-    static func badges(progress: PersonProgress) -> [BadgeAward] {
-        var values = [BadgeAward]()
-        if progress.completedCount >= 1 { values.append(.init(id: "first-step", title: "First Step", detail: "Completed a first quest", systemImage: "shoeprints.fill")) }
-        if progress.completedCount >= 10 { values.append(.init(id: "quest-ten", title: "Quest Keeper", detail: "Completed 10 quests", systemImage: "checkmark.seal.fill")) }
-        if progress.currentStreak >= 3 { values.append(.init(id: "streak-three", title: "On a Roll", detail: "Reached a 3-day streak", systemImage: "flame.fill")) }
-        if progress.currentStreak >= 7 { values.append(.init(id: "streak-seven", title: "Steady Star", detail: "Reached a 7-day streak", systemImage: "star.fill")) }
-        if progress.questXP / 100 + 1 >= 2 { values.append(.init(id: "level-two", title: "Leveling Up", detail: "Reached level 2 through quests", systemImage: "arrow.up.circle.fill")) }
-        return values
+    static let badgeCatalog: [BadgeDefinition] = [
+        .init(id: "first-step", title: "First Step", detail: "Complete your first quest", systemImage: "shoeprints.fill", requirement: .completions(1), colorHex: "#00A6A6"),
+        .init(id: "quest-five", title: "High Five", detail: "Complete 5 quests", systemImage: "hand.raised.fingers.spread.fill", requirement: .completions(5), colorHex: "#FF9F0A"),
+        .init(id: "quest-ten", title: "Quest Keeper", detail: "Complete 10 quests", systemImage: "checkmark.seal.fill", requirement: .completions(10), colorHex: "#0A84FF"),
+        .init(id: "quest-25", title: "Trailblazer", detail: "Complete 25 quests", systemImage: "map.fill", requirement: .completions(25), colorHex: "#30D158"),
+        .init(id: "quest-50", title: "Quest Champion", detail: "Complete 50 quests", systemImage: "trophy.fill", requirement: .completions(50), colorHex: "#FFD60A"),
+        .init(id: "quest-100", title: "Century Star", detail: "Complete 100 quests", systemImage: "sparkles", requirement: .completions(100), colorHex: "#BF5AF2"),
+        .init(id: "streak-three", title: "On a Roll", detail: "Build a 3-day streak", systemImage: "flame.fill", requirement: .streak(3), colorHex: "#FF453A"),
+        .init(id: "streak-seven", title: "Steady Star", detail: "Build a 7-day streak", systemImage: "star.fill", requirement: .streak(7), colorHex: "#FFD60A"),
+        .init(id: "streak-14", title: "Bright Habit", detail: "Build a 14-day streak", systemImage: "sun.max.fill", requirement: .streak(14), colorHex: "#FF9F0A"),
+        .init(id: "xp-100", title: "Powering Up", detail: "Earn 100 XP from quests", systemImage: "bolt.fill", requirement: .questXP(100), colorHex: "#0A84FF"),
+        .init(id: "xp-500", title: "XP Explorer", detail: "Earn 500 XP from quests", systemImage: "safari.fill", requirement: .questXP(500), colorHex: "#64D2FF"),
+        .init(id: "family-reward", title: "Together We Did It", detail: "Help reach a family reward", systemImage: "gift.fill", requirement: .familyReward, colorHex: "#FF375F")
+    ]
+
+    static func normalizedBadges(_ ids: [String]) -> [String] {
+        let valid = Set(badgeCatalog.map(\.id))
+        return Array(Set(ids).intersection(valid)).sorted()
+    }
+
+    static func badgeProgress(
+        progress: PersonProgress, familyRewardReached: Bool = false,
+        earnedBadgeIDs: [String] = []
+    ) -> [BadgeProgress] {
+        let previouslyEarned = Set(normalizedBadges(earnedBadgeIDs))
+        return badgeCatalog.map { badge in
+            let current: Int
+            let target: Int
+            switch badge.requirement {
+            case .completions(let count):
+                current = progress.completedCount; target = count
+            case .streak(let days):
+                current = progress.bestStreak; target = days
+            case .questXP(let xp):
+                current = progress.questXP; target = xp
+            case .familyReward:
+                current = familyRewardReached ? 1 : 0; target = 1
+            }
+            return BadgeProgress(
+                badge: badge, current: current, target: target,
+                isEarned: current >= target || previouslyEarned.contains(badge.id))
+        }
+    }
+
+    static func badges(
+        progress: PersonProgress, familyRewardReached: Bool = false,
+        earnedBadgeIDs: [String] = []
+    ) -> [BadgeDefinition] {
+        badgeProgress(
+            progress: progress, familyRewardReached: familyRewardReached,
+            earnedBadgeIDs: earnedBadgeIDs)
+            .filter(\.isEarned).map(\.badge)
     }
 
     static func earnedBackgroundIDs(
@@ -213,11 +288,17 @@ struct ProfileScene: View {
 }
 
 struct ImmersiveProfileHeader: View {
+    enum EdgeStyle {
+        case faded
+        case roundedAccent
+    }
+
     let personName: String
     let message: String
     let backgroundID: String
     let companionID: String
     let accent: Color
+    var edgeStyle: EdgeStyle = .faded
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -237,7 +318,9 @@ struct ImmersiveProfileHeader: View {
                 230
             )
             let companionCenterX = proxy.size.width - 22 - companionSize / 2
-            let companionFeetY = proxy.size.height - 32
+            let foregroundLift: CGFloat = dynamicTypeSize.isAccessibilitySize
+                ? 42 : 34
+            let companionFeetY = proxy.size.height - foregroundLift - 20
 
             ZStack {
                 background(definition, size: proxy.size)
@@ -319,37 +402,13 @@ struct ImmersiveProfileHeader: View {
                        alignment: .leading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity,
                        alignment: .bottomLeading)
-                .padding(22)
+                .padding(.horizontal, 22)
+                .padding(.bottom, foregroundLift)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .clipShape(UnevenRoundedRectangle(
-            topLeadingRadius: 0,
-            bottomLeadingRadius: 30,
-            bottomTrailingRadius: 30,
-            topTrailingRadius: 0,
-            style: .continuous
-        ))
-        .overlay {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 30,
-                bottomTrailingRadius: 30,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
-        }
-        .overlay {
-            HeaderBottomAccent(cornerRadius: 30)
-                .stroke(
-                    accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round,
-                                       lineJoin: .round)
-                )
-                .accessibilityHidden(true)
-        }
-        .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
+        .modifier(ImmersiveHeaderEdge(
+            style: edgeStyle, accent: accent, colorScheme: colorScheme))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Hi, \(personName). \(message) \(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)."
@@ -374,6 +433,58 @@ struct ImmersiveProfileHeader: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        }
+    }
+}
+
+private struct ImmersiveHeaderEdge: ViewModifier {
+    let style: ImmersiveProfileHeader.EdgeStyle
+    let accent: Color
+    let colorScheme: ColorScheme
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch style {
+        case .faded:
+            content.mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.64),
+                        .init(color: .black.opacity(0.96), location: 0.72),
+                        .init(color: .black.opacity(0.78), location: 0.82),
+                        .init(color: .black.opacity(0.42), location: 0.91),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top, endPoint: .bottom)
+            }
+        case .roundedAccent:
+            content
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 30,
+                    bottomTrailingRadius: 30,
+                    topTrailingRadius: 0,
+                    style: .continuous))
+                .overlay {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 30,
+                        bottomTrailingRadius: 30,
+                        topTrailingRadius: 0,
+                        style: .continuous)
+                    .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
+                }
+                .overlay {
+                    HeaderBottomAccent(cornerRadius: 30)
+                        .stroke(
+                            accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
+                            style: StrokeStyle(
+                                lineWidth: 4, lineCap: .round,
+                                lineJoin: .round))
+                        .accessibilityHidden(true)
+                }
+                .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
         }
     }
 }

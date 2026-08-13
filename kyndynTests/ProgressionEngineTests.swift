@@ -187,6 +187,18 @@ final class ProgressionEngineTests: XCTestCase {
                        ["first-step"])
     }
 
+    func testEarnedStreakBadgeRemainsEarnedAfterStreakEnds() {
+        let progress = PersonProgress(
+            xp: 40, level: 1, currentStreak: 0, bestStreak: 1,
+            completedCount: 4, questXP: 40)
+
+        let badges = RecognitionEngine.badges(
+            progress: progress, earnedBadgeIDs: ["streak-three"])
+
+        XCTAssertTrue(badges.contains { $0.id == "streak-three" })
+        XCTAssertFalse(badges.contains { $0.id == "streak-seven" })
+    }
+
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -675,6 +687,8 @@ final class HouseholdTransferTests: XCTestCase {
         parent.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(["penguin", "bee"])
         parent.backgroundID = "aquarium"
         parent.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(["aquarium"])
+        parent.earnedBadgeIDs = RecognitionEngine.normalizedBadges(
+            ["first-step", "quest-ten"])
         let quest = Quest(
             householdID: household.id, title: "Sort art supplies",
             xp: 17, participantIDs: [parent.id], scheduleKind: .weekly,
@@ -711,6 +725,8 @@ final class HouseholdTransferTests: XCTestCase {
         XCTAssertTrue(restoredPerson?.earnedCompanionIDs.contains("bee") == true)
         XCTAssertEqual(restoredPerson?.backgroundID, "aquarium")
         XCTAssertTrue(restoredPerson?.earnedBackgroundIDs.contains("aquarium") == true)
+        XCTAssertEqual(restoredPerson?.earnedBadgeIDs,
+                       ["first-step", "quest-ten"])
         XCTAssertEqual(ProgressionEngine.familyXP(restoredEvents), 0)
         XCTAssertEqual(try destination.mainContext.fetch(
             FetchDescriptor<HouseholdImportReceipt>()).count, 1)
@@ -860,6 +876,8 @@ final class RecognitionEngineTests: XCTestCase {
 
         let mature = PersonProgress(xp: 2_000, level: 10, currentStreak: 7,
                                     bestStreak: 7, completedCount: 100)
+        XCTAssertEqual(RecognitionEngine.badges(
+            progress: mature, familyRewardReached: true).count, 11)
         XCTAssertEqual(Set(RecognitionEngine.earnedCompanionIDs(
             progress: mature, familyRewardReached: true)),
             Set(CollectionCatalog.companionIDs))
@@ -869,6 +887,8 @@ final class RecognitionEngineTests: XCTestCase {
     }
 
     func testNormalizationPreservesStartersAndRejectsUnknownIDs() {
+        XCTAssertEqual(RecognitionEngine.normalizedBadges(
+            ["quest-ten", "not-a-badge"]), ["quest-ten"])
         XCTAssertEqual(Set(CollectionCatalog.normalizedCompanions(
             ["penguin", "not-a-companion"])),
             Set(CollectionCatalog.starterCompanionIDs + ["penguin"]))

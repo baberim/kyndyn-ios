@@ -57,6 +57,7 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var earnedCompanionIDs: [String]? = nil
         var backgroundID: String? = nil
         var earnedBackgroundIDs: [String]? = nil
+        var earnedBadgeIDs: [String]? = nil
         var startingXPAdjustment: Int? = nil
         var createdAt: Date
         var deletedAt: Date?
@@ -161,6 +162,7 @@ enum HouseholdTransferCodec {
                       earnedCompanionIDs: $0.earnedCompanionIDs,
                       backgroundID: $0.backgroundID,
                       earnedBackgroundIDs: $0.earnedBackgroundIDs,
+                      earnedBadgeIDs: $0.earnedBadgeIDs,
                       startingXPAdjustment: $0.startingXPAdjustment,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
@@ -313,6 +315,8 @@ enum HouseholdRestoreService {
                 value.earnedCompanionIDs ?? CollectionCatalog.starterCompanionIDs)
             person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(
                 value.earnedBackgroundIDs ?? [CollectionCatalog.defaultBackgroundID])
+            person.earnedBadgeIDs = RecognitionEngine.normalizedBadges(
+                value.earnedBadgeIDs ?? [])
             if let background = value.backgroundID,
                person.earnedBackgroundIDs.contains(background) {
                 person.backgroundID = background
@@ -601,6 +605,7 @@ enum RowanTransferConverter {
                 earnedBackgroundIDs: CollectionCatalog.normalizedBackgrounds(
                     (sourcePerson.earnedBackgrounds ?? [])
                     + (sourcePerson.activeBackgroundID.map { [$0] } ?? [])),
+                earnedBadgeIDs: [],
                 createdAt: .now,
                 deletedAt: sourcePerson.active == false ? .now : nil))
         }

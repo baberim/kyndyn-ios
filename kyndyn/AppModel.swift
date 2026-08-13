@@ -635,12 +635,20 @@ enum LifecycleRules {
         let backgrounds = CollectionCatalog.normalizedBackgrounds(
             person.earnedBackgroundIDs + RecognitionEngine.earnedBackgroundIDs(
                 progress: progress, familyRewardReached: rewardReached))
+        let badges = RecognitionEngine.badges(
+            progress: progress, familyRewardReached: rewardReached)
+        let newlyEarnedBadges = badges.filter {
+            !person.earnedBadgeIDs.contains($0.id)
+        }.map { "badge:\($0.id)" }
         let newlyEarned = companions.filter { !person.earnedCompanionIDs.contains($0) }
             .map { "companion:\($0)" }
             + backgrounds.filter { !person.earnedBackgroundIDs.contains($0) }
                 .map { "background:\($0)" }
+            + newlyEarnedBadges
         person.earnedCompanionIDs = companions
         person.earnedBackgroundIDs = backgrounds
+        person.earnedBadgeIDs = RecognitionEngine.normalizedBadges(
+            person.earnedBadgeIDs + badges.map(\.id))
         person.pendingUnlockIDs = Array(Set(person.pendingUnlockIDs + newlyEarned))
         try context.save()
         if !newlyEarned.isEmpty {

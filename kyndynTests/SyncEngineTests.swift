@@ -122,6 +122,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(["penguin"])
         person.backgroundID = "aquarium"
         person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(["aquarium"])
+        person.earnedBadgeIDs = RecognitionEngine.normalizedBadges(["first-step"])
         person.startingXPAdjustment = 619
         let state = HouseholdCloudState(householdID: household.id)
         state.mode = .owner
@@ -140,6 +141,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         XCTAssertEqual(decoded.fields["backgroundID"], "aquarium")
         XCTAssertTrue(decoded.fields["earnedCompanionIDs"]?.contains("penguin") == true)
         XCTAssertTrue(decoded.fields["earnedBackgroundIDs"]?.contains("aquarium") == true)
+        XCTAssertEqual(decoded.fields["earnedBadgeIDs"], "first-step")
         XCTAssertEqual(decoded.fields["startingXPAdjustment"], "619")
         let text = String(data: mutation.payload, encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("quietStart"))

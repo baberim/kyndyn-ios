@@ -70,6 +70,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var earnedCompanionIDs: [String] = CollectionCatalog.starterCompanionIDs
     var backgroundID: String = CollectionCatalog.defaultBackgroundID
     var earnedBackgroundIDs: [String] = CollectionCatalog.starterBackgroundIDs
+    var earnedBadgeIDs: [String] = []
     var pendingUnlockIDs: [String] = []
     var startingXPAdjustment: Int = 0
     var createdAt: Date
@@ -90,6 +91,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
         self.earnedCompanionIDs = CollectionCatalog.starterCompanionIDs
         self.backgroundID = CollectionCatalog.defaultBackgroundID
         self.earnedBackgroundIDs = CollectionCatalog.starterBackgroundIDs
+        self.earnedBadgeIDs = []
         self.pendingUnlockIDs = []
         self.startingXPAdjustment = 0
         self.createdAt = .now
