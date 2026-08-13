@@ -122,6 +122,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         person.earnedCompanionIDs = CollectionCatalog.normalizedCompanions(["penguin"])
         person.backgroundID = "aquarium"
         person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(["aquarium"])
+        person.startingXPAdjustment = 619
         let state = HouseholdCloudState(householdID: household.id)
         state.mode = .owner
         context.insert(household); context.insert(person); context.insert(state)
@@ -139,6 +140,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         XCTAssertEqual(decoded.fields["backgroundID"], "aquarium")
         XCTAssertTrue(decoded.fields["earnedCompanionIDs"]?.contains("penguin") == true)
         XCTAssertTrue(decoded.fields["earnedBackgroundIDs"]?.contains("aquarium") == true)
+        XCTAssertEqual(decoded.fields["startingXPAdjustment"], "619")
         let text = String(data: mutation.payload, encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("quietStart"))
         XCTAssertFalse(text.localizedCaseInsensitiveContains("pin"))
@@ -605,6 +607,77 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         XCTAssertEqual(state.mode, .owner)
         XCTAssertNotNil(state.changeToken)
         XCTAssertNil(state.lastErrorCategoryRaw)
+    }
+
+    func testFullReconciliationRecoversStartingXPMissedByChangeToken() async throws {
+        let (ownerContainer, household, ownerState, records) = try fixture()
+        let ownerPerson = Person(
+            householdID: household.id, name: "Avery", role: .child,
+            colorHex: "#123456", companionID: "spark")
+        ownerContainer.mainContext.insert(ownerPerson)
+        try ownerContainer.mainContext.save()
+        let transport = InMemoryCloudTransport()
+        let ownerController = CloudSyncController(transport: transport)
+        await ownerController.provisionOwner(
+            household: household,
+            records: records + [SyncSnapshot.person(ownerPerson)], state: ownerState,
+            context: ownerContainer.mainContext)
+
+        let zone = try XCTUnwrap(ownerState.zoneName)
+        ownerPerson.startingXPAdjustment = 619
+        try ownerContainer.mainContext.save()
+        try SyncQueue.enqueue(
+            SyncSnapshot.person(ownerPerson), operation: .createOrUpdate,
+            context: ownerContainer.mainContext)
+        await ownerController.synchronize(
+            state: ownerState, context: ownerContainer.mainContext)
+
+        let participantSchema = Schema([
+            Household.self, Person.self, Quest.self, QuestCompletion.self,
+            RewardGoal.self, FamilyBroadcast.self, Companion.self,
+            Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
+            LocalQuestReminder.self, HouseholdCloudState.self,
+            SyncRecordMetadata.self, PendingSyncMutation.self,
+            SyncConflict.self, PendingShareInvitation.self
+        ])
+        let participantContainer = try ModelContainer(
+            for: participantSchema, configurations: ModelConfiguration(
+                schema: participantSchema, isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none))
+        let participantContext = participantContainer.mainContext
+        let stalePerson = Person(
+            id: ownerPerson.id, householdID: household.id, name: ownerPerson.name,
+            role: ownerPerson.role, colorHex: ownerPerson.colorHex,
+            companionID: ownerPerson.companionID)
+        participantContext.insert(Household(
+            id: household.id, name: household.name,
+            timeZoneIdentifier: household.timeZoneIdentifier))
+        participantContext.insert(stalePerson)
+        participantContext.insert(LocalDeviceSettings())
+        let participantState = HouseholdCloudState(householdID: household.id)
+        participantState.mode = .participant
+        participantState.databaseScope = .sharedDatabase
+        participantState.zoneName = zone
+        participantState.accountFingerprint = "test-account"
+        // Simulate a device whose saved token says it already saw the latest
+        // zone change even though its local person payload is stale.
+        let latest = try await transport.fetchChanges(
+            zoneName: zone, scope: .sharedDatabase,
+            zoneOwnerName: nil, after: nil)
+        participantState.changeToken = latest.changeToken
+        participantContext.insert(participantState)
+        try participantContext.save()
+
+        let participantController = CloudSyncController(transport: transport)
+        await participantController.synchronize(
+            state: participantState, context: participantContext)
+        XCTAssertEqual(stalePerson.startingXPAdjustment, 0)
+
+        await participantController.synchronize(
+            state: participantState, context: participantContext,
+            fullReconciliation: true)
+        XCTAssertEqual(stalePerson.startingXPAdjustment, 619)
+        XCTAssertEqual(participantController.statusMessage, "Up to date")
     }
 }
 
