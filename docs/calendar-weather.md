@@ -20,11 +20,15 @@ Build 14 adds two optional, device-local views of the family’s day.
 
 ## Apple configuration
 
-Calendar requires no developer-portal service beyond the included privacy usage description. Weather requires the WeatherKit capability for the `com.kyndynfamily.kyndyn` App ID and a regenerated provisioning profile. The checked-in entitlement contains no Team ID, credentials, or private data.
+Calendar requires no developer-portal service beyond the included privacy usage
+description. WeatherKit is enabled for the `com.kyndynfamily.kyndyn` App ID and
+must remain present in the signed provisioning profile. The checked-in
+entitlement contains no Team ID, credentials, or private data.
 
-Before physical or TestFlight validation:
+When signing on a new development machine or diagnosing WeatherKit:
 
-1. In Certificates, Identifiers & Profiles, open the `com.kyndynfamily.kyndyn` identifier and enable WeatherKit.
+1. In Certificates, Identifiers & Profiles, open the
+   `com.kyndynfamily.kyndyn` identifier and confirm WeatherKit remains enabled.
 2. In Xcode, select the kyndyn target and confirm WeatherKit appears under Signing & Capabilities.
 3. Allow automatic signing to refresh the development/distribution provisioning profiles.
 4. Test with fictional calendar entries and confirm Production CloudKit remains untouched; WeatherKit is separate from the CloudKit schema.

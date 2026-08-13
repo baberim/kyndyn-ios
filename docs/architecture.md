@@ -2,65 +2,94 @@
 
 ## Platform
 
-Swift 6, SwiftUI, Swift concurrency, SwiftData, iOS/iPadOS 18+. The app uses
-capability- and container-driven layouts across iPhone and iPad rather than
-assuming a phone-shaped screen.
+Swift 6, SwiftUI, structured concurrency, SwiftData, App Intents, CloudKit,
+EventKit, Core Location, WeatherKit, UserNotifications, and LocalAuthentication.
+The deployment target is iOS/iPadOS 18 or later. Layouts respond to available
+container width rather than device names.
 
-## Boundaries
+## Source boundaries
 
-- `DomainModels.swift`: persisted source entities and explicit schema version.
-- `ProgressionEngine.swift`: pure recurrence, due-date, completion, XP, level, streak, and family progress projections.
-- `AppModel.swift`: main-actor application orchestration and SwiftData writes.
-- `Services.swift`: LocalAuthentication, Keychain PIN storage,
-  UserNotifications, and the Apple system CloudKit sharing presenter.
-- `AppConfiguration.swift`: validates centralized CloudKit build settings before
-  any live Apple container is instantiated.
-- `Views.swift`: presentation only.
+- `DomainModels.swift` — SwiftData source entities, device settings, sync
+  metadata, mutation queue, conflicts, invitation state, and schema version.
+- `ProgressionEngine.swift` — pure recurrence, occurrence identity, due state,
+  XP, level, streak, family progress, and weekly-insight projections.
+- `QuestPlanning.swift` — templates, two-week planning, recurrence validation,
+  and safe repair proposals.
+- `Collections.swift` — deterministic badges, companion/background catalogs,
+  unlock rules, and profile scene composition.
+- `AppModel.swift` — main-actor application orchestration and transactional
+  local writes.
+- `SyncEngine.swift` — CloudKit-independent records/transports, merge rules,
+  provisioning, incremental sync, notification triggers, retry/backoff, and the
+  automatic synchronization coordinator.
+- `Services.swift` — authentication, Keychain, notifications, CloudKit sharing
+  UI, read-only calendars, one-shot location, and WeatherKit.
+- `SystemIntelligence.swift` — App Intents and Shortcuts adapters that reuse
+  existing local domain operations.
+- `HouseholdTransfer.swift` — validated import, backup, restore, dry-run reports,
+  deterministic legacy IDs, and import receipts.
+- `DesignSystem.swift` and `Views.swift` — reusable visual components and
+  presentation. Views request actions; they do not own sync or progression
+  policy.
+- `AppConfiguration.swift` — validates centralized Apple capability/container
+  settings before live services are created.
+- `kyndynApp.swift` — model-container startup, recovery UI, app/scene lifecycle,
+  share routing, and background-compatible sync entry points.
 
-## Data principles
+## Persistence and derived truth
 
-Every entity uses a UUID. Household-owned entities retain their household UUID. Deletable records use `deletedAt` rather than immediate destruction. A completion is an append-friendly event whose `reversedAt` records undo. Derived XP, levels, streaks, and family progress are recalculated from active events.
+Every shared entity has a stable UUID and household UUID. Archivable records use
+soft deletion. A `QuestCompletion` is an append-friendly event; `reversedAt`
+represents exact undo. Duplicate event UUIDs cannot award XP twice.
 
-The schema version is currently `3`. Household time zones are stored as IANA identifiers. Version 2 added defaulted device-local reminder settings. Version 3 adds separate cloud-state, record-metadata, mutation-queue, conflict, and invitation-routing models so SwiftData can migrate additively without contaminating progression entities. kyndyn never silently deletes a store after initialization or migration failure; it shows a recovery screen that asks the family to preserve the installation and seek help.
+Completion history is truth. XP, levels, streaks, badges, weekly insights, and
+reward progress are recalculated. Starting XP contributes only to current
+XP/level. Device settings and caches do not contaminate progression.
 
-## CloudKit direction
+The current SwiftData schema is additive and includes household, person, quest,
+completion, reward, broadcast, companion/background, settings, CloudKit state,
+record metadata, pending mutations, conflicts, invitations, and import receipts.
+kyndyn never silently erases a store after initialization or migration failure;
+startup presents a recovery surface instead.
 
-SwiftData remains the immediate local source and is explicitly configured not
-to activate SwiftData’s automatic CloudKit store. `HouseholdCloudTransport`
-isolates CloudKit account, zone, record, change-token, share, invitation, and
-participant operations. `CloudSyncController` owns resumable provisioning and
-incremental synchronization; `SyncMergeEngine` and `SyncRemoteApplier` own
-deterministic merge/application. The owner’s private custom zone is shared
-through a root-record `CKShare`; descendants use CloudKit parent references,
-and participant devices retain the owner-qualified shared zone ID. Tests use an
-actor-backed in-memory transport. No generic kyndyn-hosted family database is
-introduced.
+## Synchronization
 
-## Adaptive layout principles
+SwiftData is the immediate local source and does not use SwiftData's automatic
+CloudKit store. `HouseholdCloudTransport` isolates Apple types from domain and
+view code. The owner's records live in a private custom zone shared from the
+root household through `CKShare`; participants route through the owner-qualified
+shared zone.
 
-- Respond to available container width and SwiftUI capabilities, never a device
-  model name.
-- Cap readable and management content so iPad does not become a stretched phone
-  layout.
-- Let profile and quest grids add columns only when their content retains useful
-  minimum widths.
-- Use `ViewThatFits`, adaptive grids, wrapping text, and minimum 44-point actions
-  so narrow Split View, landscape, and large Dynamic Type remain usable.
-- Treat a compact square window as another constrained container, not a separate
-  product target.
-- Keep recurrence, progression, sync, and persistence logic independent from
-  presentation size.
-- Support identity with names and companions; profile color is a supplemental,
-  accessible accent and never the sole cue.
+`CloudSyncController`, merge/application services, and the automatic coordinator
+provide resumable provisioning, persisted offline mutations, idempotent upload,
+change-token fetches, deterministic conflict handling, single-flight execution,
+trigger coalescing, debounce, bounded retry/backoff, foreground/relaunch catch-up,
+and best-effort background refresh. Deterministic tests use an actor-backed
+in-memory transport. Manual refresh remains a recovery and diagnostic action.
 
-## Entitlements and notifications
+## Local Apple services
 
-`EntitlementProviding` defaults to a free local entitlement. `NotificationScheduling` is implemented with `UNUserNotificationCenter`; candidates are produced by pure `ReminderRules`. StoreKit 2 can replace the development entitlement without changing domain rules.
+- Calendar is read-only through EventKit and never synchronized.
+- Weather uses one-shot location, WeatherKit, and a replaceable local cache.
+- Quest reminders and broadcast alerts are local notifications. CloudKit remote
+  notifications are private sync hints, not user-facing payloads.
+- App Intents read/write through the same SwiftData operations and sync queue as
+  the app. They do not calculate progression or call CloudKit independently.
+- App-icon choice, notification configuration, active device profile, calendar
+  choices, location, weather cache, and view preferences remain local.
 
 ## Authentication
 
-Every Parent tab entry is gated by `ParentAccessController`. LocalAuthentication uses device-owner authentication, allowing Face ID, Touch ID, or the device passcode. The optional kyndyn PIN is salted with 128 random bits, iteratively SHA-256 hashed, and stored as a `WhenUnlockedThisDeviceOnly` Keychain item. Secrets and unlock state never enter SwiftData and never sync.
+Every Parent entry is gated by `ParentAccessController`. LocalAuthentication
+uses Face ID, Touch ID, or device passcode. The optional kyndyn PIN is salted,
+iteratively hashed, and stored as a `WhenUnlockedThisDeviceOnly` Keychain item.
+Secrets and unlock state never enter SwiftData or CloudKit.
 
-## Lifecycle and schedules
+## Adaptive UI
 
-People and quests retain stable UUIDs and completion relationships when archived. The last active parent cannot be archived. Archived people cannot receive new assignments. `ProgressionEngine` owns occurrence keys and today/upcoming/completed/overdue classification. Edits do not recalculate historical event XP.
+- Cap readable management content without turning iPad into a stretched phone.
+- Use adaptive grids, `ViewThatFits`, wrapping text, and 44-point actions.
+- Treat Split View, landscape, Dynamic Type, VoiceOver, dark mode, Reduce Motion,
+  and compact windows as first-class constraints.
+- Names and companions carry identity; profile color supplements them and is
+  never the sole cue.

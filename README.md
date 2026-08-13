@@ -1,81 +1,120 @@
-# kyndyn for iOS
+# kyndyn for iPhone and iPad
 
-kyndyn is a calm, local-first family app for turning everyday responsibilities into quests, visible progress, and shared celebration.
+kyndyn is a calm, privacy-minded family app that turns everyday responsibilities into quests, visible progress, and shared celebration. It is built natively with SwiftUI and SwiftData, works offline, and can optionally synchronize a household through the family owner's iCloud account.
 
-This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
+## Current release
 
-## Current milestone — Daily Family Use 0.8
+The current feature set is packaged as **kyndyn 0.15.0 (Build 15)** and includes:
 
-The app provides a locally usable vertical slice:
+- guided family setup, profile selection, and an in-app setup guide;
+- personal and whole-family Home views with companions, backgrounds, weather,
+  upcoming calendar events, progress, rewards, and daily quests;
+- parent-managed people, quests, templates, schedule overview, recurrence
+  validation, archive/restore, reminders, and family broadcasts;
+- one-time, daily, weekly, selected-weekday, and every-other-week scheduling;
+- exact-occurrence completion and undo, XP, levels, streaks, badges, starting-XP
+  adjustments, and family reward goals;
+- offline SwiftData persistence, encrypted local parent authentication, private
+  backups, restore, and a validated legacy-household import path;
+- optional owner-hosted CloudKit sharing with invitations, automatic foreground
+  synchronization, offline mutation queues, conflict-safe convergence, and
+  manual refresh/recovery controls;
+- profile colors, a complete companion/background collection, parent grants,
+  alternate app icons, adaptive light/dark UI, and iPhone/iPad layouts;
+- App Shortcuts foundations, read-only device calendar access, device-local
+  WeatherKit conditions, and local notifications;
+- protected weekly family insights with past-week navigation, daily activity,
+  per-person four-week trends, and factual observations without rankings or
+  behavioral profiling.
 
-- first-launch sample-household onboarding using fictional profiles;
-- family and personal dashboards;
-- today's individual and shared quests;
-- completion and undo backed by append-friendly completion records;
-- derived XP, levels, streaks, and family-goal progress;
-- LocalAuthentication-protected parent tools with an optional device-only kyndyn PIN;
-- complete create/edit/archive/restore flows for people and quests;
-- one-time, daily, and selected-weekday schedules with household-local deadlines;
-- private, device-local quest reminders with quiet hours and profile targeting;
-- local SwiftData persistence and offline operation;
-- protocol boundaries for sync, notifications, entitlements, and import.
-- optional local-only or CloudKit household modes;
-- additive offline mutation queues and conflict-safe merge rules;
-- resumable owner provisioning and CloudKit share invitation routing;
-- deterministic in-memory multi-device tests that do not require Apple credentials.
-- centralized, fail-safe Apple/CloudKit configuration readiness;
-- live Development CloudKit owner provisioning and private sharing through
-  Apple’s system interface;
-- scene-aware invitation routing on fresh, running, and backgrounded installs;
-- verified owner/participant completion and exact undo convergence on two
-  physical devices;
-- an Apple-compliant native app icon;
-- responsive profile, dashboard, quest, and Parent-area presentation across
-  compact and regular widths;
-- visible, named profile-color accents that supplement names and companions.
-- single-flight automatic synchronization after launch, foregrounding, local
-  changes, connectivity recovery, CloudKit hints, and share acceptance;
-- idempotent private/shared zone subscriptions and best-effort background
-  refresh, with manual refresh retained as a recovery control.
-- persistent person or whole-household daily views grouped into overdue, due
-  today, completed today, and upcoming work;
-- parent-managed family rewards with editable XP targets and a history-safe
-  start-new-reward reset;
-- a reusable native visual system with adaptive light/dark surfaces, consistent
-  quest states, and balanced Home presentation;
-- full-card completion and exact undo with deterministic occurrence identity,
-  immediate XP feedback, and recent family activity;
-- device-local per-quest reminder timing that respects completion state, quiet
-  hours, archive state, and the household time zone.
+SwiftData remains the immediate presentation source. CloudKit, calendar,
+weather, notifications, and Siri integrations are optional enhancements; the
+core family loop remains useful offline.
 
 ## Open and run
 
-Requirements: Xcode 26 or later and iOS 18 or later.
+Requirements: **Xcode 26 or later** and **iOS/iPadOS 18 or later**.
 
 1. Open `kyndyn.xcodeproj`.
 2. Select the `kyndyn` scheme and an iPhone or iPad simulator.
 3. Build and run.
 
-No Apple Developer account, CloudKit container, server, or secret is needed for
-local-only development and deterministic tests. Live Debug synchronization uses
-the authorized Development container documented in
-[`docs/cloudkit-configuration.md`](docs/cloudkit-configuration.md). Release
-archives use the authorized Production CloudKit container while Debug builds
-use Development.
+Local-only use and deterministic tests require no Apple Developer account or
+secret. Physical-device CloudKit and WeatherKit testing requires selecting your
+authorized development team and capabilities in Xcode. Personal Team IDs,
+profiles, certificates, credentials, and device identifiers must not be
+committed.
 
-The complete native identity was renamed for this milestone. Because the bundle
-identifier changed, iOS treats this as a new development app; see
-[`docs/kyndyn-rebrand.md`](docs/kyndyn-rebrand.md).
+Debug builds use the CloudKit **Development** environment. Release archives and
+TestFlight builds use **Production**. Review and deploy additive Development
+schema changes before expecting a new synchronized field or record type to work
+in TestFlight. See [CloudKit configuration](docs/cloudkit-configuration.md).
 
-## Tests
+## Test
 
-Run the `kyndynTests` and `kyndynUITests` targets with Product → Test, or:
+Run the `kyndynTests` and `kyndynUITests` targets with **Product → Test**, or:
 
 ```sh
-xcodebuild test -project kyndyn.xcodeproj -scheme kyndyn -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -project kyndyn.xcodeproj -scheme kyndyn \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-The simulator can approve or reject notification permission. For LocalAuthentication, use **Features → Face ID** in Simulator to toggle enrollment and matching. A device passcode prompt may appear instead depending on simulator state.
+Live Apple-service behavior must also be checked on signed physical devices.
+CloudKit test doubles validate synchronization logic but do not prove live
+sharing, silent delivery, WeatherKit authorization, or background execution.
 
-See [`docs/daily-family-use-0.8.md`](docs/daily-family-use-0.8.md) for the daily
-workflow, local reminder boundary, TestFlight notes, and validation checklist.
+## Privacy boundaries
+
+- No advertising or third-party behavioral analytics.
+- PIN material, biometric state, notification preferences, selected device
+  profile, calendar data, location, weather cache, app-icon choice, and Apple
+  credentials remain device-local.
+- Calendar access is read-only. Weather uses one-shot location and a replaceable
+  local cache; neither becomes shared household truth.
+- CloudKit contains only supported shared household records after a parent
+  explicitly enables family sync.
+- Parent authorization inside kyndyn remains separate from iCloud share access.
+- Weekly insights are calculated locally from household records and do not rank
+  children or send data to an AI/analytics service.
+- Repository fixtures use fictional data. Never commit exports, real household
+  content, invitation links, tokens, signing material, or generated builds.
+
+Read [Privacy and security](docs/privacy-and-security.md) for the full boundary.
+
+## Documentation
+
+Start with these living documents:
+
+- [Documentation index](docs/README.md) — current guides versus historical
+  milestone records.
+- [App Store roadmap](docs/app-store-roadmap.md) — completed work, next options,
+  and release gates.
+- [Product scope](docs/product-scope.md) — product promise and safety rules.
+- [Architecture](docs/architecture.md) — persistence, sync, services, and UI
+  boundaries.
+- [Feature parity/status](docs/pwa-parity-matrix.md) — current capability map.
+- [CloudKit configuration](docs/cloudkit-configuration.md) — Development versus
+  Production setup and validation.
+- [Privacy and security](docs/privacy-and-security.md) — local/shared data and
+  diagnostic rules.
+- [Asset provenance](docs/asset-provenance.md) — approved visual assets.
+
+Files named for earlier builds or milestones are retained as historical design
+and validation records. They describe what was true at that milestone; the
+living documents above describe the current app.
+
+## Current limitations
+
+- Apple does not guarantee immediate background CloudKit or silent-notification
+  delivery. Foreground/relaunch catch-up is the reliable path; manual refresh
+  remains available for recovery.
+- Family broadcasts synchronize through CloudKit and can schedule local alerts,
+  but guaranteed prompt delivery while the app is closed requires a future
+  hosted APNs service.
+- App Shortcuts are implemented, while spoken Siri invocation remains dependent
+  on Apple's current OS behavior and must not be described as guaranteed.
+- Badges exist in progress details; a fuller gallery and recognition experience
+  is still planned.
+- Durable reward-cycle history and exported weekly/monthly reports are deferred
+  to the next insights phase.
+- StoreKit and premium entitlements are intentionally not implemented.

@@ -1,245 +1,138 @@
 # App Store roadmap
 
-## Completed through Build 11
+Current feature set and TestFlight upload: **kyndyn 0.15.0 (Build 15)**.
 
-### Build 4 — Daily Experience and Recovery 0.8.1
+## Completed foundation
 
-- Recover an existing owner-hosted or shared household from iCloud after an
-  empty reinstall without creating a duplicate household.
-- Add honest startup/recovery states and privacy-safe diagnostics.
-- Improve quest browsing with status counts, search, details, and completion
-  history.
-- Turn the Parent landing screen into a useful daily snapshot with quick
-  actions, reward progress, sync status, and visible version/build metadata.
-- Let the active person safely choose their profile color and starter companion
-  while parent-only identity and permission controls remain protected.
-- Improve personal XP, level, streak, and recent-completion explanations.
-- Keep launch presentation, iPad layout, dark mode, Dynamic Type, VoiceOver,
-  automatic sync, and pull-to-refresh consistent.
+### Builds 1–6 — Local core, CloudKit, and first UI system
 
-### Build 5 — Recognition and Collections 0.8.2
+- Offline SwiftData household, people, quests, schedules, completions, XP,
+  levels, streaks, rewards, reminders, authentication, backup/import, and
+  archive/restore workflows.
+- Owner/participant CloudKit sharing, invitations, conflict-safe offline queue,
+  automatic foreground/relaunch sync, subscription hints, and recovery states.
+- Production-capable signing/container configuration and physical two-account
+  Development CloudKit validation.
+- Initial TestFlight pipeline, rebrand, app icon, responsive iPhone/iPad UI,
+  dark-mode consistency, profile color fixes, and pull to refresh.
 
-- Continue the loose visual-consistency pass, beginning with a calmer Home
-  hierarchy, unified personal progress, and quieter activity presentation.
-- Native badges derived from deterministic progression.
-- Durable companion collection and unlock rules.
-- Background collection and profile scenes.
-- Calm unlock introductions and parent-managed grants.
-- No random rewards, trading, or child-directed behavioral profiling.
+Historical details remain in the 0.2–0.8 milestone documents.
 
-### Build 6 — UI Layout Corrections 0.8.3
+### Builds 7–9 — Setup and personalization
 
-- Make the Kyndyn purple-black background consistent throughout dark mode.
-- Correct compact-iPhone profile customization, companion sizing, and
-  background-preview overflow.
-- Make companion and background selectors adapt cleanly to iPhone and iPad.
-- Use a single full-width iPad surface and center quest filtering controls.
-- Improve iPad quest-card use of available portrait and landscape space.
-- Keep this release visual-only, without changing household data, progression,
-  collections, or synchronization behavior.
+- Guided owner/participant onboarding plus revisitable family setup help.
+- Backup, restore, iCloud recovery, and family-member invitation explanations.
+- Immersive companion/background Home presentation, expanded encouragement,
+  polished profile switching, complete approved collection, alternate app icons,
+  and separate everyday Settings versus protected Parent administration.
 
-### Build 7 — Guided Family Setup 0.9.0
+See [Build 7](build-7-guided-family-setup.md), [Build 8](build-8-visual-identity.md),
+and [Build 9](build-9-personalization-parity.md).
 
-- Add a proper first-run onboarding journey that explains Kyndyn's core family
-  loop before asking someone to configure a household.
-- Clearly separate adding a person/profile inside a household from inviting a
-  family member to use Kyndyn on another device.
-- Walk the household owner through enabling iCloud family sync, creating the
-  share, sending an invitation, and confirming that the other device joined and
-  reached an up-to-date state.
-- Give invited participants a focused join flow that avoids accidental sample
-  or duplicate household creation and explains what access they received.
-- Explain local-only versus iCloud-synchronized households honestly, including
-  Apple-account, network, and background-sync limitations.
-- Teach parents how to export a private backup, where to store it safely, how
-  restore/import differs from iCloud recovery, and why imports require an empty
-  installation where applicable.
-- Provide a parent-accessible setup checklist or Help surface so these lessons
-  can be revisited after onboarding instead of appearing only once.
-- Allow safe skipping where appropriate, preserve local-only use, use no real
-  family information in examples, and cover VoiceOver, Dynamic Type, iPhone,
-  and iPad layouts.
+### Build 10 — Quest planning
 
-See `docs/build-7-guided-family-setup.md` for the implemented scope.
+- Native templates, two-week schedule overview, recurrence diagnostics, and
+  safe repair tools.
+- Prevent invalid recurrence during quest creation/editing where possible while
+  retaining repair for previously stored/imported schedules.
 
-### Build 8 — Visual Identity and Personalization
+See [Build 10](build-10-quest-planning.md).
 
-- Add a device-local app icon selector with the current icon and the supplied
-  alternate icon, using a catalog that can grow as more approved icons arrive.
-- Put each person's earned companion and background front and center in a
-  responsive Home hero beneath the personal/everyone view control.
-- Move the personal greeting beneath that scene and rotate through a larger
-  set of short, encouraging, privacy-safe messages when Home is freshly shown
-  or refreshed, without remote AI or behavioral profiling.
-- Replace the large profile-selector cards with polished circular companion
-  portraits, names, clear selection state, and adaptive iPhone/iPad layouts.
-- Add restrained visual flair while preserving unlock rules, progression,
-  synchronization, accessibility, and reduced-motion behavior.
-- Keep alternate-icon choice local to each installation; companion and
-  background selections continue to follow the existing synced profile model.
+### Build 11 — System intelligence foundation
 
-See `docs/build-8-visual-identity.md` for the implemented scope.
+- Privacy-limited App Intents for today's quests, reward progress, opening a
+  person's dashboard, completion, and exact undo.
+- Shortcuts reuse the local store, progression engine, and sync queue.
+- Spoken Siri invocation remains dependent on Apple's evolving OS behavior and
+  is not considered guaranteed.
 
-### Build 9 — Personalization Parity
+See [Build 11](build-11-system-intelligence.md).
 
-- Separate everyday Settings from protected Parent administration so any
-  active profile can reach appearance and personalization safely.
-- Move app-icon choice into Settings while keeping it device-local.
-- Bring the complete approved Rowan companion artwork into the native
-  collection, including the three owner-approved custom companions.
-- Bring the remaining usable Rowan background scenes into the native
-  collection while excluding generic locked-placeholder art.
-- Preserve existing earned selections and apply deterministic milestone rules
-  to new collection items without introducing random rewards.
-- Keep parent grants available for accessibility and family discretion.
+### Build 12 — Family communication
 
-### Build 10 — Quest Planning Tools
+- Parent-managed family broadcasts, CloudKit synchronization, expiration, and
+  local notification handling.
+- Broadcasts remain separate from sync hints and quest reminders. Guaranteed
+  prompt closed-app delivery requires a future hosted APNs service.
 
-- Added eleven native quest templates for common family routines.
-- Added a household-time-zone-aware two-week schedule overview.
-- Added recurrence diagnostics and explicit safe-repair tools.
-- Preserved completion history and awarded XP when schedules are edited or
-  repaired, while routing repairs through the existing sync queue.
+### Build 13 — Immersive personal Home
 
-See `docs/build-10-quest-planning.md` for the implemented scope.
+- Safe-area-spanning profile scene header, grounded companion composition,
+  adaptive contrast/depth treatment, and clearer Settings navigation.
 
-### Build 11 — Siri and System Intelligence
+See [Build 13](build-13-immersive-personal-home.md).
 
-- Siri and System Intelligence integration using App Intents rather than a
-  dedicated Kyndyn AI service:
-  - Expose privacy-limited profile and quest-occurrence choices to Siri and
-    Shortcuts, with shortcut discovery available through Apple's system
-    surfaces.
-  - Begin with safe actions such as listing today's quests, showing reward
-    progress, opening a person's dashboard, and completing or undoing an exact
-    quest occurrence.
-  - Reuse SwiftData, deterministic progression, duplicate-completion
-    protection, and the existing offline CloudKit mutation queue; Siri must not
-    write directly to CloudKit or calculate progression independently.
-  - Require device authentication where appropriate and preserve Kyndyn's
-    separate Parent authorization for creating, editing, archiving, sharing,
-    reward management, and household administration.
-  - Keep child names and quest details unavailable from the lock screen, and
-    gate newer Siri AI, onscreen-awareness, and App Schema capabilities by OS
-    availability while retaining useful App Shortcuts on older supported iOS
-    versions.
-  - Add deterministic App Intents tests plus physical-device Siri, Shortcuts,
-    Spotlight, locked-device, offline, and synchronization validation.
+### Build 14 — Calendar, weather, and settings polish
 
-See `docs/build-11-system-intelligence.md` for the implemented foundation and
-the remaining physical-device validation boundary.
+- Optional read-only EventKit calendar context and device-local selected
+  calendars.
+- Optional one-shot location and WeatherKit conditions with replaceable local
+  cache.
+- Consistent Settings/Parent rows, callouts, dark mode, iPad layouts, context
+  card sizing, level visibility, and parent-entered starting XP.
 
-## Completed through Build 14
+See [Calendar and weather](calendar-weather.md).
 
-### Build 12 — Family Communication
+### Build 15 / 17A — Weekly family insights
 
-- Family broadcasts and announcements with parent controls.
-- Richer parent and family summaries.
-- Privacy-conscious delivery and expiration behavior.
-- Keep announcements separate from synchronization notifications and quest
-  reminders.
+- Protected current/past weekly overview, seven-day chart, family totals,
+  individual four-week trends, and factual observations.
+- Completed, not-completed, waiting, and earned-XP rules respect the household
+  time zone and exclude starting-XP adjustments.
+- No rankings, sibling comparisons, grades, AI conclusions, or behavioral
+  profiling.
 
-### Build 13 — Immersive Personal Home
+See [Weekly Family Insights](build-17a-weekly-insights.md).
 
-- Replace the ambiguous Home personalization shortcut with a familiar,
-  clearly labeled route to Settings, or remove it when the existing profile
-  and Settings navigation makes it redundant.
-- Recompose the selected background and companion as the Home header itself:
-  the scene supplies the header atmosphere, the companion sits within it, and
-  greeting, encouragement, and profile context remain legible parts of one
-  responsive composition rather than a separate image card.
-- Use safe-area-aware crops, gradients, and contrast treatments so the header
-  works in light and dark mode without obscuring navigation or text.
-- Adapt the composition for compact iPhones, larger Dynamic Type, iPad,
-  landscape, VoiceOver, and Reduce Motion.
-- Preserve earned-item rules and synchronized companion/background selection;
-  this build changes presentation rather than progression or ownership.
+## Candidate next work
 
-See `docs/build-13-immersive-personal-home.md` for the implemented scope.
+Priority should be chosen before starting the next build; the remaining work is
+not locked to build numbers.
 
-## Next
+1. **Insights 17B — reward history and private reports**
+   - durable reached/replaced reward-cycle history;
+   - locally generated weekly/monthly reports with parent preview before export;
+   - accessibility and multi-device validation for expanded insights.
+2. **Badge recognition**
+   - dedicated gallery, more deterministic milestones, accessible celebrations,
+     and explicit legacy badge migration;
+   - never infer badges from manually entered starting XP.
+3. **Hosted notification delivery**
+   - minimal trusted service for APNs tokens and prompt broadcasts;
+   - consent, deletion, security, abuse prevention, and operating-cost review.
+4. **Business model and entitlements**
+   - keep the core family loop, security, accessibility, backup/export/recovery,
+     and useful small-household sync free;
+   - reserve premium for meaningful expansion such as advanced planning,
+     reports, customization, multiple rewards, and integrations;
+   - define household ownership, Apple Family Sharing, gifts/promo access,
+     expiration, refunds, restoration, transfer, and grandfathering before
+     implementing StoreKit.
+5. **Public-release hardening**
+   - independent security/privacy review, accessibility audit, localization,
+     support/privacy URLs, deletion/export flows, production failure testing,
+     and broader TestFlight coverage.
 
-### Build 17A — Weekly Family Insights
+## Apple-service status
 
-- Protected weekly family overview and daily activity chart.
-- Individual four-week completion and earned-XP trends.
-- Completed, not-completed, and waiting summaries using household-time-zone
-  boundaries.
-- Deterministic parent observations without rankings, sibling comparisons, or
-  behavioral profiling.
-- Starting XP contributes to current level but not weekly earned-XP reporting.
+- App ID, bundle identity, CloudKit container, Development/Production
+  environments, WeatherKit capability, signing capabilities, App Store Connect
+  record, and TestFlight pipeline are configured.
+- Debug uses Development CloudKit; Release/TestFlight uses Production.
+- Every additive CloudKit schema change still needs Development review and
+  Production deployment before that field/type is relied upon in TestFlight.
+- Background CloudKit and silent notifications are best effort. Foreground and
+  relaunch catch-up remain required.
+- StoreKit and a hosted notification service remain unconfigured.
 
-See `docs/build-17a-weekly-insights.md` for the implemented scope.
+## Public-release gates
 
-### Build 17B — Reward History and Private Reports
-
-- Durable reward-cycle history, including reached and replaced goals.
-- Locally generated, parent-previewed weekly or monthly report exports.
-- Accessibility and multi-device validation for the expanded insights flow.
-
-## Later
-
-- Expand badges into a full recognition experience with a dedicated gallery,
-  additional deterministic milestones, accessible earned-badge celebrations,
-  and an explicit legacy Rowan badge migration strategy. Do not infer badges
-  from a parent-entered starting XP adjustment.
-
-- Build 14A: read-only calendar integration with explicit permission and
-  privacy design.
-- Build 14B: weather as derived, replaceable cache data rather than shared
-  source truth.
-- A later hosted-notification build may add APNs-backed prompt broadcast
-  delivery; Build 12 remains CloudKit-driven and best-effort without claiming
-  guaranteed background delivery.
-- Business Model and Entitlements must be designed and approved before adding
-  StoreKit:
-  - Keep the core family loop free: one household, parent and child profiles,
-    quest creation and assignment, completion and exact-occurrence undo, basic
-    recurrence, XP, levels, streaks, one family reward, local reminders,
-    local-only use, backup, restore, export, privacy, security, and
-    accessibility.
-  - Keep useful family synchronization available for a small household so the
-    free app remains a genuine multi-person family product.
-  - Reserve premium for expansion such as advanced planning and templates,
-    richer insights and reports, additional customization and collections,
-    multiple or rotating rewards, family communication, calendar and weather
-    integrations, and Siri/System Intelligence features.
-  - Never charge for Face ID or other security, accessibility, backup, export,
-    recovery, or access to existing household data.
-  - Never delete or hide household history when an entitlement expires, revoke
-    items a child already earned, or direct purchase pressure toward children.
-  - Define household-level entitlement ownership, Apple Family Sharing,
-    participants outside the purchaser's Apple family, subscription transfer,
-    billing failure, expiration, refunds, purchase restoration, and
-    grandfathering before implementation.
-  - Evaluate subscription versus one-time purchase based on actual ongoing
-    value and operating cost rather than assuming a subscription is required.
-- Add StoreKit only after those product rules, child-safety boundaries, and
-  expiration behaviors are covered by tests and user-facing documentation.
-
-## Remaining before public release
-
-- Complete independent security review of local parent authentication and recovery limitations.
-- Continue validating Production CloudKit private/shared zones, invitations,
-  participant permissions, revocation, and recovery through TestFlight.
-- Validate notification scheduling and privacy across supported physical
-  devices and account roles.
-- Complete the remaining roadmap and robust parent editors.
-- Continue expanding accessibility identifiers, UI coverage, and real-family
-  TestFlight validation.
-
-## Current Apple setup
-
-Kyndyn has its App ID, bundle identity, iCloud/CloudKit container, Development
-and Production environments, signing capabilities, App Store Connect record,
-and TestFlight pipeline configured. Archived Release builds use Production
-CloudKit while local Debug builds use Development CloudKit. Continue reviewing
-schema changes before deployment and test them with fictional data before using
-personal household data.
-
-StoreKit remains intentionally unconfigured until monetization and family
-purchase behavior are approved as a separate milestone.
-
-## Release gates
-
-Privacy/security review, VoiceOver and Dynamic Type audit, reduced-motion and contrast review, localization readiness, real-device offline/relaunch testing, CloudKit sharing failure tests, StoreKit sandbox tests, deletion/export flows, support URL, privacy policy, and TestFlight family testing.
+- Privacy labels, policy, retention/deletion behavior, and child-safety review.
+- VoiceOver, Dynamic Type, Reduce Motion, contrast, iPhone/iPad, and localization
+  audits.
+- Production CloudKit account/share/revocation/reinstall/offline testing with
+  fictional data before personal-data use.
+- External security review of parent authentication, transfer files, CloudKit,
+  and any future hosted service.
+- Support URL, screenshots/metadata, export/deletion guidance, crash monitoring
+  decision, and sustained family TestFlight validation.
