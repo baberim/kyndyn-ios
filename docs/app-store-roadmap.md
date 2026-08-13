@@ -189,12 +189,22 @@ See `docs/build-17a-weekly-insights.md` for the implemented scope.
 
 See `docs/badge-recognition.md` for the implemented scope.
 
+## Build 17 — Recognition Polish
+
+- Name earned badges and explain the milestone in the celebration experience.
+- Explain badge-count companion and background unlocks in the gallery.
+- Surface a restrained badge count on Profiles without rankings or comparison.
+
+## Build 18 — Calendar and Weather Refinement
+
+- Improve upcoming-event timing and multi-event context on Home.
+- Make cached weather freshness honest and visible.
+- Link Home context cards to device-local settings and improve recovery states.
+
+See `docs/calendar-weather.md` for the implemented privacy boundary.
+
 ## Later
 
-- Build 14A: read-only calendar integration with explicit permission and
-  privacy design.
-- Build 14B: weather as derived, replaceable cache data rather than shared
-  source truth.
 - A later hosted-notification build may add APNs-backed prompt broadcast
   delivery; Build 12 remains CloudKit-driven and best-effort without claiming
   guaranteed background delivery.

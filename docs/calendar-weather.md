@@ -1,4 +1,4 @@
-# Calendar and weather (Build 14)
+# Calendar and weather (Builds 14 and 18)
 
 Build 14 adds two optional, device-local views of the family’s day.
 
@@ -32,3 +32,12 @@ Before physical or TestFlight validation:
 ## Limitations
 
 Apple controls calendar/location permission prompts and WeatherKit availability. Simulator location must be supplied through Xcode. Weather and calendar refresh when the app is used; neither is advertised as real-time or guaranteed background data.
+
+## Build 18 refinement
+
+- Home calendar cards identify today, tomorrow, or the upcoming weekday, show
+  all-day timing, and disclose when more events are waiting.
+- Home weather cards distinguish recent data from an older cached reading.
+- Both Home cards link directly to their device-local Settings screens.
+- Empty, denied, and unavailable states offer a useful recovery route while
+  leaving quests, progression, and family sync fully operational.

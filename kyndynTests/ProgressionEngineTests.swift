@@ -199,6 +199,19 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertFalse(badges.contains { $0.id == "streak-seven" })
     }
 
+    func testBadgeMilestonesExplainCollectionUnlocks() {
+        XCTAssertEqual(
+            RecognitionEngine.badgeCollectionMilestones.map(\.badgeCount),
+            [3, 5])
+        XCTAssertEqual(
+            RecognitionEngine.collectionMilestone(reachedWith: 3)?.itemNames,
+            ["Aquarium background", "Cloud companion"])
+        XCTAssertEqual(
+            RecognitionEngine.collectionMilestone(reachedWith: 5)?.itemNames,
+            ["Deer companion", "Moon Garden background"])
+        XCTAssertNil(RecognitionEngine.collectionMilestone(reachedWith: 4))
+    }
+
     @MainActor private func models() throws -> (ModelContainer, Household, Person, Quest) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)

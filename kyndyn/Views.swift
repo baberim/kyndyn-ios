@@ -615,16 +615,21 @@ struct ProfilePickerView: View {
                                         Text(person.role == .parent ? "Parent" : "Family member")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                        Text("Level \(level(for: person))")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(Color(hex: person.colorHex))
+                                        HStack(spacing: 8) {
+                                            Text("Level \(level(for: person))")
+                                            if badgeCount(for: person) > 0 {
+                                                Label("\(badgeCount(for: person))", systemImage: "medal.fill")
+                                            }
+                                        }
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color(hex: person.colorHex))
                                     }
                                     .frame(maxWidth: .infinity)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                                .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
+                                .accessibilityValue("Level \(level(for: person)), \(badgeCount(for: person)) badges, \(ProfilePalette.name(for: person.colorHex)) profile color")
                                 .accessibilityHint("Opens this person’s home")
                                 .accessibilityIdentifier("profile-\(person.name)")
                             }
@@ -646,6 +651,10 @@ struct ProfilePickerView: View {
             .filter { $0.personID == person.id && $0.reversedAt == nil }
             .reduce(0) { $0 + $1.awardedXP }
         return max(0, questXP + person.startingXPAdjustment) / 100 + 1
+    }
+
+    private func badgeCount(for person: Person) -> Int {
+        RecognitionEngine.normalizedBadges(person.earnedBadgeIDs).count
     }
 }
 
@@ -862,6 +871,7 @@ struct SiriShortcutsHelpView: View {
 }
 
 struct CalendarSettingsView: View {
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: DevicePermissionState = .notRequested
@@ -903,6 +913,11 @@ struct CalendarSettingsView: View {
                         try? context.save()
                     }
                 }
+                if calendars.isEmpty {
+                    Section {
+                        KyndynCallout(kind: .information, message: "No calendars are available on this device yet. Add one in Calendar, then return here.")
+                    }
+                }
             } else {
                 Section {
                     Button("Allow calendar access") {
@@ -914,6 +929,7 @@ struct CalendarSettingsView: View {
                     if permission == .denied || permission == .restricted {
                         Text("Calendar access is off. You can change it in the iPhone or iPad Settings app.")
                             .font(.footnote).foregroundStyle(.secondary)
+                        Button("Open device settings") { openAppSettings() }
                     }
                 }
             }
@@ -930,9 +946,15 @@ struct CalendarSettingsView: View {
         permission = provider.permissionState()
         calendars = permission == .allowed ? provider.calendars() : []
     }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
+    }
 }
 
 struct WeatherSettingsView: View {
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @Query private var settings: [LocalDeviceSettings]
     @State private var isLoading = false
@@ -959,7 +981,10 @@ struct WeatherSettingsView: View {
                         }.disabled(isLoading)
                     }
                 }
-                if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                if let message {
+                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                    Button("Open device settings") { openAppSettings() }
+                }
             }
             Section("Privacy") {
                 KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
@@ -994,6 +1019,11 @@ struct WeatherSettingsView: View {
         setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
         setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
         setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 }
 
@@ -1166,7 +1196,7 @@ struct DashboardView: View {
                     ProgressDetailView(person: person, household: household)
                 }
             }
-            .alert("New collection item", isPresented: Binding(
+            .alert(unlockTitle(unlockToPresent), isPresented: Binding(
                 get: { unlockToPresent != nil },
                 set: { if !$0 { acknowledgePresentedUnlock() } }
             )) {
@@ -1193,10 +1223,20 @@ struct DashboardView: View {
             Grid(horizontalSpacing: 12) {
                 GridRow(alignment: .top) {
                     if setting.weatherIntegrationEnabled {
-                        weatherSummary(setting)
+                        NavigationLink {
+                            WeatherSettingsView()
+                        } label: {
+                            weatherSummary(setting)
+                        }
+                        .buttonStyle(.plain)
                     }
                     if setting.calendarIntegrationEnabled {
-                        calendarSummary
+                        NavigationLink {
+                            CalendarSettingsView()
+                        } label: {
+                            calendarSummary
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -1217,8 +1257,14 @@ struct DashboardView: View {
                 }
                 Text(setting.cachedWeatherCondition ?? "Local weather")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let fetchedAt = setting.cachedWeatherAt {
+                    Text(WeatherCachePolicy.isFresh(fetchedAt)
+                         ? "Updated recently" : "Last updated \(fetchedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             } else {
-                ProgressView().accessibilityLabel("Loading weather")
+                Label("Tap to check weather", systemImage: "arrow.clockwise")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
@@ -1231,8 +1277,12 @@ struct DashboardView: View {
                 .font(.headline)
             if let event = calendarEvents.first {
                 Text(event.title).font(.subheadline.bold()).lineLimit(1)
-                Text(event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened))
+                Text(calendarTime(for: event))
                     .font(.caption).foregroundStyle(.secondary)
+                if calendarEvents.count > 1 {
+                    Text("+\(calendarEvents.count - 1) more in the next 2 days")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             } else {
                 Text("Nothing scheduled soon")
                     .font(.caption).foregroundStyle(.secondary)
@@ -1240,6 +1290,17 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .orange)
+    }
+
+    private func calendarTime(for event: DeviceCalendarEvent) -> String {
+        let calendar = Calendar.current
+        let day: String
+        if calendar.isDateInToday(event.startDate) { day = "Today" }
+        else if calendar.isDateInTomorrow(event.startDate) { day = "Tomorrow" }
+        else { day = event.startDate.formatted(.dateTime.weekday(.abbreviated)) }
+        return event.isAllDay
+            ? "\(day), all day"
+            : "\(day) at \(event.startDate.formatted(date: .omitted, time: .shortened))"
     }
 
     private func refreshCalendarEvents() {
@@ -1307,9 +1368,28 @@ struct DashboardView: View {
            let badge = RecognitionEngine.badgeCatalog.first(where: {
                $0.id == parts[1]
            }) {
-            return "You earned the \(badge.title) badge!"
+            let count = person.map {
+                RecognitionEngine.normalizedBadges($0.earnedBadgeIDs).count
+            } ?? 0
+            if let milestone = RecognitionEngine.collectionMilestone(
+                reachedWith: count) {
+                return "\(badge.detail). You also unlocked the \(milestone.detail)."
+            }
+            return badge.detail
         }
         return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
+    }
+
+    private func unlockTitle(_ value: String?) -> String {
+        guard let value else { return "New collection item" }
+        let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+        if parts.count == 2, parts[0] == "badge",
+           let badge = RecognitionEngine.badgeCatalog.first(where: {
+               $0.id == parts[1]
+           }) {
+            return "Badge earned: \(badge.title)"
+        }
+        return "New collection item"
     }
 
     private func acknowledgePresentedUnlock() {
@@ -1708,6 +1788,26 @@ struct BadgeGalleryView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 .kyndynCard(tint: Color(hex: person.colorHex), raised: true)
+
+                if !RecognitionEngine.badgeCollectionMilestones.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Badges unlock your collection", systemImage: "sparkles")
+                            .font(.headline)
+                        ForEach(RecognitionEngine.badgeCollectionMilestones) { milestone in
+                            HStack(alignment: .firstTextBaseline) {
+                                Image(systemName: badges.filter(\.isEarned).count >= milestone.badgeCount
+                                      ? "checkmark.circle.fill" : "lock.circle")
+                                    .foregroundStyle(Color(hex: person.colorHex))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(milestone.title).font(.subheadline.bold())
+                                    Text(milestone.detail)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .kyndynCard(tint: Color(hex: person.colorHex))
+                }
 
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)],
