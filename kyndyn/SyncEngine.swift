@@ -702,7 +702,8 @@ struct ProvisioningPreview: Equatable {
     }
 
     func synchronize(state: HouseholdCloudState, context: ModelContext,
-                     now: Date = .now) async {
+                     now: Date = .now,
+                     fullReconciliation: Bool = false) async {
         guard let zone = state.zoneName,
               [.owner, .participant, .recoverableError].contains(state.mode),
               !isWorking else { return }
@@ -750,7 +751,7 @@ struct ProvisioningPreview: Equatable {
                 let changes = try await transport.fetchChanges(
                     zoneName: zone, scope: state.databaseScope,
                     zoneOwnerName: state.zoneOwnerName,
-                    after: state.changeToken)
+                    after: fullReconciliation ? nil : state.changeToken)
                 try SyncRemoteApplier.apply(changes.records, context: context)
                 await refreshRemindersIfNeeded(changes.records, context: context)
                 await notifyNewBroadcasts(changes.records, context: context)
@@ -1774,7 +1775,10 @@ enum AutomaticSyncDisplayState: Equatable {
                     await controller.ensureChangeSubscription(for: state)
                     && subscriptionReady
                 if Task.isCancelled { return }
-                await controller.synchronize(state: state, context: context)
+                await controller.synchronize(
+                    state: state, context: context,
+                    fullReconciliation:
+                        self?.lastTriggers.contains(.manual) == true)
             }
             if controller.lastErrorCategory == .offline {
                 self?.displayState = .offline
