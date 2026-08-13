@@ -1,4 +1,4 @@
-# CloudKit development configuration
+# CloudKit configuration
 
 The project owner authorized CloudKit validation in 0.5. The app
 uses:
@@ -52,9 +52,21 @@ failure.
    and verify that no device settings, PIN material, notification configuration,
    invitation URLs, or derived counters were uploaded.
 
-Development schema records were initialized by live fictional-data validation.
-Before uploading the next TestFlight build, review the Development schema in
-CloudKit Dashboard and deploy that schema to Production. Deploying the schema
-does not copy Development records or fictional test data. Validate the uploaded
-build with a fresh fictional Production household before relying on it for a
-real-family pilot.
+Development and Production are separate environments. Before relying on any
+new synchronized record type or field in TestFlight, review its Development
+schema and deploy that additive schema to Production. This applies to later
+fields such as family broadcasts and person starting-XP adjustments as well as
+future shared models. Schema deployment does not copy Development records or
+fictional test data.
+
+For each TestFlight build that changes the shared schema:
+
+1. Exercise the new record/field with fictional data in Development.
+2. Review the Development schema in CloudKit Console.
+3. Deploy the additive schema to Production; do not delete or rename live
+   fields as a recovery shortcut.
+4. Archive/upload the Release build and validate a fictional Production
+   household on the owner and participant paths.
+
+No schema action is needed for changes limited to UI, local device settings,
+calendar, weather cache, notifications, or derived insights.
