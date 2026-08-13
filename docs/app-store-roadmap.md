@@ -177,7 +177,7 @@ See `docs/build-17a-weekly-insights.md` for the implemented scope.
 - Locally generated, parent-previewed weekly or monthly report exports.
 - Accessibility and multi-device validation for the expanded insights flow.
 
-## Completed — Badge Recognition
+## Build 16 — Badge Recognition
 
 - Added a dedicated badge gallery, deterministic quest/streak/quest-XP/family
   milestones, progress toward locked badges, and accessible earned-badge

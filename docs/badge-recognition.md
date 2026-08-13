@@ -1,4 +1,4 @@
-# Badge recognition
+# Build 16 — Badge recognition
 
 kyndyn calls these milestones **Badges** in the family experience. The internal
 recognition engine treats them as deterministic achievements, but the shorter
