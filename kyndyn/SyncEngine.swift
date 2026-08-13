@@ -356,6 +356,7 @@ enum SyncSnapshot {
                 "earnedCompanionIDs": value.earnedCompanionIDs.sorted().joined(separator: ","),
                 "backgroundID": value.backgroundID,
                 "earnedBackgroundIDs": value.earnedBackgroundIDs.sorted().joined(separator: ","),
+                "earnedBadgeIDs": value.earnedBadgeIDs.sorted().joined(separator: ","),
                 "startingXPAdjustment": String(value.startingXPAdjustment),
                 "createdAt": value.createdAt.ISO8601Format(),
                 "deletedAt": value.deletedAt?.ISO8601Format() ?? ""
@@ -1044,6 +1045,8 @@ enum SyncRemoteApplier {
                     person.earnedCompanionIDs + stringList(record.fields["earnedCompanionIDs"]))
                 person.earnedBackgroundIDs = CollectionCatalog.normalizedBackgrounds(
                     person.earnedBackgroundIDs + stringList(record.fields["earnedBackgroundIDs"]))
+                person.earnedBadgeIDs = RecognitionEngine.normalizedBadges(
+                    person.earnedBadgeIDs + stringList(record.fields["earnedBadgeIDs"]))
                 if let background = record.fields["backgroundID"],
                    person.earnedBackgroundIDs.contains(background) {
                     person.backgroundID = background

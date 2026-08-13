@@ -177,12 +177,19 @@ See `docs/build-17a-weekly-insights.md` for the implemented scope.
 - Locally generated, parent-previewed weekly or monthly report exports.
 - Accessibility and multi-device validation for the expanded insights flow.
 
-## Later
+## Completed — Badge Recognition
 
-- Expand badges into a full recognition experience with a dedicated gallery,
-  additional deterministic milestones, accessible earned-badge celebrations,
-  and an explicit legacy Rowan badge migration strategy. Do not infer badges
-  from a parent-entered starting XP adjustment.
+- Added a dedicated badge gallery, deterministic quest/streak/quest-XP/family
+  milestones, progress toward locked badges, and accessible earned-badge
+  celebrations.
+- Earned badges persist through sync and backup and cannot be inferred from a
+  parent-entered starting XP adjustment.
+- Legacy badge migration remains deferred; existing completion history can
+  earn supported badges without trusting stale summary totals.
+
+See `docs/badge-recognition.md` for the implemented scope.
+
+## Later
 
 - Build 14A: read-only calendar integration with explicit permission and
   privacy design.

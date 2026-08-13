@@ -1082,7 +1082,9 @@ struct DashboardView: View {
                                 startingXPAdjustment: person.startingXPAdjustment)
                             VStack(spacing: 18) {
                                 broadcastNavigation
-                                progressSummary(progress, tint: Color(hex: person.colorHex))
+                                progressSummary(
+                                    progress, person: person, household: household,
+                                    tint: Color(hex: person.colorHex))
                         VStack(alignment: .leading, spacing: 10) {
                             ViewThatFits(in: .horizontal) {
                                 HStack {
@@ -1260,6 +1262,12 @@ struct DashboardView: View {
         guard let value else { return "A new item is ready in My profile." }
         let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return "A new item is ready in My profile." }
+        if parts[0] == "badge",
+           let badge = RecognitionEngine.badgeCatalog.first(where: {
+               $0.id == parts[1]
+           }) {
+            return "You earned the \(badge.title) badge!"
+        }
         return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
     }
 
@@ -1468,8 +1476,15 @@ struct DashboardView: View {
         ProgressionEngine.rewardXP(completions, goal: currentReward(household))
     }
 
-    private func progressSummary(_ progress: PersonProgress, tint: Color) -> some View {
-        Button {
+    private func progressSummary(
+        _ progress: PersonProgress, person: Person, household: Household,
+        tint: Color
+    ) -> some View {
+        let badgeCount = RecognitionEngine.badges(
+            progress: progress,
+            familyRewardReached: rewardXP(household) >= rewardTarget(household),
+            earnedBadgeIDs: person.earnedBadgeIDs).count
+        return Button {
             showProgress = true
         } label: {
             VStack(spacing: 14) {
@@ -1499,8 +1514,7 @@ struct DashboardView: View {
                     Divider().frame(height: 34)
                     ProgressStat(value: "\(progress.level)", label: "Level")
                     Divider().frame(height: 34)
-                    ProgressStat(
-                        value: "\(progress.currentStreak)", label: "Day streak")
+                    ProgressStat(value: "\(badgeCount)", label: "Badges")
                 }
                 VStack(spacing: 6) {
                     ProgressView(
@@ -1542,6 +1556,7 @@ struct ProgressDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var completions: [QuestCompletion]
     @Query private var quests: [Quest]
+    @Query private var goals: [RewardGoal]
 
     private var activeEvents: [QuestCompletion] {
         completions.filter { $0.personID == person.id && $0.reversedAt == nil }
@@ -1552,6 +1567,13 @@ struct ProgressDetailView: View {
             personID: person.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
             startingXPAdjustment: person.startingXPAdjustment)
+    }
+    private var familyRewardReached: Bool {
+        let goal = ProgressionEngine.currentRewardGoal(
+            goals, householdID: household.id)
+        return goal.map {
+            ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
+        } ?? false
     }
 
     var body: some View {
@@ -1565,22 +1587,22 @@ struct ProgressDetailView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Badges") {
-                    let badges = RecognitionEngine.badges(progress: progress)
-                    if badges.isEmpty {
-                        Text("Complete quests to begin earning badges.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(badges) { badge in
-                            Label {
-                                VStack(alignment: .leading) {
-                                    Text(badge.title)
-                                    Text(badge.detail).font(.caption).foregroundStyle(.secondary)
-                                }
-                            } icon: {
-                                Image(systemName: badge.systemImage)
-                            }
-                        }
+                    NavigationLink {
+                        BadgeGalleryView(
+                            person: person, household: household,
+                            progress: progress,
+                            familyRewardReached: familyRewardReached)
+                    } label: {
+                        let earned = RecognitionEngine.badges(
+                            progress: progress,
+                            familyRewardReached: familyRewardReached,
+                            earnedBadgeIDs: person.earnedBadgeIDs)
+                        Label(
+                            "\(earned.count) of \(RecognitionEngine.badgeCatalog.count) earned",
+                            systemImage: "medal.fill")
                     }
+                    Text("Badges come only from quest activity and family milestones. Starting XP changes levels, not badges.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Recent XP") {
                     if activeEvents.isEmpty {
@@ -1610,6 +1632,96 @@ struct ProgressDetailView: View {
                 }
             }
         }
+    }
+}
+
+struct BadgeGalleryView: View {
+    let person: Person
+    let household: Household
+    let progress: PersonProgress
+    let familyRewardReached: Bool
+
+    private var badges: [BadgeProgress] {
+        RecognitionEngine.badgeProgress(
+            progress: progress, familyRewardReached: familyRewardReached,
+            earnedBadgeIDs: person.earnedBadgeIDs)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(badges.filter(\.isEarned).count) of \(badges.count) earned")
+                        .font(.title2.bold())
+                    ProgressView(
+                        value: Double(badges.filter(\.isEarned).count),
+                        total: Double(badges.count))
+                        .tint(Color(hex: person.colorHex))
+                    Text("Each badge marks something you did in kyndyn. Keep going at your own pace.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .kyndynCard(tint: Color(hex: person.colorHex), raised: true)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)],
+                    spacing: 12
+                ) {
+                    ForEach(badges) { item in
+                        BadgeTile(item: item)
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+            .frame(maxWidth: .infinity)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle("\(person.name)’s badges")
+        .accessibilityIdentifier("badge-gallery")
+    }
+}
+
+private struct BadgeTile: View {
+    let item: BadgeProgress
+
+    var body: some View {
+        let tint = Color(hex: item.badge.colorHex)
+        VStack(spacing: 10) {
+            Image(systemName: item.isEarned ? item.badge.systemImage : "lock.fill")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(item.isEarned ? tint : .secondary)
+                .frame(width: 66, height: 66)
+                .background(
+                    item.isEarned ? tint.opacity(0.16) : Color.secondary.opacity(0.10),
+                    in: Circle())
+                .overlay(Circle().stroke(
+                    item.isEarned ? tint.opacity(0.65) : Color.secondary.opacity(0.25),
+                    lineWidth: 2))
+            Text(item.badge.title)
+                .font(.headline).multilineTextAlignment(.center).lineLimit(2)
+            Text(item.badge.detail)
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).lineLimit(2)
+            if !item.isEarned {
+                ProgressView(value: item.fraction).tint(tint)
+                Text(item.progressText)
+                    .font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+            } else {
+                Label("Earned", systemImage: "checkmark.circle.fill")
+                    .font(.caption.bold()).foregroundStyle(tint)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 245, alignment: .top)
+        .background(.regularMaterial, in: RoundedRectangle(
+            cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .stroke(tint.opacity(item.isEarned ? 0.55 : 0.20)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(item.badge.title), \(item.isEarned ? "earned" : "locked"), \(item.badge.detail)")
+        .accessibilityValue(item.isEarned ? "Earned" : item.progressText)
+        .accessibilityIdentifier("badge-\(item.badge.id)")
     }
 }
 
