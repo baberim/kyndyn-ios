@@ -288,11 +288,17 @@ struct ProfileScene: View {
 }
 
 struct ImmersiveProfileHeader: View {
+    enum EdgeStyle {
+        case faded
+        case roundedAccent
+    }
+
     let personName: String
     let message: String
     let backgroundID: String
     let companionID: String
     let accent: Color
+    var edgeStyle: EdgeStyle = .faded
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -312,7 +318,9 @@ struct ImmersiveProfileHeader: View {
                 230
             )
             let companionCenterX = proxy.size.width - 22 - companionSize / 2
-            let companionFeetY = proxy.size.height - 32
+            let foregroundLift: CGFloat = dynamicTypeSize.isAccessibilitySize
+                ? 42 : 34
+            let companionFeetY = proxy.size.height - foregroundLift - 20
 
             ZStack {
                 background(definition, size: proxy.size)
@@ -394,37 +402,13 @@ struct ImmersiveProfileHeader: View {
                        alignment: .leading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity,
                        alignment: .bottomLeading)
-                .padding(22)
+                .padding(.horizontal, 22)
+                .padding(.bottom, foregroundLift)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .clipShape(UnevenRoundedRectangle(
-            topLeadingRadius: 0,
-            bottomLeadingRadius: 30,
-            bottomTrailingRadius: 30,
-            topTrailingRadius: 0,
-            style: .continuous
-        ))
-        .overlay {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 30,
-                bottomTrailingRadius: 30,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
-        }
-        .overlay {
-            HeaderBottomAccent(cornerRadius: 30)
-                .stroke(
-                    accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round,
-                                       lineJoin: .round)
-                )
-                .accessibilityHidden(true)
-        }
-        .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
+        .modifier(ImmersiveHeaderEdge(
+            style: edgeStyle, accent: accent, colorScheme: colorScheme))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Hi, \(personName). \(message) \(definition.name) background with \(CollectionCatalog.companion(named: companionID).name)."
@@ -449,6 +433,58 @@ struct ImmersiveProfileHeader: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        }
+    }
+}
+
+private struct ImmersiveHeaderEdge: ViewModifier {
+    let style: ImmersiveProfileHeader.EdgeStyle
+    let accent: Color
+    let colorScheme: ColorScheme
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch style {
+        case .faded:
+            content.mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.64),
+                        .init(color: .black.opacity(0.96), location: 0.72),
+                        .init(color: .black.opacity(0.78), location: 0.82),
+                        .init(color: .black.opacity(0.42), location: 0.91),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top, endPoint: .bottom)
+            }
+        case .roundedAccent:
+            content
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 30,
+                    bottomTrailingRadius: 30,
+                    topTrailingRadius: 0,
+                    style: .continuous))
+                .overlay {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 30,
+                        bottomTrailingRadius: 30,
+                        topTrailingRadius: 0,
+                        style: .continuous)
+                    .stroke(.white.opacity(colorScheme == .dark ? 0.16 : 0.52))
+                }
+                .overlay {
+                    HeaderBottomAccent(cornerRadius: 30)
+                        .stroke(
+                            accent.opacity(colorScheme == .dark ? 0.92 : 0.78),
+                            style: StrokeStyle(
+                                lineWidth: 4, lineCap: .round,
+                                lineJoin: .round))
+                        .accessibilityHidden(true)
+                }
+                .shadow(color: accent.opacity(0.18), radius: 16, y: 8)
         }
     }
 }

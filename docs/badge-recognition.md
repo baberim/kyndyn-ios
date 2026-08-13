@@ -13,6 +13,17 @@ name is clearer and friendlier for children.
 - A newly earned badge uses the existing calm, one-at-a-time unlock message.
 - VoiceOver identifies the badge, earned state, description, and progress.
 
+## Build 16 interface polish
+
+- Home uses a gradual scene fade rather than a rounded, outlined image edge.
+- Pull to refresh provides a clearly visible, accessible progress indicator.
+- Everyone’s day omits the redundant household-name subtitle.
+- Switch is consistently named Profiles and its selector remains centered.
+- The Quests page keeps My quests/Everyone visible while consolidating status
+  choices into one stable filter menu.
+- iPhone is portrait-only; iPad continues to support portrait and landscape.
+- Remaining generic leaf symbols use the approved K brand mark.
+
 ## Rules
 
 - Badges are based only on completion-event history and family reward milestones.

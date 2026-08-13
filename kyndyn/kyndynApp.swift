@@ -380,9 +380,11 @@ struct StoreRecoveryView: View {
     let detail: String?
     var body: some View {
         VStack(spacing: 18) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 54))
-                .foregroundStyle(.purple)
+            Image("KyndynMark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 62, height: 62)
+                .accessibilityHidden(true)
             Text("kyndyn needs a moment")
                 .font(.largeTitle.bold())
                 .multilineTextAlignment(.center)
