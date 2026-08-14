@@ -24,6 +24,12 @@
 	<dict>
 		<key>CFBundleAlternateIcons</key>
 		<dict>
+			<key>AppIconCRT</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array><string>AppIconCRT</string></array>
+				<key>UIPrerenderedIcon</key><false/>
+			</dict>
 			<key>AppIconArcade</key>
 			<dict><key>CFBundleIconFiles</key><array><string>AppIconArcade</string></array><key>UIPrerenderedIcon</key><false/></dict>
 			<key>AppIconAtomicAge</key>

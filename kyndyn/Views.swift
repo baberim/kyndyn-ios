@@ -2225,7 +2225,10 @@ private struct AppIconChoice: Identifiable {
             previewAsset: "AppIconTranslucentPreview"),
         AppIconChoice(
             id: "outrun", title: "Outrun", alternateName: "AppIconOutrun",
-            previewAsset: "AppIconOutrunPreview")
+            previewAsset: "AppIconOutrunPreview"),
+        AppIconChoice(
+            id: "crt", title: "CRT", alternateName: "AppIconCRT",
+            previewAsset: "AppIconCRTPreview")
     ]
 }
 
@@ -2236,16 +2239,27 @@ struct AppIconPickerView: View {
     @State private var errorMessage: String?
 
     private let columns = [
-        GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 22)
+        GridItem(.adaptive(minimum: 96, maximum: 112), spacing: 14)
     ]
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Choose how kyndyn looks on this device. This choice doesn’t change anyone else’s icon.")
-                        .foregroundStyle(.secondary)
-                    LazyVGrid(columns: columns, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "iphone")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(KyndynTheme.purple)
+                            .frame(width: 22)
+                        Text("Choose the icon used on this device. Everyone else keeps their own selection.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .kyndynCard(tint: KyndynTheme.purple)
+
+                    LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(AppIconChoice.choices) { choice in
                             AppIconChoiceButton(
                                 choice: choice,
@@ -2258,7 +2272,7 @@ struct AppIconPickerView: View {
                     }
                 }
                 .padding()
-                .frame(maxWidth: 620)
+                .frame(maxWidth: 560)
                 .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
@@ -2305,23 +2319,40 @@ private struct AppIconChoiceButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 Image(choice.previewAsset)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
+                    .frame(width: 76, height: 76)
                     .clipShape(RoundedRectangle(
-                        cornerRadius: 25, style: .continuous))
-                    .shadow(color: .black.opacity(0.14), radius: 8, y: 4)
+                        cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
                     .overlay(alignment: .topTrailing) {
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.title2)
+                                .font(.body)
                                 .symbolRenderingMode(.palette)
                                 .foregroundStyle(.white, Color.accentColor)
-                                .padding(7)
+                                .padding(5)
                         }
                     }
-                Text(choice.title).font(.headline)
+                Text(choice.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.80)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .padding(.horizontal, 6)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.11) : Color.primary.opacity(0.035),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.07),
+                        lineWidth: isSelected ? 1.5 : 1)
             }
         }
         .buttonStyle(.plain)
