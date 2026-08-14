@@ -24,6 +24,11 @@ This is a small reliability iteration on the Build 18 feature set.
 - Added further accessibility, layout, stability, and synchronization polish.
 - Fixed fresh iCloud recovery for larger households so every available change
   page is downloaded before XP and levels are recalculated.
+- Made full recovery deterministic when CloudKit returns several historical
+  revisions of the same person, keeping the newest revision rather than an
+  arbitrary one.
+- Recovery now preserves its final CloudKit change token and verifies that all
+  supported records were actually inserted before reporting success.
 - Replaced the startup screen’s repetitive loading copy with rotating playful
   messages.
 

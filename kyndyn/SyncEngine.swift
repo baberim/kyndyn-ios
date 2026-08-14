@@ -90,6 +90,7 @@ struct CloudHouseholdCandidate: Identifiable, Equatable, Sendable {
     var shareRecordName: String?
     var scope: CloudDatabaseScope
     var records: [CloudRecordEnvelope]
+    var changeToken: Data? = nil
 }
 
 struct ShareInvitation: Equatable, Sendable {
@@ -179,19 +180,32 @@ extension HouseholdCloudTransport {
         zoneOwnerName: String?, after initialToken: Data?
     ) async throws -> RemoteChangeBatch {
         var token = initialToken
-        var records: [CloudRecordEnvelope] = []
-        var deletedRecordNames: [String] = []
+        var recordsByName: [String: CloudRecordEnvelope] = [:]
+        var recordOrder: [String] = []
+        var deletedRecordNames = Set<String>()
         while true {
             try Task.checkCancellation()
             let batch = try await fetchChanges(
                 zoneName: zoneName, scope: scope,
                 zoneOwnerName: zoneOwnerName, after: token)
-            records.append(contentsOf: batch.records)
-            deletedRecordNames.append(contentsOf: batch.deletedRecordNames)
+            for record in batch.records {
+                if recordsByName[record.recordName] == nil {
+                    recordOrder.append(record.recordName)
+                }
+                // A nil-token recovery can replay more than one historical
+                // revision of the same CloudKit record across pages. The
+                // later page is the newer revision and must win.
+                recordsByName[record.recordName] = record
+                deletedRecordNames.remove(record.recordName)
+            }
+            for recordName in batch.deletedRecordNames {
+                recordsByName.removeValue(forKey: recordName)
+                deletedRecordNames.insert(recordName)
+            }
             if !batch.moreComing {
                 return RemoteChangeBatch(
-                    records: records,
-                    deletedRecordNames: deletedRecordNames,
+                    records: recordOrder.compactMap { recordsByName[$0] },
+                    deletedRecordNames: deletedRecordNames.sorted(),
                     changeToken: batch.changeToken,
                     moreComing: false)
             }
@@ -586,6 +600,7 @@ struct ProvisioningPreview: Equatable {
                     ? CloudGatewayError.notSignedIn : CloudGatewayError.transient
             }
             try SyncRemoteApplier.apply(candidate.records, context: context)
+            try validateRecoveredRecords(candidate.records, context: context)
             let state = HouseholdCloudState(householdID: candidate.householdID)
             state.mode = candidate.scope == .privateDatabase ? .owner : .participant
             state.databaseScope = candidate.scope
@@ -596,6 +611,7 @@ struct ProvisioningPreview: Equatable {
             state.accountFingerprint = fingerprint
             state.provisioningStage = .roundTripVerified
             state.sharingHierarchyVersion = 1
+            state.changeToken = candidate.changeToken
             state.lastSuccessfulSyncAt = .now
             context.insert(state)
             if try context.fetch(FetchDescriptor<LocalDeviceSettings>()).isEmpty {
@@ -619,6 +635,35 @@ struct ProvisioningPreview: Equatable {
             lastErrorCategory = .unknown
             statusMessage = "Kyndyn couldn’t recover this family yet. Nothing was changed."
             return nil
+        }
+    }
+
+    private func validateRecoveredRecords(
+        _ records: [CloudRecordEnvelope], context: ModelContext
+    ) throws {
+        func expected(_ type: SyncEntityType) -> Set<UUID> {
+            Set(records.filter { $0.type == type }.map(\.entityID))
+        }
+        let households = Set(try context.fetch(FetchDescriptor<Household>()).map(\.id))
+        let people = Set(try context.fetch(FetchDescriptor<Person>()).map(\.id))
+        let quests = Set(try context.fetch(FetchDescriptor<Quest>()).map(\.id))
+        let completions = Set(
+            try context.fetch(FetchDescriptor<QuestCompletion>()).map(\.id))
+        let rewards = Set(try context.fetch(FetchDescriptor<RewardGoal>()).map(\.id))
+        let settings = Set(
+            try context.fetch(FetchDescriptor<HouseholdSettings>()).map(\.id))
+        let broadcasts = Set(
+            try context.fetch(FetchDescriptor<FamilyBroadcast>()).map(\.id))
+        let schedulesHaveQuests = expected(.questSchedule).isSubset(of: quests)
+        guard expected(.household).isSubset(of: households),
+              expected(.person).isSubset(of: people),
+              expected(.quest).isSubset(of: quests),
+              expected(.questCompletion).isSubset(of: completions),
+              expected(.rewardGoal).isSubset(of: rewards),
+              expected(.householdSettings).isSubset(of: settings),
+              expected(.familyBroadcast).isSubset(of: broadcasts),
+              schedulesHaveQuests else {
+            throw CloudGatewayError.serverRejected
         }
     }
 
@@ -1282,7 +1327,8 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
                 rootRecordName: root.recordName,
                 shareRecordName: shares.first(where: { $0.value == root.recordName })?.key,
                 scope: .privateDatabase,
-                records: Array(zone.records.values))
+                records: Array(zone.records.values),
+                changeToken: Data(String(zone.sequence).utf8))
         }.sorted { $0.householdName < $1.householdName }
     }
 
@@ -1475,7 +1521,8 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
                     rootRecordName: root.recordName,
                     shareRecordName: shareName,
                     scope: scope,
-                    records: batch.records))
+                    records: batch.records,
+                    changeToken: batch.changeToken))
             }
         }
         return candidates.sorted { $0.householdName < $1.householdName }
