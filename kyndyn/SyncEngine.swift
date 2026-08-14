@@ -90,6 +90,173 @@ struct CloudHouseholdCandidate: Identifiable, Equatable, Sendable {
     var shareRecordName: String?
     var scope: CloudDatabaseScope
     var records: [CloudRecordEnvelope]
+    var changeToken: Data? = nil
+}
+
+struct CloudRecoveryPreview: Codable, Equatable, Sendable {
+    var householdID: UUID
+    var householdName: String
+    var people: Int
+    var activePeople: Int
+    var quests: Int
+    var archivedQuests: Int
+    var completions: Int
+    var undoneCompletions: Int
+    var startingXP: Int
+    var awardedXP: Int
+    var issues: [String]
+    var isSafeToRecover: Bool { issues.isEmpty }
+}
+
+struct CloudRecoveryReceipt: Codable, Equatable, Sendable {
+    var recoveredAt: Date
+    var householdID: UUID
+    var people: Int
+    var quests: Int
+    var completions: Int
+}
+
+enum CloudRecoveryAudit {
+    private static let receiptKey = "kyndyn.lastCloudRecoveryReceipt"
+
+    static func preview(_ candidate: CloudHouseholdCandidate) -> CloudRecoveryPreview {
+        let records = candidate.records
+        let roots = records.filter {
+            $0.type == .household && $0.entityID == candidate.householdID && !$0.tombstone
+        }
+        let people = records.filter { $0.type == .person }
+        let quests = records.filter { $0.type == .quest }
+        let completions = records.filter { $0.type == .questCompletion }
+        let personIDs = Set(people.map(\.entityID))
+        let questIDs = Set(quests.map(\.entityID))
+        var issues: [String] = []
+        if roots.count != 1 {
+            issues.append("The household record is missing or duplicated.")
+        }
+        if let root = roots.first {
+            let name = root.fields["name"] ?? ""
+            if name.isEmpty || name.count > 80 {
+                issues.append("The household name is invalid.")
+            }
+            let timeZone = root.fields["timeZoneIdentifier"] ?? ""
+            if TimeZone(identifier: timeZone) == nil {
+                issues.append("The household time zone is invalid.")
+            }
+        }
+        if people.isEmpty {
+            issues.append("No family profiles were found.")
+        }
+        let hasActiveParent = people.contains {
+            !$0.tombstone && $0.fields["deletedAt", default: ""].isEmpty &&
+                $0.fields["role"] == ProfileRole.parent.rawValue
+        }
+        if !hasActiveParent {
+            issues.append("No active parent profile was found.")
+        }
+        if people.count > 100 || quests.count > 10_000 || completions.count > 250_000 {
+            issues.append("The household is larger than this version can recover safely.")
+        }
+        let invalidPeople = people.contains { record in
+            let name = record.fields["name"] ?? ""
+            let adjustment = Int(record.fields["startingXPAdjustment"] ?? "0")
+            return name.isEmpty || name.count > 40 || adjustment == nil ||
+                !(-1_000_000...1_000_000).contains(adjustment ?? 0)
+        }
+        if invalidPeople {
+            issues.append("One or more family profiles contain invalid data.")
+        }
+        let invalidQuests = quests.contains { record in
+            let title = record.fields["title"] ?? ""
+            let detail = record.fields["detail"] ?? ""
+            let xp = Int(record.fields["xp"] ?? "")
+            return title.isEmpty || title.count > 80 || detail.count > 300 ||
+                xp == nil || !(1...500).contains(xp ?? 0)
+        }
+        if invalidQuests {
+            issues.append("One or more quests contain invalid data.")
+        }
+        let brokenAssignments = quests.contains { record in
+            let assigned = Set((record.fields["participantIDs"] ?? "")
+                .split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+            return assigned.isEmpty || !assigned.isSubset(of: personIDs)
+        }
+        if brokenAssignments {
+            issues.append("One or more quest assignments refer to a missing profile.")
+        }
+        let brokenCompletions = completions.contains { record in
+            guard let questID = UUID(uuidString: record.fields["questID"] ?? ""),
+                  let personID = UUID(uuidString: record.fields["personID"] ?? "")
+            else { return true }
+            return !questIDs.contains(questID) || !personIDs.contains(personID)
+        }
+        if brokenCompletions {
+            issues.append("One or more completion records have missing relationships.")
+        }
+        let invalidCompletions = completions.contains { record in
+            let awardedXP = Int(record.fields["awardedXP"] ?? "")
+            let completedAt = ISO8601DateFormatter().date(
+                from: record.fields["completedAt"] ?? "")
+            let reversedText = record.fields["reversedAt"] ?? ""
+            let reversedAt = reversedText.isEmpty ? Date.distantPast :
+                ISO8601DateFormatter().date(from: reversedText)
+            return awardedXP == nil || !(0...500).contains(awardedXP ?? -1) ||
+                completedAt == nil || reversedAt == nil
+        }
+        if invalidCompletions {
+            issues.append("One or more completion records contain invalid data.")
+        }
+        let brokenSchedules = records.contains { record in
+            record.type == .questSchedule && !questIDs.contains(record.entityID)
+        }
+        if brokenSchedules {
+            issues.append("One or more schedules refer to a missing quest.")
+        }
+        return CloudRecoveryPreview(
+            householdID: candidate.householdID,
+            householdName: candidate.householdName,
+            people: people.count,
+            activePeople: people.filter {
+                !$0.tombstone && $0.fields["deletedAt", default: ""].isEmpty
+            }.count,
+            quests: quests.count,
+            archivedQuests: quests.filter {
+                $0.tombstone || !$0.fields["deletedAt", default: ""].isEmpty
+            }.count,
+            completions: completions.count,
+            undoneCompletions: completions.filter {
+                !$0.fields["reversedAt", default: ""].isEmpty
+            }.count,
+            startingXP: people.reduce(0) {
+                $0 + (Int($1.fields["startingXPAdjustment"] ?? "") ?? 0)
+            },
+            awardedXP: completions.filter {
+                $0.fields["reversedAt", default: ""].isEmpty
+            }.reduce(0) { $0 + (Int($1.fields["awardedXP"] ?? "") ?? 0) },
+            issues: issues)
+    }
+
+    static func fingerprint(_ candidate: CloudHouseholdCandidate) -> String {
+        let records = candidate.records.sorted { $0.recordName < $1.recordName }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = (try? encoder.encode(records)) ?? Data(
+            records.map(\.recordName).joined(separator: "|").utf8)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func saveReceipt(_ preview: CloudRecoveryPreview) {
+        let receipt = CloudRecoveryReceipt(
+            recoveredAt: .now, householdID: preview.householdID,
+            people: preview.people, quests: preview.quests,
+            completions: preview.completions)
+        guard let data = try? JSONEncoder().encode(receipt) else { return }
+        UserDefaults.standard.set(data, forKey: receiptKey)
+    }
+
+    static func latestReceipt() -> CloudRecoveryReceipt? {
+        guard let data = UserDefaults.standard.data(forKey: receiptKey) else { return nil }
+        return try? JSONDecoder().decode(CloudRecoveryReceipt.self, from: data)
+    }
 }
 
 struct ShareInvitation: Equatable, Sendable {
@@ -179,19 +346,32 @@ extension HouseholdCloudTransport {
         zoneOwnerName: String?, after initialToken: Data?
     ) async throws -> RemoteChangeBatch {
         var token = initialToken
-        var records: [CloudRecordEnvelope] = []
-        var deletedRecordNames: [String] = []
+        var recordsByName: [String: CloudRecordEnvelope] = [:]
+        var recordOrder: [String] = []
+        var deletedRecordNames = Set<String>()
         while true {
             try Task.checkCancellation()
             let batch = try await fetchChanges(
                 zoneName: zoneName, scope: scope,
                 zoneOwnerName: zoneOwnerName, after: token)
-            records.append(contentsOf: batch.records)
-            deletedRecordNames.append(contentsOf: batch.deletedRecordNames)
+            for record in batch.records {
+                if recordsByName[record.recordName] == nil {
+                    recordOrder.append(record.recordName)
+                }
+                // A nil-token recovery can replay more than one historical
+                // revision of the same CloudKit record across pages. The
+                // later page is the newer revision and must win.
+                recordsByName[record.recordName] = record
+                deletedRecordNames.remove(record.recordName)
+            }
+            for recordName in batch.deletedRecordNames {
+                recordsByName.removeValue(forKey: recordName)
+                deletedRecordNames.insert(recordName)
+            }
             if !batch.moreComing {
                 return RemoteChangeBatch(
-                    records: records,
-                    deletedRecordNames: deletedRecordNames,
+                    records: recordOrder.compactMap { recordsByName[$0] },
+                    deletedRecordNames: deletedRecordNames.sorted(),
                     changeToken: batch.changeToken,
                     moreComing: false)
             }
@@ -572,6 +752,10 @@ struct ProvisioningPreview: Equatable {
                 statusMessage = "Recovery is available only on an empty installation."
                 return nil
             }
+            let recoveryPreview = CloudRecoveryAudit.preview(candidate)
+            guard recoveryPreview.isSafeToRecover else {
+                throw CloudGatewayError.serverRejected
+            }
             guard let root = candidate.records.first(where: {
                 $0.type == .household && $0.entityID == candidate.householdID &&
                     !$0.tombstone
@@ -586,6 +770,7 @@ struct ProvisioningPreview: Equatable {
                     ? CloudGatewayError.notSignedIn : CloudGatewayError.transient
             }
             try SyncRemoteApplier.apply(candidate.records, context: context)
+            try validateRecoveredRecords(candidate.records, context: context)
             let state = HouseholdCloudState(householdID: candidate.householdID)
             state.mode = candidate.scope == .privateDatabase ? .owner : .participant
             state.databaseScope = candidate.scope
@@ -596,12 +781,19 @@ struct ProvisioningPreview: Equatable {
             state.accountFingerprint = fingerprint
             state.provisioningStage = .roundTripVerified
             state.sharingHierarchyVersion = 1
+            state.changeToken = candidate.changeToken
             state.lastSuccessfulSyncAt = .now
             context.insert(state)
+            context.insert(HouseholdImportReceipt(
+                fingerprint: CloudRecoveryAudit.fingerprint(candidate),
+                householdID: candidate.householdID,
+                sourceKind: "icloudRecovery",
+                sourceVersion: KyndynSchema.version))
             if try context.fetch(FetchDescriptor<LocalDeviceSettings>()).isEmpty {
                 context.insert(LocalDeviceSettings())
             }
             try context.save()
+            CloudRecoveryAudit.saveReceipt(recoveryPreview)
             statusMessage = "Your family was recovered from iCloud."
             lastErrorCategory = nil
             await refreshRemindersIfNeeded(candidate.records, context: context)
@@ -619,6 +811,55 @@ struct ProvisioningPreview: Equatable {
             lastErrorCategory = .unknown
             statusMessage = "Kyndyn couldn’t recover this family yet. Nothing was changed."
             return nil
+        }
+    }
+
+    private func validateRecoveredRecords(
+        _ records: [CloudRecordEnvelope], context: ModelContext
+    ) throws {
+        func expected(_ type: SyncEntityType) -> Set<UUID> {
+            Set(records.filter { $0.type == type }.map(\.entityID))
+        }
+        let households = Set(try context.fetch(FetchDescriptor<Household>()).map(\.id))
+        let people = Set(try context.fetch(FetchDescriptor<Person>()).map(\.id))
+        let quests = Set(try context.fetch(FetchDescriptor<Quest>()).map(\.id))
+        let completions = Set(
+            try context.fetch(FetchDescriptor<QuestCompletion>()).map(\.id))
+        let rewards = Set(try context.fetch(FetchDescriptor<RewardGoal>()).map(\.id))
+        let settings = Set(
+            try context.fetch(FetchDescriptor<HouseholdSettings>()).map(\.id))
+        let broadcasts = Set(
+            try context.fetch(FetchDescriptor<FamilyBroadcast>()).map(\.id))
+        let recoveredPeople = Dictionary(uniqueKeysWithValues:
+            try context.fetch(FetchDescriptor<Person>()).map { ($0.id, $0) })
+        let recoveredCompletions = Dictionary(uniqueKeysWithValues:
+            try context.fetch(FetchDescriptor<QuestCompletion>()).map { ($0.id, $0) })
+        let personXPMatches = records.filter { $0.type == .person }.allSatisfy {
+            recoveredPeople[$0.entityID]?.startingXPAdjustment ==
+                (Int($0.fields["startingXPAdjustment"] ?? "") ?? 0)
+        }
+        let completionHistoryMatches = records.filter {
+            $0.type == .questCompletion
+        }.allSatisfy { record in
+            guard let recovered = recoveredCompletions[record.entityID] else {
+                return false
+            }
+            let expectedReversed = !(record.fields["reversedAt"] ?? "").isEmpty
+            return recovered.awardedXP ==
+                (Int(record.fields["awardedXP"] ?? "") ?? 0) &&
+                (recovered.reversedAt != nil) == expectedReversed
+        }
+        let schedulesHaveQuests = expected(.questSchedule).isSubset(of: quests)
+        guard expected(.household).isSubset(of: households),
+              expected(.person).isSubset(of: people),
+              expected(.quest).isSubset(of: quests),
+              expected(.questCompletion).isSubset(of: completions),
+              expected(.rewardGoal).isSubset(of: rewards),
+              expected(.householdSettings).isSubset(of: settings),
+              expected(.familyBroadcast).isSubset(of: broadcasts),
+              schedulesHaveQuests, personXPMatches,
+              completionHistoryMatches else {
+            throw CloudGatewayError.serverRejected
         }
     }
 
@@ -1282,7 +1523,8 @@ actor InMemoryCloudTransport: HouseholdCloudTransport {
                 rootRecordName: root.recordName,
                 shareRecordName: shares.first(where: { $0.value == root.recordName })?.key,
                 scope: .privateDatabase,
-                records: Array(zone.records.values))
+                records: Array(zone.records.values),
+                changeToken: Data(String(zone.sequence).utf8))
         }.sorted { $0.householdName < $1.householdName }
     }
 
@@ -1475,7 +1717,8 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
                     rootRecordName: root.recordName,
                     shareRecordName: shareName,
                     scope: scope,
-                    records: batch.records))
+                    records: batch.records,
+                    changeToken: batch.changeToken))
             }
         }
         return candidates.sorted { $0.householdName < $1.householdName }

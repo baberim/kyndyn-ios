@@ -101,6 +101,33 @@ private actor PaginatedTransport: HouseholdCloudTransport {
     func participantSummary(shareRecordName: String) async throws -> [String] { [] }
 }
 
+private actor ExplicitPageTransport: HouseholdCloudTransport {
+    let pages: [RemoteChangeBatch]
+
+    init(pages: [RemoteChangeBatch]) { self.pages = pages }
+
+    func accountAvailability() async throws -> CloudAccountAvailability {
+        .available(fingerprint: "explicit-page-account")
+    }
+    func prepareZone(named: String, scope: CloudDatabaseScope) async throws {}
+    func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?, scope: CloudDatabaseScope) async throws
+        -> [CloudRecordEnvelope] { records }
+    func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?, after token: Data?) async throws
+        -> RemoteChangeBatch {
+        let index = token.flatMap { String(data: $0, encoding: .utf8) }
+            .flatMap(Int.init) ?? 0
+        return pages[index]
+    }
+    func createShare(rootRecordName: String, zoneName: String,
+                     title: String) async throws -> HouseholdShareDescriptor {
+        HouseholdShareDescriptor(shareRecordName: "explicit-share", title: title)
+    }
+    func accept(invitation: ShareInvitation) async throws {}
+    func participantSummary(shareRecordName: String) async throws -> [String] { [] }
+}
+
 private actor RecordingNotificationScheduler: NotificationScheduling {
     private(set) var replacements = 0
     private(set) var latest: [ReminderCandidate] = []
@@ -126,6 +153,7 @@ final class SyncMetadataAndQueueTests: XCTestCase {
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
             Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
             LocalQuestReminder.self,
+            HouseholdImportReceipt.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
             PendingShareInvitation.self
@@ -245,6 +273,35 @@ final class SyncMetadataAndQueueTests: XCTestCase {
             String(data: try XCTUnwrap(batch.changeToken), encoding: .utf8),
             "3")
         XCTAssertFalse(batch.moreComing)
+    }
+
+    nonisolated func testFullRecoveryKeepsNewestRevisionAcrossPages() async throws {
+        let householdID = UUID()
+        let personID = UUID()
+        let old = CloudRecordEnvelope(
+            type: .person, entityID: personID, householdID: householdID,
+            fields: ["name": "Avery", "startingXPAdjustment": "100"])
+        let newest = CloudRecordEnvelope(
+            type: .person, entityID: personID, householdID: householdID,
+            fields: ["name": "Avery", "startingXPAdjustment": "875"])
+        let transport = ExplicitPageTransport(pages: [
+            RemoteChangeBatch(
+                records: [old], deletedRecordNames: [],
+                changeToken: Data("1".utf8), moreComing: true),
+            RemoteChangeBatch(
+                records: [newest], deletedRecordNames: [],
+                changeToken: Data("2".utf8), moreComing: false)
+        ])
+
+        let batch = try await transport.fetchAllChanges(
+            zoneName: "kyndyn-household-history", scope: .privateDatabase,
+            zoneOwnerName: nil, after: nil)
+
+        XCTAssertEqual(batch.records.count, 1)
+        XCTAssertEqual(batch.records.first?.fields["startingXPAdjustment"], "875")
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(batch.changeToken), encoding: .utf8),
+            "2")
     }
 
     func testAdditiveSchemaOpensLocalCoreDataWithoutCloudRows() throws {
@@ -460,6 +517,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             RewardGoal.self, FamilyBroadcast.self, Companion.self,
             Background.self, HouseholdSettings.self, LocalDeviceSettings.self,
             LocalQuestReminder.self,
+            HouseholdImportReceipt.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
             PendingSyncMutation.self, SyncConflict.self,
             PendingShareInvitation.self
@@ -519,12 +577,94 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             candidate, context: container.mainContext)
         XCTAssertEqual(recovered?.mode, .owner)
         XCTAssertEqual(recovered?.databaseScope, .privateDatabase)
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(recovered?.changeToken), encoding: .utf8),
+            "2")
         XCTAssertEqual(try container.mainContext.fetch(
             FetchDescriptor<Household>()).first?.id, sourceID)
         XCTAssertEqual(try container.mainContext.fetch(
             FetchDescriptor<Person>()).first?.id, personID)
         XCTAssertFalse(try container.mainContext.fetch(
             FetchDescriptor<LocalDeviceSettings>()).isEmpty)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<HouseholdImportReceipt>()).first?.sourceKind,
+                       "icloudRecovery")
+    }
+
+    func testRecoveryPreviewReportsCountsAndXPWithoutPrivatePayloads() throws {
+        let householdID = UUID()
+        let personID = UUID()
+        let questID = UUID()
+        let records = [
+            CloudRecordEnvelope(
+                type: .household, entityID: householdID,
+                householdID: householdID,
+                fields: ["name": "Fictional Safe Family", "schemaVersion": "6",
+                         "timeZoneIdentifier": "America/New_York"]),
+            CloudRecordEnvelope(
+                type: .person, entityID: personID, householdID: householdID,
+                fields: ["name": "Avery", "role": "parent",
+                         "startingXPAdjustment": "100"]),
+            CloudRecordEnvelope(
+                type: .quest, entityID: questID, householdID: householdID,
+                fields: ["title": "Pack bag",
+                         "xp": "20",
+                         "participantIDs": personID.uuidString]),
+            CloudRecordEnvelope(
+                type: .questCompletion, entityID: UUID(),
+                householdID: householdID,
+                fields: ["questID": questID.uuidString,
+                         "personID": personID.uuidString,
+                         "awardedXP": "20", "reversedAt": "",
+                         "completedAt": "2026-08-14T12:00:00Z"])
+        ]
+        let candidate = CloudHouseholdCandidate(
+            householdID: householdID, householdName: "Fictional Safe Family",
+            zoneName: "safe-zone", zoneOwnerName: nil,
+            rootRecordName: records[0].recordName, shareRecordName: nil,
+            scope: .privateDatabase, records: records)
+
+        let preview = CloudRecoveryAudit.preview(candidate)
+
+        XCTAssertTrue(preview.isSafeToRecover)
+        XCTAssertEqual(preview.people, 1)
+        XCTAssertEqual(preview.quests, 1)
+        XCTAssertEqual(preview.completions, 1)
+        XCTAssertEqual(preview.startingXP, 100)
+        XCTAssertEqual(preview.awardedXP, 20)
+    }
+
+    func testUnsafeRecoveryRollsBackInsteadOfSavingPartialHousehold() async throws {
+        let (container, placeholder, state, _) = try fixture()
+        container.mainContext.delete(state)
+        container.mainContext.delete(placeholder)
+        try container.mainContext.save()
+        let householdID = UUID()
+        let root = CloudRecordEnvelope(
+            type: .household, entityID: householdID, householdID: householdID,
+            fields: ["name": "Broken Fictional Family", "schemaVersion": "6"])
+        let person = CloudRecordEnvelope(
+            type: .person, entityID: UUID(), householdID: householdID,
+            fields: ["name": "Avery", "role": "parent"])
+        let quest = CloudRecordEnvelope(
+            type: .quest, entityID: UUID(), householdID: householdID,
+            fields: ["title": "Broken assignment",
+                     "participantIDs": UUID().uuidString])
+        let candidate = CloudHouseholdCandidate(
+            householdID: householdID, householdName: "Broken Fictional Family",
+            zoneName: "broken-zone", zoneOwnerName: nil,
+            rootRecordName: root.recordName, shareRecordName: nil,
+            scope: .privateDatabase, records: [root, person, quest])
+        let controller = CloudSyncController(transport: InMemoryCloudTransport())
+
+        let recovered = await controller.recoverHousehold(
+            candidate, context: container.mainContext)
+
+        XCTAssertNil(recovered)
+        XCTAssertTrue(try container.mainContext.fetch(
+            FetchDescriptor<Household>()).isEmpty)
+        XCTAssertTrue(try container.mainContext.fetch(
+            FetchDescriptor<Person>()).isEmpty)
     }
 
     func testRecoveryRefusesToMergeIntoExistingLocalHousehold() async throws {

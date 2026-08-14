@@ -4,13 +4,13 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current release — 0.18.1 (Build 19)
+## Current development — 0.20.0 (Build 20)
 
-Build 19 is a focused reliability update to Build 18, combining weekly family insights, synchronized starting-XP repair,
-durable badge recognition, recognition polish, richer calendar and weather
-context, responsiveness improvements, and an expanded device-local app icon
-gallery. See [`docs/build-18-changelog.md`](docs/build-18-changelog.md) for the
-cumulative tester-facing changelog.
+Build 20 focuses on household data safety: complete deterministic iCloud
+recovery, a parent-reviewed recovery preview, transactional integrity checks,
+privacy-safe recovery receipts, and clearer private-backup freshness. See
+[`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md)
+for its recovery and validation boundaries.
 
 The app provides a locally usable vertical slice:
 
