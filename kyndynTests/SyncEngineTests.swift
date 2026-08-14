@@ -101,6 +101,33 @@ private actor PaginatedTransport: HouseholdCloudTransport {
     func participantSummary(shareRecordName: String) async throws -> [String] { [] }
 }
 
+private actor ExplicitPageTransport: HouseholdCloudTransport {
+    let pages: [RemoteChangeBatch]
+
+    init(pages: [RemoteChangeBatch]) { self.pages = pages }
+
+    func accountAvailability() async throws -> CloudAccountAvailability {
+        .available(fingerprint: "explicit-page-account")
+    }
+    func prepareZone(named: String, scope: CloudDatabaseScope) async throws {}
+    func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?, scope: CloudDatabaseScope) async throws
+        -> [CloudRecordEnvelope] { records }
+    func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?, after token: Data?) async throws
+        -> RemoteChangeBatch {
+        let index = token.flatMap { String(data: $0, encoding: .utf8) }
+            .flatMap(Int.init) ?? 0
+        return pages[index]
+    }
+    func createShare(rootRecordName: String, zoneName: String,
+                     title: String) async throws -> HouseholdShareDescriptor {
+        HouseholdShareDescriptor(shareRecordName: "explicit-share", title: title)
+    }
+    func accept(invitation: ShareInvitation) async throws {}
+    func participantSummary(shareRecordName: String) async throws -> [String] { [] }
+}
+
 private actor RecordingNotificationScheduler: NotificationScheduling {
     private(set) var replacements = 0
     private(set) var latest: [ReminderCandidate] = []
@@ -245,6 +272,35 @@ final class SyncMetadataAndQueueTests: XCTestCase {
             String(data: try XCTUnwrap(batch.changeToken), encoding: .utf8),
             "3")
         XCTAssertFalse(batch.moreComing)
+    }
+
+    nonisolated func testFullRecoveryKeepsNewestRevisionAcrossPages() async throws {
+        let householdID = UUID()
+        let personID = UUID()
+        let old = CloudRecordEnvelope(
+            type: .person, entityID: personID, householdID: householdID,
+            fields: ["name": "Avery", "startingXPAdjustment": "100"])
+        let newest = CloudRecordEnvelope(
+            type: .person, entityID: personID, householdID: householdID,
+            fields: ["name": "Avery", "startingXPAdjustment": "875"])
+        let transport = ExplicitPageTransport(pages: [
+            RemoteChangeBatch(
+                records: [old], deletedRecordNames: [],
+                changeToken: Data("1".utf8), moreComing: true),
+            RemoteChangeBatch(
+                records: [newest], deletedRecordNames: [],
+                changeToken: Data("2".utf8), moreComing: false)
+        ])
+
+        let batch = try await transport.fetchAllChanges(
+            zoneName: "kyndyn-household-history", scope: .privateDatabase,
+            zoneOwnerName: nil, after: nil)
+
+        XCTAssertEqual(batch.records.count, 1)
+        XCTAssertEqual(batch.records.first?.fields["startingXPAdjustment"], "875")
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(batch.changeToken), encoding: .utf8),
+            "2")
     }
 
     func testAdditiveSchemaOpensLocalCoreDataWithoutCloudRows() throws {
@@ -519,6 +575,9 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             candidate, context: container.mainContext)
         XCTAssertEqual(recovered?.mode, .owner)
         XCTAssertEqual(recovered?.databaseScope, .privateDatabase)
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(recovered?.changeToken), encoding: .utf8),
+            "2")
         XCTAssertEqual(try container.mainContext.fetch(
             FetchDescriptor<Household>()).first?.id, sourceID)
         XCTAssertEqual(try container.mainContext.fetch(
