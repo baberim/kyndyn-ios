@@ -2198,7 +2198,34 @@ private struct AppIconChoice: Identifiable {
             previewAsset: "AppIconDefaultPreview"),
         AppIconChoice(
             id: "pastel", title: "Pastel", alternateName: "AppIconPastel",
-            previewAsset: "AppIconPastelPreview")
+            previewAsset: "AppIconPastelPreview"),
+        AppIconChoice(
+            id: "retro-game", title: "Retro Game", alternateName: "AppIconRetroGame",
+            previewAsset: "AppIconRetroGamePreview"),
+        AppIconChoice(
+            id: "japandi", title: "Japandi", alternateName: "AppIconJapandi",
+            previewAsset: "AppIconJapandiPreview"),
+        AppIconChoice(
+            id: "translucent-foil", title: "Prismatic", alternateName: "AppIconTranslucentFoil",
+            previewAsset: "AppIconTranslucentFoilPreview"),
+        AppIconChoice(
+            id: "atomic-age", title: "Atomic Age", alternateName: "AppIconAtomicAge",
+            previewAsset: "AppIconAtomicAgePreview"),
+        AppIconChoice(
+            id: "lcd", title: "LCD", alternateName: "AppIconLCD",
+            previewAsset: "AppIconLCDPreview"),
+        AppIconChoice(
+            id: "outrun-2", title: "Cosmic Outrun", alternateName: "AppIconOutrun2",
+            previewAsset: "AppIconOutrun2Preview"),
+        AppIconChoice(
+            id: "arcade", title: "Arcade", alternateName: "AppIconArcade",
+            previewAsset: "AppIconArcadePreview"),
+        AppIconChoice(
+            id: "translucent", title: "Translucent", alternateName: "AppIconTranslucent",
+            previewAsset: "AppIconTranslucentPreview"),
+        AppIconChoice(
+            id: "outrun", title: "Outrun", alternateName: "AppIconOutrun",
+            previewAsset: "AppIconOutrunPreview")
     ]
 }
 
