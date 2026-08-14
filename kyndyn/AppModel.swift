@@ -223,18 +223,40 @@ enum LifecycleRules {
         return household
     }
 
+    func removeHouseholdFromDevice(_ household: Household,
+                                   confirmation: String,
+                                   context: ModelContext) throws {
+        guard confirmation == household.name else {
+            throw HouseholdTransferError.malformed(
+                "Type the household name exactly to confirm removal.")
+        }
+        do {
+            try context.transaction {
+                try deleteHouseholdRecords(household, context: context)
+                try context.save()
+            }
+        } catch {
+            context.rollback()
+            throw error
+        }
+        selectedPersonID = nil
+    }
+
     func deleteLocalSampleHousehold(_ household: Household,
                                     context: ModelContext) throws {
-        guard household.isSample else {
-            throw HouseholdTransferError.malformed(
-                "Only a sample household can be removed here.")
-        }
         let states = try context.fetch(FetchDescriptor<HouseholdCloudState>())
             .filter { $0.householdID == household.id }
-        guard states.allSatisfy({ $0.mode == .localOnly }) else {
+        guard household.isSample,
+              states.allSatisfy({ $0.mode == .localOnly }) else {
             throw HouseholdTransferError.malformed(
                 "Turn off or resolve family sharing before removing this sample. Cloud data is never silently deleted.")
         }
+        try removeHouseholdFromDevice(
+            household, confirmation: household.name, context: context)
+    }
+
+    private func deleteHouseholdRecords(_ household: Household,
+                                        context: ModelContext) throws {
         let questIDs = Set(try context.fetch(FetchDescriptor<Quest>())
             .filter { $0.householdID == household.id }.map(\.id))
         try context.fetch(FetchDescriptor<Person>())
@@ -244,6 +266,8 @@ enum LifecycleRules {
         try context.fetch(FetchDescriptor<QuestCompletion>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<RewardGoal>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<FamilyBroadcast>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<HouseholdSettings>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
@@ -257,11 +281,11 @@ enum LifecycleRules {
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<SyncConflict>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<HouseholdImportReceipt>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
         context.delete(household)
         try context.fetch(FetchDescriptor<LocalDeviceSettings>())
             .forEach(context.delete)
-        try context.save()
-        selectedPersonID = nil
     }
 
     func createPerson(_ draft: PersonDraft, householdID: UUID, context: ModelContext) throws {

@@ -3390,7 +3390,7 @@ struct ParentAreaView: View {
                         parentRow("Reminders", "Timing, quiet hours, and lock-screen privacy", "bell.fill", .blue)
                     }
                     NavigationLink { HouseholdDataProtectionView() } label: {
-                        parentRow("Backup and migration", "Export, restore, and Rowan transfer", "externaldrive.fill", KyndynTheme.green)
+                        parentRow("Data and privacy", "Backups, recovery, and local data controls", "hand.raised.fill", KyndynTheme.green)
                     }
                     NavigationLink { ParentSecurityView() } label: {
                         parentRow("Parent security", "Face ID, device passcode, and fallback PIN", "lock.shield.fill", KyndynTheme.pink)
@@ -3865,10 +3865,15 @@ struct HouseholdDataProtectionView: View {
     @Query private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
     @Query private var goals: [RewardGoal]
+    @Query private var broadcasts: [FamilyBroadcast]
     @Query private var settings: [HouseholdSettings]
+    @Query private var cloudStates: [HouseholdCloudState]
     @State private var document: TransferDocument?
     @State private var exporting = false
     @State private var confirmSampleRemoval = false
+    @State private var showingRemoval = false
+    @State private var removalConfirmation = ""
+    @State private var verification: HouseholdBackupVerification?
     @AppStorage("kyndyn.lastSuccessfulBackupExport")
     private var lastBackupExportTimestamp = 0.0
     @State private var recoveryReceipt: CloudRecoveryReceipt?
@@ -3893,13 +3898,28 @@ struct HouseholdDataProtectionView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                if let verification {
+                    LabeledContent("Prepared backup", value: "Verified")
+                    Text("Includes \(verification.people) profiles, \(verification.quests) quests, \(verification.completions) completion records, and \(verification.broadcasts) announcements.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("backup-verification-summary")
+                }
             }
             Section("Household backup") {
                 Button("Export household backup",
                        systemImage: "square.and.arrow.up") {
                     prepareExport()
                 }
+                .accessibilityIdentifier("export-household-backup")
                 KyndynCallout(kind: .privacy, message: "The backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
+            }
+            Section("What stays private") {
+                Label("Device-only protection", systemImage: "iphone.gen3.lock")
+                Text("Your kyndyn PIN, Face ID state, notification choices, calendar selection, weather cache, and device profile stay on this device and are not included in household sync or backups.")
+                Label("Privacy-safe diagnostics", systemImage: "waveform.path.ecg")
+                Text("Diagnostics may record an operation type and broad error category. They do not include names, quest titles, announcement text, invitation links, PINs, tokens, or household record contents.")
+                    .foregroundStyle(.secondary)
             }
             Section("Restore limitation") {
                 KyndynCallout(kind: .caution, message: "Restores and Rowan transfers require an empty installation. They do not merge with or replace this household. Export a fresh backup before changing devices or sync environments.")
@@ -3909,6 +3929,20 @@ struct HouseholdDataProtectionView: View {
                 Text("Family sync keeps supported household changes aligned across invited Apple devices. An exported backup is a separate file you control and can keep in a private location in Files.")
                 Text("Keep a recent backup even when family sync is up to date. Never share a backup publicly because it contains household names, quests, and completion history.")
                     .foregroundStyle(.secondary)
+            }
+            if let household = households.first, !household.isSample {
+                Section("Remove from this device") {
+                    Button("Remove household from this device",
+                           systemImage: "trash", role: .destructive) {
+                        removalConfirmation = ""
+                        showingRemoval = true
+                    }
+                    .disabled(!hasFreshBackup)
+                    .accessibilityIdentifier("remove-household-from-device")
+                    KyndynCallout(
+                        kind: hasFreshBackup ? .caution : .privacy,
+                        message: removalMessage(for: household))
+                }
             }
             if households.first?.isSample == true {
                 Section("Leave sample mode") {
@@ -3921,7 +3955,7 @@ struct HouseholdDataProtectionView: View {
                 }
             }
         }
-        .navigationTitle("Backup and migration")
+        .navigationTitle("Data and privacy")
         .onAppear { recoveryReceipt = CloudRecoveryAudit.latestReceipt() }
         .fileExporter(
             isPresented: $exporting, document: document,
@@ -3950,6 +3984,48 @@ struct HouseholdDataProtectionView: View {
         } message: {
             Text("All fictional people, quests, completion history, and local sync metadata for this sample will be removed from this device. Personal or shared households are not affected.")
         }
+        .sheet(isPresented: $showingRemoval) {
+            NavigationStack {
+                Form {
+                    Section("Before you continue") {
+                        KyndynCallout(kind: .caution, message: "This permanently removes this household’s local profiles, quests, history, announcements, and sync metadata from this device. It does not delete the iCloud household or stop sharing.")
+                        Text("A private backup was exported on this device within the last 24 hours.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Section("Confirm household name") {
+                        TextField(households.first?.name ?? "Household name",
+                                  text: $removalConfirmation)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("household-removal-confirmation")
+                    }
+                }
+                .navigationTitle("Remove local data")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingRemoval = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Remove", role: .destructive) {
+                            guard let household = households.first else { return }
+                            do {
+                                try app.removeHouseholdFromDevice(
+                                    household,
+                                    confirmation: removalConfirmation,
+                                    context: context)
+                                showingRemoval = false
+                            } catch {
+                                app.errorMessage = error.localizedDescription
+                            }
+                        }
+                        .disabled(removalConfirmation != households.first?.name)
+                        .accessibilityIdentifier("confirm-household-removal")
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .errorAlert(app: app)
     }
 
@@ -3964,12 +4040,32 @@ struct HouseholdDataProtectionView: View {
                     $0.householdID == household.id
                 },
                 goals: goals.filter { $0.householdID == household.id },
-                settings: settings.first { $0.householdID == household.id })
+                settings: settings.first { $0.householdID == household.id },
+                broadcasts: broadcasts.filter {
+                    $0.householdID == household.id
+                })
+            verification = try HouseholdTransferCodec.verifyExport(data)
             document = TransferDocument(data: data)
             exporting = true
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+
+    private var hasFreshBackup: Bool {
+        lastBackupExportTimestamp > 0 &&
+            Date().timeIntervalSince1970 - lastBackupExportTimestamp < 86_400
+    }
+
+    private func removalMessage(for household: Household) -> String {
+        if !hasFreshBackup {
+            return "Export a fresh private backup first. Removal stays unavailable until this device confirms a successful export within the last 24 hours."
+        }
+        let mode = cloudStates.first { $0.householdID == household.id }?.mode
+        if mode == .owner || mode == .participant {
+            return "The iCloud household and its share remain intact. You can recover it later, but removing it here does not remove participants or stop sharing."
+        }
+        return "This household appears to be local-only. Keep the exported file safe because iCloud recovery may not be available."
     }
 }
 

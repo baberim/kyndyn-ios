@@ -36,6 +36,7 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
     var quests: [QuestValue]
     var completions: [CompletionValue]
     var rewardGoals: [RewardValue]
+    var broadcasts: [BroadcastValue]?
     var settings: SettingsValue
 
     struct HouseholdValue: Codable, Equatable, Sendable {
@@ -93,6 +94,15 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var createdAt: Date
         var deletedAt: Date?
     }
+    struct BroadcastValue: Codable, Equatable, Sendable {
+        var id: UUID
+        var title: String
+        var message: String
+        var createdAt: Date
+        var updatedAt: Date
+        var expiresAt: Date?
+        var deletedAt: Date?
+    }
     struct SettingsValue: Codable, Equatable, Sendable {
         var parentProtectionEnabled: Bool
     }
@@ -128,6 +138,15 @@ struct TransferReport: Equatable, Sendable {
     }
 }
 
+struct HouseholdBackupVerification: Equatable, Sendable {
+    var fingerprint: String
+    var byteCount: Int
+    var people: Int
+    var quests: Int
+    var completions: Int
+    var broadcasts: Int
+}
+
 enum HouseholdTransferCodec {
     static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -145,7 +164,8 @@ enum HouseholdTransferCodec {
     @MainActor
     static func export(household: Household, people: [Person], quests: [Quest],
                        completions: [QuestCompletion], goals: [RewardGoal],
-                       settings: HouseholdSettings?) throws -> Data {
+                       settings: HouseholdSettings?,
+                       broadcasts: [FamilyBroadcast] = []) throws -> Data {
         let backup = HouseholdBackup(
             format: HouseholdBackup.format, version: HouseholdBackup.version,
             exportedAt: .now,
@@ -185,10 +205,24 @@ enum HouseholdTransferCodec {
                 .init(id: $0.id, title: $0.title, targetXP: $0.targetXP,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
+            broadcasts: broadcasts.map {
+                .init(id: $0.id, title: $0.title, message: $0.message,
+                      createdAt: $0.createdAt, updatedAt: $0.updatedAt,
+                      expiresAt: $0.expiresAt, deletedAt: $0.deletedAt)
+            },
             settings: .init(
                 parentProtectionEnabled:
                     settings?.parentProtectionEnabled ?? true))
         return try encoder().encode(backup)
+    }
+
+    static func verifyExport(_ data: Data) throws -> HouseholdBackupVerification {
+        let (backup, _) = try validateBackup(data)
+        return HouseholdBackupVerification(
+            fingerprint: fingerprint(data), byteCount: data.count,
+            people: backup.people.count, quests: backup.quests.count,
+            completions: backup.completions.count,
+            broadcasts: backup.broadcasts?.count ?? 0)
     }
 
     static func validateBackup(_ data: Data) throws -> (HouseholdBackup, TransferReport) {
@@ -204,9 +238,12 @@ enum HouseholdTransferCodec {
         }
         try validate(
             household: backup.household, people: backup.people,
-            quests: backup.quests, completions: backup.completions)
+            quests: backup.quests, completions: backup.completions,
+            rewardGoals: backup.rewardGoals,
+            broadcasts: backup.broadcasts ?? [])
         let accepted = 1 + backup.people.count + backup.quests.count
-            + backup.completions.count + backup.rewardGoals.count + 1
+            + backup.completions.count + backup.rewardGoals.count
+            + (backup.broadcasts?.count ?? 0) + 1
         return (backup, TransferReport(
             source: .kyndynBackup, accepted: accepted, normalized: 0,
             skipped: 0, unsupported: 0, invalid: 0,
@@ -217,7 +254,9 @@ enum HouseholdTransferCodec {
         household: HouseholdBackup.HouseholdValue,
         people: [HouseholdBackup.PersonValue],
         quests: [HouseholdBackup.QuestValue],
-        completions: [HouseholdBackup.CompletionValue]
+        completions: [HouseholdBackup.CompletionValue],
+        rewardGoals: [HouseholdBackup.RewardValue],
+        broadcasts: [HouseholdBackup.BroadcastValue]
     ) throws {
         guard !household.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               household.name.count <= 80 else {
@@ -226,8 +265,13 @@ enum HouseholdTransferCodec {
         guard TimeZone(identifier: household.timeZoneIdentifier) != nil else {
             throw HouseholdTransferError.malformed("The household time zone is invalid.")
         }
+        guard !household.rewardTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              household.rewardTitle.count <= 80,
+              (1...1_000_000).contains(household.rewardGoalXP) else {
+            throw HouseholdTransferError.malformed("The family reward is invalid.")
+        }
         guard people.count <= 100, quests.count <= 10_000,
-              completions.count <= 250_000 else {
+              completions.count <= 250_000, rewardGoals.count <= 10_000 else {
             throw HouseholdTransferError.malformed("The document contains too many records.")
         }
         let personIDs = Set(people.map(\.id))
@@ -268,6 +312,22 @@ enum HouseholdTransferCodec {
                 && $0.occurrenceDay.count <= 32
         }) else {
             throw HouseholdTransferError.malformed("A completion event is invalid.")
+        }
+        guard Set(rewardGoals.map(\.id)).count == rewardGoals.count,
+              rewardGoals.allSatisfy({
+                  !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      && $0.title.count <= 80
+                      && (1...1_000_000).contains($0.targetXP)
+              }) else {
+            throw HouseholdTransferError.malformed("A reward goal is invalid.")
+        }
+        guard broadcasts.count <= 10_000,
+              Set(broadcasts.map(\.id)).count == broadcasts.count,
+              broadcasts.allSatisfy({
+                  !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      && $0.title.count <= 80 && $0.message.count <= 500
+              }) else {
+            throw HouseholdTransferError.malformed("A family announcement is invalid.")
         }
     }
 
@@ -357,6 +417,16 @@ enum HouseholdRestoreService {
             goal.deletedAt = value.deletedAt
             context.insert(goal); insertedGoals.append(goal)
         }
+        var insertedBroadcasts: [FamilyBroadcast] = []
+        for value in backup.broadcasts ?? [] {
+            let broadcast = FamilyBroadcast(
+                id: value.id, householdID: household.id, title: value.title,
+                message: value.message, createdAt: value.createdAt)
+            broadcast.updatedAt = value.updatedAt
+            broadcast.expiresAt = value.expiresAt
+            broadcast.deletedAt = value.deletedAt
+            context.insert(broadcast); insertedBroadcasts.append(broadcast)
+        }
         let settings = HouseholdSettings(householdID: household.id)
         settings.parentProtectionEnabled =
             backup.settings.parentProtectionEnabled
@@ -372,7 +442,8 @@ enum HouseholdRestoreService {
                 try enqueue(
                     household: household, people: insertedPeople,
                     quests: insertedQuests, completions: insertedCompletions,
-                    goals: insertedGoals, settings: settings, context: context)
+                    goals: insertedGoals, broadcasts: insertedBroadcasts,
+                    settings: settings, context: context)
             }
             return household
         } catch {
@@ -383,6 +454,7 @@ enum HouseholdRestoreService {
 
     static func enqueue(household: Household, people: [Person], quests: [Quest],
                         completions: [QuestCompletion], goals: [RewardGoal],
+                        broadcasts: [FamilyBroadcast] = [],
                         settings: HouseholdSettings, context: ModelContext) throws {
         try SyncQueue.enqueue(
             SyncSnapshot.household(household), operation: .createOrUpdate,
@@ -410,6 +482,12 @@ enum HouseholdRestoreService {
             try SyncQueue.enqueue(
                 SyncSnapshot.reward(goal),
                 operation: goal.deletedAt == nil ? .createOrUpdate : .archive,
+                context: context)
+        }
+        for broadcast in broadcasts {
+            try SyncQueue.enqueue(
+                SyncSnapshot.broadcast(broadcast),
+                operation: broadcast.deletedAt == nil ? .createOrUpdate : .archive,
                 context: context)
         }
         try SyncQueue.enqueue(

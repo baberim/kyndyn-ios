@@ -221,6 +221,24 @@ recorded in `docs/build-18-changelog.md`.
 See `docs/build-20-household-data-safety.md` for the implemented safety model and
 the Development-versus-Production validation boundary.
 
+## Build 21 — App Store Readiness and Data Controls
+
+- Rename the protected backup area to **Data and privacy** and explain which
+  family data can sync, which settings stay device-only, and what diagnostics
+  deliberately omit.
+- Verify every prepared private backup before presenting the Files export UI.
+- Include supported family announcements in backup validation and round-trip
+  restore while retaining compatibility with earlier backups.
+- Require a successful backup from the last 24 hours and exact household-name
+  confirmation before removing local household data.
+- Keep local removal separate from iCloud deletion: it creates no tombstones,
+  does not stop sharing, and never deletes the CloudKit household.
+- Add accessibility identifiers and readable status summaries for backup and
+  destructive controls.
+
+See `docs/build-21-app-store-readiness.md` for the implemented safeguards and
+remaining external App Store work.
+
 ## Later
 
 - Reward History and Private Reports:
