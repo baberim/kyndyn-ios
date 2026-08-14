@@ -129,7 +129,7 @@ struct AppleWeatherProvider: WeatherProviding {
             condition: current.condition.description,
             symbolName: current.symbolName,
             fetchedAt: .now,
-            dailyForecast: daily.forecast.prefix(5).map {
+            dailyForecast: daily.forecast.prefix(10).map {
                 DeviceWeatherDay(
                     date: $0.date,
                     high: $0.highTemperature.converted(to: .fahrenheit).value,

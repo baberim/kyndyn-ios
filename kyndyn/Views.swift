@@ -561,11 +561,13 @@ struct ImportReviewView: View {
 
 struct ProfilePickerView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
+    @State private var isPullRefreshing = false
     let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
 
     var body: some View {
@@ -640,10 +642,23 @@ struct ProfilePickerView: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: proxy.size.height, alignment: .center)
                 }
+                .refreshable {
+                    await refreshFamilyData()
+                }
+                .refreshStatusPill(isRefreshing: isPullRefreshing, topPadding: 58)
             }
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func level(for person: Person) -> Int {
@@ -697,8 +712,10 @@ struct MainView: View {
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Query private var people: [Person]
     @Query private var deviceSettings: [LocalDeviceSettings]
+    @State private var isPullRefreshing = false
 
     private var activePerson: Person? {
         people.first { $0.id == app.selectedPersonID && $0.deletedAt == nil }
@@ -783,10 +800,21 @@ struct SettingsView: View {
                         title: "Looking for family controls?")
                 }
             }
+            .refreshable { await refreshFamilyData() }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .scrollContentBackground(.hidden)
             .background(KyndynScreenBackground())
             .navigationTitle("Settings")
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func profileSettingsRow(_ person: Person) -> some View {
@@ -1173,28 +1201,9 @@ struct DashboardView: View {
                 try? await minimumVisibleTime
                 rotateGreeting()
             }
-            .overlay(alignment: .top) {
-                if isPullRefreshing {
-                    HStack(spacing: 9) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Refreshing…")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.ultraThickMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(.white.opacity(0.22)))
-                    .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-                    .padding(.top, horizontalSizeClass == .regular ? 20 : 58)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Refreshing family updates")
-                    .accessibilityIdentifier("home-refresh-indicator")
-                }
-            }
-            .animation(.easeInOut(duration: 0.18), value: isPullRefreshing)
+            .refreshStatusPill(
+                isRefreshing: isPullRefreshing,
+                topPadding: horizontalSizeClass == .regular ? 20 : 58)
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProgress) {
@@ -1299,7 +1308,7 @@ struct DashboardView: View {
                 Text(calendarTime(for: event))
                     .font(.caption).foregroundStyle(.secondary)
                 if calendarEvents.count > 1 {
-                    Text("+\(calendarEvents.count - 1) more in the next 2 days")
+                    Text("+\(calendarEvents.count - 1) more in the next 2 weeks")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             } else {
@@ -1333,8 +1342,8 @@ struct DashboardView: View {
         }
         calendarEvents = Array(provider.events(
             from: .now,
-            through: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
-            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(3))
+            through: Calendar.current.date(byAdding: .day, value: 14, to: .now) ?? .now,
+            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(20))
     }
 
     @MainActor private func refreshWeatherIfNeeded() async {
@@ -1782,7 +1791,7 @@ private struct WeatherGlanceView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(forecast.count > 4 ? [.medium, .large] : [.medium])
     }
 }
 
@@ -1796,7 +1805,7 @@ private struct CalendarGlanceView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if events.isEmpty {
                         KyndynCallout(kind: .information,
-                                      message: "Nothing is scheduled in your selected calendars over the next two days.")
+                                      message: "Nothing is scheduled in your selected calendars over the next two weeks.")
                     } else {
                         ForEach(events) { event in
                             VStack(alignment: .leading, spacing: 5) {
@@ -1820,7 +1829,7 @@ private struct CalendarGlanceView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(events.count > 3 ? [.medium, .large] : [.medium])
     }
 
     private func eventTime(_ event: DeviceCalendarEvent) -> String {
@@ -2311,6 +2320,7 @@ struct QuestListView: View {
     @State private var searchText = ""
     @State private var selectedQuest: Quest?
     @State private var browseEveryone = false
+    @State private var isPullRefreshing = false
 
     private var selectedPersonID: UUID? { personID ?? app.selectedPersonID }
 
@@ -2374,9 +2384,15 @@ struct QuestListView: View {
                 NavigationStack {
                     ScrollView { content.padding() }
                         .refreshable {
+                            isPullRefreshing = true
+                            defer { isPullRefreshing = false }
+                            async let minimumVisibleTime: Void = Task.sleep(
+                                for: .milliseconds(550))
                             automaticSync.request(.manual)
                             await automaticSync.waitUntilIdle()
+                            try? await minimumVisibleTime
                         }
+                        .refreshStatusPill(isRefreshing: isPullRefreshing)
                         .background(KyndynScreenBackground())
                         .navigationTitle("Today’s quests")
                         .searchable(text: $searchText, prompt: "Search quests")
@@ -3107,12 +3123,14 @@ struct FamilyBroadcastEditorView: View {
 
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
     @Query private var goals: [RewardGoal]
     @Query private var cloudStates: [HouseholdCloudState]
+    @State private var isPullRefreshing = false
     var body: some View {
         NavigationStack {
             List {
@@ -3215,12 +3233,23 @@ struct ParentAreaView: View {
                     LabeledContent("Version", value: appVersion)
                 }
             }
+            .refreshable { await refreshFamilyData() }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .scrollContentBackground(.hidden)
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func parentRow(
@@ -4900,6 +4929,30 @@ extension View {
         alert("kyndyn couldn’t save that", isPresented: Binding(get: { app.errorMessage != nil }, set: { if !$0 { app.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(app.errorMessage ?? "") }
+    }
+    func refreshStatusPill(
+        isRefreshing: Bool, topPadding: CGFloat = 8
+    ) -> some View {
+        overlay(alignment: .top) {
+            if isRefreshing {
+                HStack(spacing: 9) {
+                    ProgressView().controlSize(.small)
+                    Text("Refreshing…").font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.ultraThickMaterial, in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.22)))
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                .padding(.top, topPadding)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Refreshing family updates")
+                .accessibilityIdentifier("refresh-status-indicator")
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: isRefreshing)
     }
 }
 
