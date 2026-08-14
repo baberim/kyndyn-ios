@@ -1787,6 +1787,7 @@ struct BadgeGalleryView: View {
                     Text("Each badge marks something you did in kyndyn. Keep going at your own pace.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .kyndynCard(tint: Color(hex: person.colorHex), raised: true)
 
                 if !RecognitionEngine.badgeCollectionMilestones.isEmpty {
@@ -1806,6 +1807,7 @@ struct BadgeGalleryView: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .kyndynCard(tint: Color(hex: person.colorHex))
                 }
 
