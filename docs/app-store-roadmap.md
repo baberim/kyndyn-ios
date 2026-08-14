@@ -199,7 +199,10 @@ See `docs/badge-recognition.md` for the implemented scope.
 
 - Improve upcoming-event timing and multi-event context on Home.
 - Make cached weather freshness honest and visible.
-- Link Home context cards to device-local settings and improve recovery states.
+- Open dismissible ten-day forecast and two-week calendar summaries from Home,
+  while keeping device-local configuration in Settings.
+- Stabilize startup, refresh, artwork loading, and Home spacing before the
+  TestFlight build.
 
 See `docs/calendar-weather.md` for the implemented privacy boundary.
 

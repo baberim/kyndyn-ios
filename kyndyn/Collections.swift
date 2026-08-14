@@ -288,9 +288,7 @@ struct ProfileScene: View {
             ?? CollectionCatalog.backgrounds[0]
         GeometryReader { proxy in
             ZStack {
-                if let path = Bundle.main.path(
-                    forResource: definition.assetName, ofType: "png"),
-                   let image = UIImage(contentsOfFile: path) {
+                if let image = UIImage(named: definition.assetName) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -449,9 +447,7 @@ struct ImmersiveProfileHeader: View {
     @ViewBuilder
     private func background(_ definition: BackgroundDefinition,
                             size: CGSize) -> some View {
-        if let path = Bundle.main.path(
-            forResource: definition.assetName, ofType: "png"),
-           let image = UIImage(contentsOfFile: path) {
+        if let image = UIImage(named: definition.assetName) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()

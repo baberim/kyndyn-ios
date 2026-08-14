@@ -38,6 +38,9 @@ Apple controls calendar/location permission prompts and WeatherKit availability.
 - Home calendar cards identify today, tomorrow, or the upcoming weekday, show
   all-day timing, and disclose when more events are waiting.
 - Home weather cards distinguish recent data from an older cached reading.
-- Both Home cards link directly to their device-local Settings screens.
+- Tapping Weather opens a dismissible forecast with up to ten days. Tapping
+  Calendar opens up to twenty selected-calendar events across two weeks.
+- Sheets expand only when they contain enough information; permission and
+  source choices remain in device-local Settings.
 - Empty, denied, and unavailable states offer a useful recovery route while
   leaving quests, progression, and family sync fully operational.

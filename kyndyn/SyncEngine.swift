@@ -1751,6 +1751,7 @@ enum AutomaticSyncDisplayState: Equatable {
     private var pendingTriggers: Set<AutomaticSyncTrigger> = []
     private var scheduledTask: Task<Void, Never>?
     private var consecutiveRetryCount = 0
+    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(debounceNanoseconds: UInt64 = 650_000_000) {
         self.debounceNanoseconds = debounceNanoseconds
@@ -1821,16 +1822,29 @@ enum AutomaticSyncDisplayState: Equatable {
         scheduledTask?.cancel()
         scheduledTask = nil
         if isRunning { displayState = .waiting }
+        if !isRunning { resumeIdleWaiters() }
     }
 
     func waitUntilIdle() async {
-        while isRunning || !pendingTriggers.isEmpty {
-            await Task.yield()
+        guard isRunning || !pendingTriggers.isEmpty else { return }
+        await withCheckedContinuation { continuation in
+            idleWaiters.append(continuation)
         }
     }
 
+    private func resumeIdleWaiters() {
+        let waiters = idleWaiters
+        idleWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
     private func drain() async {
-        guard !isRunning, let run else { return }
+        guard !isRunning else { return }
+        guard let run else {
+            pendingTriggers.removeAll()
+            resumeIdleWaiters()
+            return
+        }
         isRunning = true
         while !pendingTriggers.isEmpty, !Task.isCancelled {
             lastTriggers = pendingTriggers
@@ -1841,6 +1855,7 @@ enum AutomaticSyncDisplayState: Equatable {
         }
         isRunning = false
         scheduledTask = nil
+        resumeIdleWaiters()
         if displayState == .waiting, !Task.isCancelled {
             consecutiveRetryCount = min(consecutiveRetryCount + 1, 5)
             let seconds = min(60, 2 << (consecutiveRetryCount - 1))

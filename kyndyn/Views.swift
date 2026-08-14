@@ -655,6 +655,7 @@ struct ProfilePickerView: View {
     private func refreshFamilyData() async {
         isPullRefreshing = true
         defer { isPullRefreshing = false }
+        await Task.yield()
         async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
         automaticSync.request(.manual)
         await automaticSync.waitUntilIdle()
@@ -811,6 +812,7 @@ struct SettingsView: View {
     private func refreshFamilyData() async {
         isPullRefreshing = true
         defer { isPullRefreshing = false }
+        await Task.yield()
         async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
         automaticSync.request(.manual)
         await automaticSync.waitUntilIdle()
@@ -1158,7 +1160,7 @@ struct DashboardView: View {
                                 now: .now,
                                 timeZoneIdentifier: household.timeZoneIdentifier,
                                 startingXPAdjustment: person.startingXPAdjustment)
-                            VStack(spacing: 18) {
+                            VStack(spacing: 16) {
                                 broadcastNavigation
                                 progressSummary(
                                     progress, person: person, household: household,
@@ -1183,7 +1185,7 @@ struct DashboardView: View {
                         QuestListView(compact: true, includeUpcoming: true)
                         recentActivity(household: household, personID: person.id)
                             }
-                            .padding()
+                            .padding(.horizontal)
                             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                             .frame(maxWidth: .infinity)
                         }
@@ -1194,6 +1196,7 @@ struct DashboardView: View {
             .refreshable {
                 isPullRefreshing = true
                 defer { isPullRefreshing = false }
+                await Task.yield()
                 async let minimumVisibleTime: Void = Task.sleep(
                     for: .milliseconds(550))
                 automaticSync.request(.manual)
@@ -1501,7 +1504,7 @@ struct DashboardView: View {
             }
             recentActivity(household: household, personID: nil)
         }
-        .padding()
+        .padding(.horizontal)
         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
         .frame(maxWidth: .infinity)
     }
@@ -2386,6 +2389,7 @@ struct QuestListView: View {
                         .refreshable {
                             isPullRefreshing = true
                             defer { isPullRefreshing = false }
+                            await Task.yield()
                             async let minimumVisibleTime: Void = Task.sleep(
                                 for: .milliseconds(550))
                             automaticSync.request(.manual)
@@ -3246,6 +3250,7 @@ struct ParentAreaView: View {
     private func refreshFamilyData() async {
         isPullRefreshing = true
         defer { isPullRefreshing = false }
+        await Task.yield()
         async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
         automaticSync.request(.manual)
         await automaticSync.waitUntilIdle()
@@ -4897,8 +4902,7 @@ struct CompanionArt: View {
     let id: String
     var body: some View {
         Group {
-            if let path = Bundle.main.path(forResource: id, ofType: "png"),
-               let image = UIImage(contentsOfFile: path) {
+            if let image = UIImage(named: id) {
                 Image(uiImage: image).resizable().scaledToFit()
             } else {
                 Image(systemName: "sparkles").resizable().scaledToFit().foregroundStyle(.purple)

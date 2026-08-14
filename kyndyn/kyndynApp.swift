@@ -369,7 +369,7 @@ struct KyndynStartupView: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.965, green: 0.965, blue: 0.980))
+        .background(KyndynLaunchBackground())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Opening kyndyn and preparing your family")
         .accessibilityIdentifier("startup-loading")

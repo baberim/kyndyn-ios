@@ -51,14 +51,16 @@ The app provides a locally usable vertical slice:
   streak, quest-XP, and family-reward milestones;
 - named badge celebrations, visible collection milestones, and quiet badge
   counts on Profiles without rankings or behavioral scoring;
-- optional device-local calendar and Apple Weather context with clearer timing,
-  freshness, permission recovery, and direct Settings routes;
+- optional device-local calendar and Apple Weather context with two-week event
+  and ten-day forecast sheets, plus separate permission controls in Settings;
 - a simplified Quests browser with one stable profile scope control and one
   compact status filter instead of competing rows of buttons;
 - a centered Profiles experience, consistent Profiles terminology, and a
   portrait-first iPhone layout while iPad remains fully adaptive;
 - a softer immersive Home header, clear pull-to-refresh feedback, and the
   approved K brand mark replacing remaining generic leaf symbols.
+- a dark-mode-aware startup surface, consistent Home spacing, cached collection
+  artwork, and event-driven sync waiting that keeps navigation responsive.
 
 ## Open and run
 
