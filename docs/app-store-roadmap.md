@@ -203,6 +203,24 @@ See `docs/calendar-weather.md` for the implemented privacy boundary.
 Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
 recorded in `docs/build-18-changelog.md`.
 
+## Build 20 — Household Data Safety
+
+- Fetch and reconcile the complete paginated CloudKit household before
+  recovery, including deterministic handling of repeated record revisions.
+- Present a protected recovery preview with profile, quest, completion, undone
+  history, and XP totals before any local data changes.
+- Reject incomplete or internally inconsistent recoveries and roll back any
+  failed insertion rather than accepting a partial household.
+- Verify starting XP, awarded completion XP, undone state, and recovered entity
+  identities before reporting success.
+- Persist a privacy-safe recovery receipt and show the latest successful private
+  backup export time in Parent tools.
+- Keep empty-install recovery, manual private backups, and normal incremental
+  synchronization as separate, understandable safety layers.
+
+See `docs/build-20-household-data-safety.md` for the implemented safety model and
+the Development-versus-Production validation boundary.
+
 ## Later
 
 - Reward History and Private Reports:

@@ -367,12 +367,10 @@ struct OnboardingView: View {
 
 struct CloudHouseholdRecoveryView: View {
     @Environment(CloudSyncController.self) private var sync
-    @Environment(AppModel.self) private var app
-    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var candidates = [CloudHouseholdCandidate]()
     @State private var hasChecked = false
+    @State private var selectedCandidate: CloudHouseholdCandidate?
 
     var body: some View {
         NavigationStack {
@@ -394,7 +392,7 @@ struct CloudHouseholdRecoveryView: View {
                     Section("Families found") {
                         ForEach(candidates) { candidate in
                             Button {
-                                recover(candidate)
+                                selectedCandidate = candidate
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(candidate.householdName).font(.headline)
@@ -420,6 +418,12 @@ struct CloudHouseholdRecoveryView: View {
                 }
             }
             .task { check() }
+            .sheet(item: $selectedCandidate) { candidate in
+                CloudRecoveryPreviewView(candidate: candidate) {
+                    selectedCandidate = nil
+                    dismiss()
+                }
+            }
         }
     }
 
@@ -430,8 +434,114 @@ struct CloudHouseholdRecoveryView: View {
         }
     }
 
-    private func recover(_ candidate: CloudHouseholdCandidate) {
+}
+
+struct CloudRecoveryPreviewView: View {
+    @Environment(CloudSyncController.self) private var sync
+    @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    let candidate: CloudHouseholdCandidate
+    let onFinished: () -> Void
+    @State private var isRecovering = false
+    @State private var didRecover = false
+
+    private var preview: CloudRecoveryPreview {
+        CloudRecoveryAudit.preview(candidate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if didRecover {
+                    List {
+                        Section {
+                            ContentUnavailableView(
+                                "Recovery complete",
+                                systemImage: "checkmark.icloud.fill",
+                                description: Text(
+                                    "Kyndyn verified the recovered profiles, quests, and history before saving them."))
+                        }
+                        recoveryCounts
+                        Section {
+                            Button("Continue to my family") { onFinished() }
+                                .frame(maxWidth: .infinity)
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
+                } else {
+                    List {
+                        Section {
+                            KyndynCallout(
+                                kind: preview.isSafeToRecover ? .information : .caution,
+                                message: preview.isSafeToRecover
+                                    ? "Review what Kyndyn found before anything is saved on this device."
+                                    : "This cloud copy did not pass Kyndyn’s safety checks and will not be restored.")
+                        }
+                        recoveryCounts
+                        if !preview.issues.isEmpty {
+                            Section("Needs attention") {
+                                ForEach(preview.issues, id: \.self) { issue in
+                                    Label(issue, systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        Section("What happens next") {
+                            Text("Recovery creates this household on an empty installation. It does not delete or modify the cloud copy.")
+                            Text("Kyndyn verifies the restored record counts before reporting success. Keep a separate private backup after recovery.")
+                                .foregroundStyle(.secondary)
+                        }
+                        if isRecovering {
+                            Section { ProgressView("Verifying and recovering…") }
+                        } else if sync.lastErrorCategory != nil {
+                            Section { KyndynCallout(kind: .caution, message: sync.statusMessage) }
+                        }
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        Button("Recover this family", systemImage: "icloud.and.arrow.down") {
+                            recover()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(!preview.isSafeToRecover || isRecovering)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(.bar)
+                    }
+                }
+            }
+            .navigationTitle(didRecover ? "Recovered" : "Review recovery")
+            .toolbar {
+                if !didRecover {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                            .disabled(isRecovering)
+                    }
+                }
+            }
+        }
+        .interactiveDismissDisabled(isRecovering)
+    }
+
+    @ViewBuilder private var recoveryCounts: some View {
+        Section(preview.householdName) {
+            LabeledContent("Profiles", value: "\(preview.activePeople) active · \(preview.people) total")
+            LabeledContent("Quests", value: "\(preview.quests - preview.archivedQuests) active · \(preview.quests) total")
+            LabeledContent("Completion history", value: "\(preview.completions)")
+            if preview.undoneCompletions > 0 {
+                LabeledContent("Undone completions", value: "\(preview.undoneCompletions)")
+            }
+            LabeledContent("Starting XP adjustments", value: "\(preview.startingXP) XP")
+            LabeledContent("Active completion XP", value: "\(preview.awardedXP) XP")
+        }
+    }
+
+    private func recover() {
+        isRecovering = true
         Task {
+            defer { isRecovering = false }
             guard await sync.recoverHousehold(candidate, context: context) != nil else {
                 return
             }
@@ -440,7 +550,7 @@ struct CloudHouseholdRecoveryView: View {
                 $0.householdID == candidate.householdID && $0.deletedAt == nil
             })?.id
             automaticSync.request(.accountRecovery)
-            dismiss()
+            didRecover = true
         }
     }
 }
@@ -3759,9 +3869,31 @@ struct HouseholdDataProtectionView: View {
     @State private var document: TransferDocument?
     @State private var exporting = false
     @State private var confirmSampleRemoval = false
+    @AppStorage("kyndyn.lastSuccessfulBackupExport")
+    private var lastBackupExportTimestamp = 0.0
+    @State private var recoveryReceipt: CloudRecoveryReceipt?
 
     var body: some View {
         List {
+            Section("Protection status") {
+                if lastBackupExportTimestamp > 0 {
+                    LabeledContent("Last private backup") {
+                        Text(Date(timeIntervalSince1970: lastBackupExportTimestamp),
+                             format: .dateTime.month().day().year().hour().minute())
+                    }
+                } else {
+                    LabeledContent("Last private backup", value: "Not exported on this device")
+                }
+                if let receipt = recoveryReceipt {
+                    LabeledContent("Last iCloud recovery") {
+                        Text(receipt.recoveredAt,
+                             format: .dateTime.month().day().year().hour().minute())
+                    }
+                    Text("Verified \(receipt.people) profiles, \(receipt.quests) quests, and \(receipt.completions) completion records.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section("Household backup") {
                 Button("Export household backup",
                        systemImage: "square.and.arrow.up") {
@@ -3790,12 +3922,15 @@ struct HouseholdDataProtectionView: View {
             }
         }
         .navigationTitle("Backup and migration")
+        .onAppear { recoveryReceipt = CloudRecoveryAudit.latestReceipt() }
         .fileExporter(
             isPresented: $exporting, document: document,
             contentType: .json,
             defaultFilename: "kyndyn-household-backup.json"
         ) { result in
-            if case .failure(let error) = result {
+            if case .success = result {
+                lastBackupExportTimestamp = Date().timeIntervalSince1970
+            } else if case .failure(let error) = result {
                 app.errorMessage = error.localizedDescription
             }
             document = nil
