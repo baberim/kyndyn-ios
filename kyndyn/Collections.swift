@@ -39,6 +39,15 @@ struct BadgeProgress: Identifiable, Equatable {
     }
 }
 
+struct BadgeCollectionMilestone: Identifiable, Equatable {
+    let badgeCount: Int
+    let itemNames: [String]
+
+    var id: Int { badgeCount }
+    var title: String { "Earn \(badgeCount) badges" }
+    var detail: String { itemNames.joined(separator: " and ") }
+}
+
 struct BackgroundDefinition: Identifiable, Equatable {
     enum Requirement: Equatable {
         case starter
@@ -176,6 +185,27 @@ enum RecognitionEngine {
         return Array(Set(ids).intersection(valid)).sorted()
     }
 
+    static let badgeCollectionMilestones: [BadgeCollectionMilestone] = {
+        var values: [Int: [String]] = [:]
+        for companion in CollectionCatalog.companions {
+            if case .badges(let count) = companion.requirement {
+                values[count, default: []].append("\(companion.name) companion")
+            }
+        }
+        for background in CollectionCatalog.backgrounds {
+            if case .badges(let count) = background.requirement {
+                values[count, default: []].append("\(background.name) background")
+            }
+        }
+        return values.keys.sorted().map {
+            BadgeCollectionMilestone(badgeCount: $0, itemNames: values[$0]!.sorted())
+        }
+    }()
+
+    static func collectionMilestone(reachedWith badgeCount: Int) -> BadgeCollectionMilestone? {
+        badgeCollectionMilestones.first { $0.badgeCount == badgeCount }
+    }
+
     static func badgeProgress(
         progress: PersonProgress, familyRewardReached: Bool = false,
         earnedBadgeIDs: [String] = []
@@ -258,9 +288,7 @@ struct ProfileScene: View {
             ?? CollectionCatalog.backgrounds[0]
         GeometryReader { proxy in
             ZStack {
-                if let path = Bundle.main.path(
-                    forResource: definition.assetName, ofType: "png"),
-                   let image = UIImage(contentsOfFile: path) {
+                if let image = UIImage(named: definition.assetName) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -419,9 +447,7 @@ struct ImmersiveProfileHeader: View {
     @ViewBuilder
     private func background(_ definition: BackgroundDefinition,
                             size: CGSize) -> some View {
-        if let path = Bundle.main.path(
-            forResource: definition.assetName, ofType: "png"),
-           let image = UIImage(contentsOfFile: path) {
+        if let image = UIImage(named: definition.assetName) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()

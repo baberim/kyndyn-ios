@@ -1,4 +1,4 @@
-# Build 16 — Badge recognition
+# Builds 16–17 — Badge recognition
 
 kyndyn calls these milestones **Badges** in the family experience. The internal
 recognition engine treats them as deterministic achievements, but the shorter
@@ -12,6 +12,15 @@ name is clearer and friendlier for children.
 - The home progress card shows the number of earned badges.
 - A newly earned badge uses the existing calm, one-at-a-time unlock message.
 - VoiceOver identifies the badge, earned state, description, and progress.
+
+## Build 17 recognition polish
+
+- Badge celebrations name the earned badge and explain what it represents.
+- Badge-count milestones name any companion and background rewards they unlock.
+- The gallery explains the collection milestones at three and five badges.
+- Profiles show a quiet earned-badge count beside each person’s level.
+- Recognition remains deterministic, local-first, and free of rankings,
+  random rewards, and behavioral profiling.
 
 ## Build 16 interface polish
 

@@ -8,7 +8,7 @@
 | One-time and weekly recurrence | Native v1 core | Implemented rule foundation |
 | Due/overdue and late XP | Native v1 core | Deterministic household-time rules |
 | Completion history and undo | Native v1 core | Append-friendly reversal |
-| XP, levels, streaks, badges | Native v1 core | XP/levels/streaks implemented; badge UI follows |
+| XP, levels, streaks, badges | Native v1 core | Implemented with durable recognition and collection milestones |
 | Family reward goal | Native v1 core | Implemented projection |
 | Parent people/quest editing | Native v1 core | Create/edit/archive/restore and integrity rules implemented |
 | Local notifications | Native v1 core | Device profile, quiet hours, privacy, permission, and local scheduling implemented |
@@ -18,8 +18,8 @@
 | Broadcasts | Native v1.1 | Model boundary included |
 | Full collections/backgrounds | Native v1.1 | Architecture supports them |
 | PWA JSON migration | Native v1.1 | Versioned dry-run design and fixtures |
-| Calendar read-only feeds | Build 14 | Optional EventKit calendars; read-only and device-local |
-| Weather | Later | Derived cache, never shared source truth |
+| Calendar read-only feeds | Builds 14/18 | Optional EventKit calendars; read-only, device-local, and refined on Home |
+| Weather | Builds 14/18 | Apple WeatherKit derived cache; device-local and never shared source truth |
 | kyndyn assistant | Later | Privacy and parent-control review required |
 | Web push/VAPID | Intentionally replaced | Native local/remote notification stack |
 | Flask/Jinja JSON datastore | Intentionally replaced | SwiftUI + SwiftData + CloudKit |

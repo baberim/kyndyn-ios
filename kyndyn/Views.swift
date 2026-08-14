@@ -561,11 +561,13 @@ struct ImportReviewView: View {
 
 struct ProfilePickerView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Person.createdAt) private var people: [Person]
     @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
+    @State private var isPullRefreshing = false
     let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
 
     var body: some View {
@@ -615,16 +617,21 @@ struct ProfilePickerView: View {
                                         Text(person.role == .parent ? "Parent" : "Family member")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                        Text("Level \(level(for: person))")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(Color(hex: person.colorHex))
+                                        HStack(spacing: 8) {
+                                            Text("Level \(level(for: person))")
+                                            if badgeCount(for: person) > 0 {
+                                                Label("\(badgeCount(for: person))", systemImage: "medal.fill")
+                                            }
+                                        }
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color(hex: person.colorHex))
                                     }
                                     .frame(maxWidth: .infinity)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("\(person.name), \(person.role == .parent ? "parent" : "family member")")
-                                .accessibilityValue("Level \(level(for: person)), \(ProfilePalette.name(for: person.colorHex)) profile color")
+                                .accessibilityValue("Level \(level(for: person)), \(badgeCount(for: person)) badges, \(ProfilePalette.name(for: person.colorHex)) profile color")
                                 .accessibilityHint("Opens this person’s home")
                                 .accessibilityIdentifier("profile-\(person.name)")
                             }
@@ -635,10 +642,24 @@ struct ProfilePickerView: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: proxy.size.height, alignment: .center)
                 }
+                .refreshable {
+                    await refreshFamilyData()
+                }
+                .refreshStatusPill(isRefreshing: isPullRefreshing, topPadding: 58)
             }
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        await Task.yield()
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func level(for person: Person) -> Int {
@@ -646,6 +667,10 @@ struct ProfilePickerView: View {
             .filter { $0.personID == person.id && $0.reversedAt == nil }
             .reduce(0) { $0 + $1.awardedXP }
         return max(0, questXP + person.startingXPAdjustment) / 100 + 1
+    }
+
+    private func badgeCount(for person: Person) -> Int {
+        RecognitionEngine.normalizedBadges(person.earnedBadgeIDs).count
     }
 }
 
@@ -688,8 +713,10 @@ struct MainView: View {
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Query private var people: [Person]
     @Query private var deviceSettings: [LocalDeviceSettings]
+    @State private var isPullRefreshing = false
 
     private var activePerson: Person? {
         people.first { $0.id == app.selectedPersonID && $0.deletedAt == nil }
@@ -774,10 +801,22 @@ struct SettingsView: View {
                         title: "Looking for family controls?")
                 }
             }
+            .refreshable { await refreshFamilyData() }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .scrollContentBackground(.hidden)
             .background(KyndynScreenBackground())
             .navigationTitle("Settings")
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        await Task.yield()
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func profileSettingsRow(_ person: Person) -> some View {
@@ -862,6 +901,7 @@ struct SiriShortcutsHelpView: View {
 }
 
 struct CalendarSettingsView: View {
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: DevicePermissionState = .notRequested
@@ -903,6 +943,11 @@ struct CalendarSettingsView: View {
                         try? context.save()
                     }
                 }
+                if calendars.isEmpty {
+                    Section {
+                        KyndynCallout(kind: .information, message: "No calendars are available on this device yet. Add one in Calendar, then return here.")
+                    }
+                }
             } else {
                 Section {
                     Button("Allow calendar access") {
@@ -914,6 +959,7 @@ struct CalendarSettingsView: View {
                     if permission == .denied || permission == .restricted {
                         Text("Calendar access is off. You can change it in the iPhone or iPad Settings app.")
                             .font(.footnote).foregroundStyle(.secondary)
+                        Button("Open device settings") { openAppSettings() }
                     }
                 }
             }
@@ -930,9 +976,15 @@ struct CalendarSettingsView: View {
         permission = provider.permissionState()
         calendars = permission == .allowed ? provider.calendars() : []
     }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
+    }
 }
 
 struct WeatherSettingsView: View {
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @Query private var settings: [LocalDeviceSettings]
     @State private var isLoading = false
@@ -959,7 +1011,10 @@ struct WeatherSettingsView: View {
                         }.disabled(isLoading)
                     }
                 }
-                if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                if let message {
+                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                    Button("Open device settings") { openAppSettings() }
+                }
             }
             Section("Privacy") {
                 KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
@@ -994,6 +1049,11 @@ struct WeatherSettingsView: View {
         setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
         setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
         setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 }
 
@@ -1042,6 +1102,10 @@ struct ParentAuthenticationView: View {
 }
 
 struct DashboardView: View {
+    private enum DayDetail: String, Identifiable {
+        case weather, calendar
+        var id: String { rawValue }
+    }
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
@@ -1058,6 +1122,8 @@ struct DashboardView: View {
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
     @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var weatherForecast: [DeviceWeatherDay] = []
+    @State private var presentedDayDetail: DayDetail?
     @State private var isLoadingWeather = false
     @State private var isPullRefreshing = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
@@ -1094,7 +1160,7 @@ struct DashboardView: View {
                                 now: .now,
                                 timeZoneIdentifier: household.timeZoneIdentifier,
                                 startingXPAdjustment: person.startingXPAdjustment)
-                            VStack(spacing: 18) {
+                            VStack(spacing: 16) {
                                 broadcastNavigation
                                 progressSummary(
                                     progress, person: person, household: household,
@@ -1119,7 +1185,7 @@ struct DashboardView: View {
                         QuestListView(compact: true, includeUpcoming: true)
                         recentActivity(household: household, personID: person.id)
                             }
-                            .padding()
+                            .padding(.horizontal)
                             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                             .frame(maxWidth: .infinity)
                         }
@@ -1130,6 +1196,7 @@ struct DashboardView: View {
             .refreshable {
                 isPullRefreshing = true
                 defer { isPullRefreshing = false }
+                await Task.yield()
                 async let minimumVisibleTime: Void = Task.sleep(
                     for: .milliseconds(550))
                 automaticSync.request(.manual)
@@ -1137,28 +1204,9 @@ struct DashboardView: View {
                 try? await minimumVisibleTime
                 rotateGreeting()
             }
-            .overlay(alignment: .top) {
-                if isPullRefreshing {
-                    HStack(spacing: 9) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Refreshing…")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.ultraThickMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(.white.opacity(0.22)))
-                    .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-                    .padding(.top, horizontalSizeClass == .regular ? 20 : 58)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Refreshing family updates")
-                    .accessibilityIdentifier("home-refresh-indicator")
-                }
-            }
-            .animation(.easeInOut(duration: 0.18), value: isPullRefreshing)
+            .refreshStatusPill(
+                isRefreshing: isPullRefreshing,
+                topPadding: horizontalSizeClass == .regular ? 20 : 58)
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProgress) {
@@ -1166,7 +1214,18 @@ struct DashboardView: View {
                     ProgressDetailView(person: person, household: household)
                 }
             }
-            .alert("New collection item", isPresented: Binding(
+            .sheet(item: $presentedDayDetail) { detail in
+                switch detail {
+                case .weather:
+                    WeatherGlanceView(
+                        setting: deviceSettings.first,
+                        forecast: weatherForecast,
+                        isLoading: isLoadingWeather)
+                case .calendar:
+                    CalendarGlanceView(events: calendarEvents)
+                }
+            }
+            .alert(unlockTitle(unlockToPresent), isPresented: Binding(
                 get: { unlockToPresent != nil },
                 set: { if !$0 { acknowledgePresentedUnlock() } }
             )) {
@@ -1193,10 +1252,22 @@ struct DashboardView: View {
             Grid(horizontalSpacing: 12) {
                 GridRow(alignment: .top) {
                     if setting.weatherIntegrationEnabled {
-                        weatherSummary(setting)
+                        Button {
+                            presentedDayDetail = .weather
+                            Task { await refreshWeatherDetails() }
+                        } label: {
+                            weatherSummary(setting)
+                        }
+                        .buttonStyle(.plain)
                     }
                     if setting.calendarIntegrationEnabled {
-                        calendarSummary
+                        Button {
+                            refreshCalendarEvents()
+                            presentedDayDetail = .calendar
+                        } label: {
+                            calendarSummary
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -1217,8 +1288,14 @@ struct DashboardView: View {
                 }
                 Text(setting.cachedWeatherCondition ?? "Local weather")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let fetchedAt = setting.cachedWeatherAt {
+                    Text(WeatherCachePolicy.isFresh(fetchedAt)
+                         ? "Updated recently" : "Last updated \(fetchedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             } else {
-                ProgressView().accessibilityLabel("Loading weather")
+                Label("Tap to check weather", systemImage: "arrow.clockwise")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
@@ -1231,8 +1308,12 @@ struct DashboardView: View {
                 .font(.headline)
             if let event = calendarEvents.first {
                 Text(event.title).font(.subheadline.bold()).lineLimit(1)
-                Text(event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened))
+                Text(calendarTime(for: event))
                     .font(.caption).foregroundStyle(.secondary)
+                if calendarEvents.count > 1 {
+                    Text("+\(calendarEvents.count - 1) more in the next 2 weeks")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             } else {
                 Text("Nothing scheduled soon")
                     .font(.caption).foregroundStyle(.secondary)
@@ -1240,6 +1321,17 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
         .kyndynCard(tint: .orange)
+    }
+
+    private func calendarTime(for event: DeviceCalendarEvent) -> String {
+        let calendar = Calendar.current
+        let day: String
+        if calendar.isDateInToday(event.startDate) { day = "Today" }
+        else if calendar.isDateInTomorrow(event.startDate) { day = "Tomorrow" }
+        else { day = event.startDate.formatted(.dateTime.weekday(.abbreviated)) }
+        return event.isAllDay
+            ? "\(day), all day"
+            : "\(day) at \(event.startDate.formatted(date: .omitted, time: .shortened))"
     }
 
     private func refreshCalendarEvents() {
@@ -1253,8 +1345,8 @@ struct DashboardView: View {
         }
         calendarEvents = Array(provider.events(
             from: .now,
-            through: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
-            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(3))
+            through: Calendar.current.date(byAdding: .day, value: 14, to: .now) ?? .now,
+            calendarIDs: Set(setting.selectedCalendarIdentifiers)).prefix(20))
     }
 
     @MainActor private func refreshWeatherIfNeeded() async {
@@ -1274,9 +1366,33 @@ struct DashboardView: View {
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
             // Cached weather remains visible. Permission guidance lives in Settings.
+        }
+    }
+
+    @MainActor private func refreshWeatherDetails() async {
+        guard let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        isLoadingWeather = true
+        defer { isLoadingWeather = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let snapshot = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = snapshot.temperature
+            setting.cachedWeatherHigh = snapshot.high
+            setting.cachedWeatherLow = snapshot.low
+            setting.cachedWeatherCondition = snapshot.condition
+            setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherForecast = snapshot.dailyForecast
+            try? context.save()
+        } catch {
+            // Keep the cached glance visible when an update is unavailable.
         }
     }
 
@@ -1307,9 +1423,28 @@ struct DashboardView: View {
            let badge = RecognitionEngine.badgeCatalog.first(where: {
                $0.id == parts[1]
            }) {
-            return "You earned the \(badge.title) badge!"
+            let count = person.map {
+                RecognitionEngine.normalizedBadges($0.earnedBadgeIDs).count
+            } ?? 0
+            if let milestone = RecognitionEngine.collectionMilestone(
+                reachedWith: count) {
+                return "\(badge.detail). You also unlocked the \(milestone.detail)."
+            }
+            return badge.detail
         }
         return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
+    }
+
+    private func unlockTitle(_ value: String?) -> String {
+        guard let value else { return "New collection item" }
+        let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+        if parts.count == 2, parts[0] == "badge",
+           let badge = RecognitionEngine.badgeCatalog.first(where: {
+               $0.id == parts[1]
+           }) {
+            return "Badge earned: \(badge.title)"
+        }
+        return "New collection item"
     }
 
     private func acknowledgePresentedUnlock() {
@@ -1369,7 +1504,7 @@ struct DashboardView: View {
             }
             recentActivity(household: household, personID: nil)
         }
-        .padding()
+        .padding(.horizontal)
         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
         .frame(maxWidth: .infinity)
     }
@@ -1597,6 +1732,117 @@ private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
     }
 }
 
+private struct WeatherGlanceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let setting: LocalDeviceSettings?
+    let forecast: [DeviceWeatherDay]
+    let isLoading: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let temperature = setting?.cachedWeatherTemperature {
+                        HStack(spacing: 16) {
+                            Image(systemName: setting?.cachedWeatherSymbolName ?? "cloud.sun")
+                                .font(.system(size: 42)).foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(Int(temperature.rounded()))°")
+                                    .font(.largeTitle.bold().monospacedDigit())
+                                Text(setting?.cachedWeatherCondition ?? "Local weather")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .kyndynCard(tint: .blue, raised: true)
+                    }
+
+                    if isLoading && forecast.isEmpty {
+                        HStack { Spacer(); ProgressView("Updating forecast…"); Spacer() }
+                            .padding(.vertical, 24)
+                    } else if forecast.isEmpty {
+                        KyndynCallout(kind: .information,
+                                      message: "A forecast isn’t available right now. Your last weather update is still shown above.")
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(forecast) { day in
+                                HStack(spacing: 12) {
+                                    Text(day.date.formatted(.dateTime.weekday(.wide)))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: day.symbolName)
+                                        .foregroundStyle(.blue).frame(width: 28)
+                                    Text("\(Int(day.high.rounded()))°")
+                                        .fontWeight(.semibold).monospacedDigit()
+                                    Text("\(Int(day.low.rounded()))°")
+                                        .foregroundStyle(.secondary).monospacedDigit()
+                                }
+                                .padding(.vertical, 12)
+                                if day.id != forecast.last?.id { Divider() }
+                            }
+                        }
+                        .kyndynCard(tint: .blue)
+                    }
+                }
+                .padding()
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Weather")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents(forecast.count > 4 ? [.medium, .large] : [.medium])
+    }
+}
+
+private struct CalendarGlanceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let events: [DeviceCalendarEvent]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if events.isEmpty {
+                        KyndynCallout(kind: .information,
+                                      message: "Nothing is scheduled in your selected calendars over the next two weeks.")
+                    } else {
+                        ForEach(events) { event in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(event.title).font(.headline)
+                                Label(eventTime(event), systemImage: "clock")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .kyndynCard(tint: .orange)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Coming up")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents(events.count > 3 ? [.medium, .large] : [.medium])
+    }
+
+    private func eventTime(_ event: DeviceCalendarEvent) -> String {
+        if event.isAllDay {
+            return event.startDate.formatted(.dateTime.weekday(.wide).month().day()) + ", all day"
+        }
+        return event.startDate.formatted(.dateTime.weekday(.wide).month().day().hour().minute())
+    }
+}
+
 struct ProgressDetailView: View {
     let person: Person
     let household: Household
@@ -1707,7 +1953,29 @@ struct BadgeGalleryView: View {
                     Text("Each badge marks something you did in kyndyn. Keep going at your own pace.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .kyndynCard(tint: Color(hex: person.colorHex), raised: true)
+
+                if !RecognitionEngine.badgeCollectionMilestones.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Badges unlock your collection", systemImage: "sparkles")
+                            .font(.headline)
+                        ForEach(RecognitionEngine.badgeCollectionMilestones) { milestone in
+                            HStack(alignment: .firstTextBaseline) {
+                                Image(systemName: badges.filter(\.isEarned).count >= milestone.badgeCount
+                                      ? "checkmark.circle.fill" : "lock.circle")
+                                    .foregroundStyle(Color(hex: person.colorHex))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(milestone.title).font(.subheadline.bold())
+                                    Text(milestone.detail)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .kyndynCard(tint: Color(hex: person.colorHex))
+                }
 
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)],
@@ -2055,6 +2323,7 @@ struct QuestListView: View {
     @State private var searchText = ""
     @State private var selectedQuest: Quest?
     @State private var browseEveryone = false
+    @State private var isPullRefreshing = false
 
     private var selectedPersonID: UUID? { personID ?? app.selectedPersonID }
 
@@ -2118,9 +2387,16 @@ struct QuestListView: View {
                 NavigationStack {
                     ScrollView { content.padding() }
                         .refreshable {
+                            isPullRefreshing = true
+                            defer { isPullRefreshing = false }
+                            await Task.yield()
+                            async let minimumVisibleTime: Void = Task.sleep(
+                                for: .milliseconds(550))
                             automaticSync.request(.manual)
                             await automaticSync.waitUntilIdle()
+                            try? await minimumVisibleTime
                         }
+                        .refreshStatusPill(isRefreshing: isPullRefreshing)
                         .background(KyndynScreenBackground())
                         .navigationTitle("Today’s quests")
                         .searchable(text: $searchText, prompt: "Search quests")
@@ -2851,12 +3127,14 @@ struct FamilyBroadcastEditorView: View {
 
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
     @Query private var goals: [RewardGoal]
     @Query private var cloudStates: [HouseholdCloudState]
+    @State private var isPullRefreshing = false
     var body: some View {
         NavigationStack {
             List {
@@ -2959,12 +3237,24 @@ struct ParentAreaView: View {
                     LabeledContent("Version", value: appVersion)
                 }
             }
+            .refreshable { await refreshFamilyData() }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .scrollContentBackground(.hidden)
             .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
             .frame(maxWidth: .infinity)
             .background(KyndynScreenBackground())
             .navigationTitle("Parent")
         }
+    }
+
+    private func refreshFamilyData() async {
+        isPullRefreshing = true
+        defer { isPullRefreshing = false }
+        await Task.yield()
+        async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+        automaticSync.request(.manual)
+        await automaticSync.waitUntilIdle()
+        try? await minimumVisibleTime
     }
 
     private func parentRow(
@@ -4612,8 +4902,7 @@ struct CompanionArt: View {
     let id: String
     var body: some View {
         Group {
-            if let path = Bundle.main.path(forResource: id, ofType: "png"),
-               let image = UIImage(contentsOfFile: path) {
+            if let image = UIImage(named: id) {
                 Image(uiImage: image).resizable().scaledToFit()
             } else {
                 Image(systemName: "sparkles").resizable().scaledToFit().foregroundStyle(.purple)
@@ -4644,6 +4933,30 @@ extension View {
         alert("kyndyn couldn’t save that", isPresented: Binding(get: { app.errorMessage != nil }, set: { if !$0 { app.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(app.errorMessage ?? "") }
+    }
+    func refreshStatusPill(
+        isRefreshing: Bool, topPadding: CGFloat = 8
+    ) -> some View {
+        overlay(alignment: .top) {
+            if isRefreshing {
+                HStack(spacing: 9) {
+                    ProgressView().controlSize(.small)
+                    Text("Refreshing…").font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.ultraThickMaterial, in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.22)))
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                .padding(.top, topPadding)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Refreshing family updates")
+                .accessibilityIdentifier("refresh-status-indicator")
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: isRefreshing)
     }
 }
 

@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Build 16 Badge Recognition and UI polish
+## Current milestone — Build 18 Recognition and day-context polish
 
 The app provides a locally usable vertical slice:
 
@@ -49,12 +49,18 @@ The app provides a locally usable vertical slice:
   hours, archive state, and the household time zone.
 - a durable, synchronized badge gallery with visible progress toward quest,
   streak, quest-XP, and family-reward milestones;
+- named badge celebrations, visible collection milestones, and quiet badge
+  counts on Profiles without rankings or behavioral scoring;
+- optional device-local calendar and Apple Weather context with two-week event
+  and ten-day forecast sheets, plus separate permission controls in Settings;
 - a simplified Quests browser with one stable profile scope control and one
   compact status filter instead of competing rows of buttons;
 - a centered Profiles experience, consistent Profiles terminology, and a
   portrait-first iPhone layout while iPad remains fully adaptive;
 - a softer immersive Home header, clear pull-to-refresh feedback, and the
   approved K brand mark replacing remaining generic leaf symbols.
+- a dark-mode-aware startup surface, consistent Home spacing, cached collection
+  artwork, and event-driven sync waiting that keeps navigation responsive.
 
 ## Open and run
 
@@ -87,5 +93,7 @@ The simulator can approve or reject notification permission. For LocalAuthentica
 
 See [`docs/daily-family-use-0.8.md`](docs/daily-family-use-0.8.md) for the daily
 workflow, local reminder boundary, TestFlight notes, and validation checklist.
-See [`docs/badge-recognition.md`](docs/badge-recognition.md) for Build 16’s
+See [`docs/badge-recognition.md`](docs/badge-recognition.md) for Builds 16–17
 recognition rules and persistence behavior.
+See [`docs/calendar-weather.md`](docs/calendar-weather.md) for Build 18’s
+device-local calendar and weather privacy boundary.
