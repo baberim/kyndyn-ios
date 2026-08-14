@@ -1072,6 +1072,10 @@ struct ParentAuthenticationView: View {
 }
 
 struct DashboardView: View {
+    private enum DayDetail: String, Identifiable {
+        case weather, calendar
+        var id: String { rawValue }
+    }
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
     @Environment(\.modelContext) private var context
@@ -1088,6 +1092,8 @@ struct DashboardView: View {
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
     @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var weatherForecast: [DeviceWeatherDay] = []
+    @State private var presentedDayDetail: DayDetail?
     @State private var isLoadingWeather = false
     @State private var isPullRefreshing = false
     private var person: Person? { people.first { $0.id == app.selectedPersonID } }
@@ -1196,6 +1202,17 @@ struct DashboardView: View {
                     ProgressDetailView(person: person, household: household)
                 }
             }
+            .sheet(item: $presentedDayDetail) { detail in
+                switch detail {
+                case .weather:
+                    WeatherGlanceView(
+                        setting: deviceSettings.first,
+                        forecast: weatherForecast,
+                        isLoading: isLoadingWeather)
+                case .calendar:
+                    CalendarGlanceView(events: calendarEvents)
+                }
+            }
             .alert(unlockTitle(unlockToPresent), isPresented: Binding(
                 get: { unlockToPresent != nil },
                 set: { if !$0 { acknowledgePresentedUnlock() } }
@@ -1223,16 +1240,18 @@ struct DashboardView: View {
             Grid(horizontalSpacing: 12) {
                 GridRow(alignment: .top) {
                     if setting.weatherIntegrationEnabled {
-                        NavigationLink {
-                            WeatherSettingsView()
+                        Button {
+                            presentedDayDetail = .weather
+                            Task { await refreshWeatherDetails() }
                         } label: {
                             weatherSummary(setting)
                         }
                         .buttonStyle(.plain)
                     }
                     if setting.calendarIntegrationEnabled {
-                        NavigationLink {
-                            CalendarSettingsView()
+                        Button {
+                            refreshCalendarEvents()
+                            presentedDayDetail = .calendar
                         } label: {
                             calendarSummary
                         }
@@ -1335,9 +1354,33 @@ struct DashboardView: View {
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
             // Cached weather remains visible. Permission guidance lives in Settings.
+        }
+    }
+
+    @MainActor private func refreshWeatherDetails() async {
+        guard let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        isLoadingWeather = true
+        defer { isLoadingWeather = false }
+        do {
+            let location = try await OneShotLocationProvider().currentLocation()
+            let snapshot = try await AppleWeatherProvider().weather(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude)
+            setting.cachedWeatherTemperature = snapshot.temperature
+            setting.cachedWeatherHigh = snapshot.high
+            setting.cachedWeatherLow = snapshot.low
+            setting.cachedWeatherCondition = snapshot.condition
+            setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherForecast = snapshot.dailyForecast
+            try? context.save()
+        } catch {
+            // Keep the cached glance visible when an update is unavailable.
         }
     }
 
@@ -1674,6 +1717,117 @@ private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
         case .upcoming: "calendar"
         case .all: "line.3.horizontal.decrease.circle"
         }
+    }
+}
+
+private struct WeatherGlanceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let setting: LocalDeviceSettings?
+    let forecast: [DeviceWeatherDay]
+    let isLoading: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let temperature = setting?.cachedWeatherTemperature {
+                        HStack(spacing: 16) {
+                            Image(systemName: setting?.cachedWeatherSymbolName ?? "cloud.sun")
+                                .font(.system(size: 42)).foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(Int(temperature.rounded()))°")
+                                    .font(.largeTitle.bold().monospacedDigit())
+                                Text(setting?.cachedWeatherCondition ?? "Local weather")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .kyndynCard(tint: .blue, raised: true)
+                    }
+
+                    if isLoading && forecast.isEmpty {
+                        HStack { Spacer(); ProgressView("Updating forecast…"); Spacer() }
+                            .padding(.vertical, 24)
+                    } else if forecast.isEmpty {
+                        KyndynCallout(kind: .information,
+                                      message: "A forecast isn’t available right now. Your last weather update is still shown above.")
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(forecast) { day in
+                                HStack(spacing: 12) {
+                                    Text(day.date.formatted(.dateTime.weekday(.wide)))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: day.symbolName)
+                                        .foregroundStyle(.blue).frame(width: 28)
+                                    Text("\(Int(day.high.rounded()))°")
+                                        .fontWeight(.semibold).monospacedDigit()
+                                    Text("\(Int(day.low.rounded()))°")
+                                        .foregroundStyle(.secondary).monospacedDigit()
+                                }
+                                .padding(.vertical, 12)
+                                if day.id != forecast.last?.id { Divider() }
+                            }
+                        }
+                        .kyndynCard(tint: .blue)
+                    }
+                }
+                .padding()
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Weather")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct CalendarGlanceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let events: [DeviceCalendarEvent]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if events.isEmpty {
+                        KyndynCallout(kind: .information,
+                                      message: "Nothing is scheduled in your selected calendars over the next two days.")
+                    } else {
+                        ForEach(events) { event in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(event.title).font(.headline)
+                                Label(eventTime(event), systemImage: "clock")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .kyndynCard(tint: .orange)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .background(KyndynScreenBackground())
+            .navigationTitle("Coming up")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func eventTime(_ event: DeviceCalendarEvent) -> String {
+        if event.isAllDay {
+            return event.startDate.formatted(.dateTime.weekday(.wide).month().day()) + ", all day"
+        }
+        return event.startDate.formatted(.dateTime.weekday(.wide).month().day().hour().minute())
     }
 }
 

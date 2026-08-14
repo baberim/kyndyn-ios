@@ -89,6 +89,16 @@ struct DeviceWeatherSnapshot: Equatable, Sendable {
     let condition: String
     let symbolName: String
     let fetchedAt: Date
+    let dailyForecast: [DeviceWeatherDay]
+}
+
+struct DeviceWeatherDay: Identifiable, Equatable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let high: Double
+    let low: Double
+    let condition: String
+    let symbolName: String
 }
 
 enum WeatherCachePolicy {
@@ -118,7 +128,15 @@ struct AppleWeatherProvider: WeatherProviding {
                 ?? current.temperature.converted(to: .fahrenheit).value,
             condition: current.condition.description,
             symbolName: current.symbolName,
-            fetchedAt: .now)
+            fetchedAt: .now,
+            dailyForecast: daily.forecast.prefix(5).map {
+                DeviceWeatherDay(
+                    date: $0.date,
+                    high: $0.highTemperature.converted(to: .fahrenheit).value,
+                    low: $0.lowTemperature.converted(to: .fahrenheit).value,
+                    condition: $0.condition.description,
+                    symbolName: $0.symbolName)
+            })
     }
 }
 
