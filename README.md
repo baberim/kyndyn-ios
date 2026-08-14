@@ -4,13 +4,13 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development — 0.20.0 (Build 20)
+## Current development — 0.21.0 (Build 21)
 
-Build 20 focuses on household data safety: complete deterministic iCloud
-recovery, a parent-reviewed recovery preview, transactional integrity checks,
-privacy-safe recovery receipts, and clearer private-backup freshness. See
-[`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md)
-for its recovery and validation boundaries.
+Build 21 prepares the app's household-data controls for release: verified
+private exports now include announcements, the Parent area explains privacy
+boundaries, and a protected local-removal flow requires both a fresh backup and
+the exact household name. See
+[`docs/build-21-app-store-readiness.md`](docs/build-21-app-store-readiness.md).
 
 The app provides a locally usable vertical slice:
 

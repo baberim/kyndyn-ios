@@ -680,6 +680,7 @@ final class HouseholdTransferTests: XCTestCase {
         return try ModelContainer(
             for: Household.self, Person.self, Quest.self,
             QuestCompletion.self, RewardGoal.self, HouseholdSettings.self,
+            FamilyBroadcast.self,
             LocalDeviceSettings.self, LocalQuestReminder.self,
             HouseholdImportReceipt.self,
             HouseholdCloudState.self, SyncRecordMetadata.self,
@@ -713,12 +714,21 @@ final class HouseholdTransferTests: XCTestCase {
             awardedXP: 13)
         event.reversedAt = event.completedAt.addingTimeInterval(60)
         let settings = HouseholdSettings(householdID: household.id)
+        let broadcast = FamilyBroadcast(
+            householdID: household.id, title: "Tonight",
+            message: "Fictional game night after dinner")
         [household].forEach(context.insert)
         context.insert(parent); context.insert(quest); context.insert(event)
         context.insert(settings)
+        context.insert(broadcast)
         let data = try HouseholdTransferCodec.export(
             household: household, people: [parent], quests: [quest],
-            completions: [event], goals: [], settings: settings)
+            completions: [event], goals: [], settings: settings,
+            broadcasts: [broadcast])
+        let verification = try HouseholdTransferCodec.verifyExport(data)
+        XCTAssertEqual(verification.people, 1)
+        XCTAssertEqual(verification.broadcasts, 1)
+        XCTAssertFalse(verification.fingerprint.isEmpty)
 
         let destination = try transferContainer()
         let restored = try HouseholdRestoreService.restore(
@@ -743,6 +753,41 @@ final class HouseholdTransferTests: XCTestCase {
         XCTAssertEqual(ProgressionEngine.familyXP(restoredEvents), 0)
         XCTAssertEqual(try destination.mainContext.fetch(
             FetchDescriptor<HouseholdImportReceipt>()).count, 1)
+        XCTAssertEqual(try destination.mainContext.fetch(
+            FetchDescriptor<FamilyBroadcast>()).first?.message,
+            "Fictional game night after dinner")
+    }
+
+    @MainActor func testLocalHouseholdRemovalRequiresExactNameAndLeavesNoQueue()
+        throws {
+        let container = try transferContainer()
+        let context = container.mainContext
+        let household = Household(
+            name: "Fictional Harbor Family", timeZoneIdentifier: "UTC")
+        let parent = Person(
+            householdID: household.id, name: "Avery", role: .parent,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Pack a picnic", xp: 10,
+            participantIDs: [parent.id])
+        context.insert(household); context.insert(parent); context.insert(quest)
+        context.insert(FamilyBroadcast(
+            householdID: household.id, title: "Update", message: "Bring hats"))
+        context.insert(HouseholdCloudState(householdID: household.id))
+        try context.save()
+        let app = AppModel()
+
+        XCTAssertThrowsError(try app.removeHouseholdFromDevice(
+            household, confirmation: "wrong", context: context))
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Household>()).count, 1)
+
+        try app.removeHouseholdFromDevice(
+            household, confirmation: household.name, context: context)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<Household>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<Person>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<Quest>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<FamilyBroadcast>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<PendingSyncMutation>()).isEmpty)
     }
 
     @MainActor func testRestoreRequiresEmptyHouseholdAndRejectsMalformedVersion()
