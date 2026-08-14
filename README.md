@@ -4,7 +4,13 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current milestone — Build 18 Recognition and day-context polish
+## Current release — 0.18.0 (Build 18)
+
+Build 18 combines weekly family insights, synchronized starting-XP repair,
+durable badge recognition, recognition polish, richer calendar and weather
+context, responsiveness improvements, and an expanded device-local app icon
+gallery. See [`docs/build-18-changelog.md`](docs/build-18-changelog.md) for the
+cumulative tester-facing changelog.
 
 The app provides a locally usable vertical slice:
 
@@ -29,7 +35,7 @@ The app provides a locally usable vertical slice:
 - scene-aware invitation routing on fresh, running, and backgrounded installs;
 - verified owner/participant completion and exact undo convergence on two
   physical devices;
-- an Apple-compliant native app icon;
+- an Apple-compliant native app icon and 11 device-local alternate choices;
 - responsive profile, dashboard, quest, and Parent-area presentation across
   compact and regular widths;
 - visible, named profile-color accents that supplement names and companions.
@@ -95,5 +101,7 @@ See [`docs/daily-family-use-0.8.md`](docs/daily-family-use-0.8.md) for the daily
 workflow, local reminder boundary, TestFlight notes, and validation checklist.
 See [`docs/badge-recognition.md`](docs/badge-recognition.md) for Builds 16–17
 recognition rules and persistence behavior.
+See [`docs/build-15-weekly-insights.md`](docs/build-15-weekly-insights.md) for
+the protected weekly overview and deterministic trend rules.
 See [`docs/calendar-weather.md`](docs/calendar-weather.md) for Build 18’s
 device-local calendar and weather privacy boundary.
