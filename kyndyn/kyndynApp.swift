@@ -353,6 +353,17 @@ struct KyndynLaunchBackground: View {
 }
 
 struct KyndynStartupView: View {
+    private static let messages = [
+        "Gathering the crew…",
+        "Waking up the companions…",
+        "Dusting off today’s quests…",
+        "Checking the family map…",
+        "Packing snacks for the adventure…",
+        "Almost ready for launch…"
+    ]
+
+    private let message = messages.randomElement() ?? "Gathering the crew…"
+
     var body: some View {
         VStack(spacing: 22) {
             Image("KyndynSplash")
@@ -363,7 +374,7 @@ struct KyndynStartupView: View {
             ProgressView()
                 .controlSize(.large)
                 .tint(KyndynTheme.purple)
-            Text("Opening your family…")
+            Text(message)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
         }
@@ -371,7 +382,7 @@ struct KyndynStartupView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KyndynLaunchBackground())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Opening kyndyn and preparing your family")
+        .accessibilityLabel("Kyndyn is loading. \(message)")
         .accessibilityIdentifier("startup-loading")
     }
 }

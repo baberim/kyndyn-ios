@@ -1,6 +1,6 @@
-# Build 17A — Weekly Family Insights
+# Build 15 — Weekly Family Insights
 
-Build 17A adds protected, deterministic weekly summaries without introducing
+Build 15 adds protected, deterministic weekly summaries without introducing
 a new analytics service or CloudKit record type.
 
 ## Parent experience

@@ -61,6 +61,46 @@ private actor InterruptingTransport: HouseholdCloudTransport {
     }
 }
 
+private actor PaginatedTransport: HouseholdCloudTransport {
+    let records: [CloudRecordEnvelope]
+    let pageSize: Int
+
+    init(records: [CloudRecordEnvelope], pageSize: Int = 1) {
+        self.records = records
+        self.pageSize = pageSize
+    }
+
+    func accountAvailability() async throws -> CloudAccountAvailability {
+        .available(fingerprint: "paged-test-account")
+    }
+
+    func prepareZone(named: String, scope: CloudDatabaseScope) async throws {}
+
+    func save(records: [CloudRecordEnvelope], zoneName: String,
+              zoneOwnerName: String?, scope: CloudDatabaseScope) async throws
+        -> [CloudRecordEnvelope] { records }
+
+    func fetchChanges(zoneName: String, scope: CloudDatabaseScope,
+                      zoneOwnerName: String?, after token: Data?) async throws
+        -> RemoteChangeBatch {
+        let start = token.flatMap { String(data: $0, encoding: .utf8) }
+            .flatMap(Int.init) ?? 0
+        let end = min(records.count, start + pageSize)
+        return RemoteChangeBatch(
+            records: Array(records[start..<end]),
+            deletedRecordNames: [],
+            changeToken: Data(String(end).utf8),
+            moreComing: end < records.count)
+    }
+
+    func createShare(rootRecordName: String, zoneName: String,
+                     title: String) async throws -> HouseholdShareDescriptor {
+        HouseholdShareDescriptor(shareRecordName: "paged-share", title: title)
+    }
+    func accept(invitation: ShareInvitation) async throws {}
+    func participantSummary(shareRecordName: String) async throws -> [String] { [] }
+}
+
 private actor RecordingNotificationScheduler: NotificationScheduling {
     private(set) var replacements = 0
     private(set) var latest: [ReminderCandidate] = []
@@ -183,6 +223,28 @@ final class SyncMetadataAndQueueTests: XCTestCase {
         XCTAssertEqual(SyncQueue.backoff(retryCount: 0), 2)
         XCTAssertEqual(SyncQueue.backoff(retryCount: 3), 16)
         XCTAssertEqual(SyncQueue.backoff(retryCount: 99), 3600)
+    }
+
+    nonisolated func testSynchronizationConsumesEveryRemotePageBeforeAdvancingToken() async throws {
+        let householdID = UUID()
+        let records = (0..<3).map { index in
+            CloudRecordEnvelope(
+                type: .person, entityID: UUID(), householdID: householdID,
+                fields: ["name": "Person \(index)"])
+        }
+        let transport = PaginatedTransport(records: [
+            records[0], records[1], records[2]
+        ])
+        let batch = try await transport.fetchAllChanges(
+            zoneName: "kyndyn-household-paged", scope: .privateDatabase,
+            zoneOwnerName: nil, after: nil)
+
+        XCTAssertEqual(batch.records.count, 3)
+        XCTAssertEqual(Set(batch.records.map(\.recordName)).count, 3)
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(batch.changeToken), encoding: .utf8),
+            "3")
+        XCTAssertFalse(batch.moreComing)
     }
 
     func testAdditiveSchemaOpensLocalCoreDataWithoutCloudRows() throws {

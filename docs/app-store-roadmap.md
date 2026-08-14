@@ -157,9 +157,9 @@ the remaining physical-device validation boundary.
 
 See `docs/build-13-immersive-personal-home.md` for the implemented scope.
 
-## Next
+## Completed through Build 18
 
-### Build 17A — Weekly Family Insights
+### Build 15 — Weekly Family Insights
 
 - Protected weekly family overview and daily activity chart.
 - Individual four-week completion and earned-XP trends.
@@ -169,13 +169,7 @@ See `docs/build-13-immersive-personal-home.md` for the implemented scope.
   behavioral profiling.
 - Starting XP contributes to current level but not weekly earned-XP reporting.
 
-See `docs/build-17a-weekly-insights.md` for the implemented scope.
-
-### Build 17B — Reward History and Private Reports
-
-- Durable reward-cycle history, including reached and replaced goals.
-- Locally generated, parent-previewed weekly or monthly report exports.
-- Accessibility and multi-device validation for the expanded insights flow.
+See `docs/build-15-weekly-insights.md` for the implemented scope.
 
 ## Build 16 — Badge Recognition
 
@@ -206,7 +200,15 @@ See `docs/badge-recognition.md` for the implemented scope.
 
 See `docs/calendar-weather.md` for the implemented privacy boundary.
 
+Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
+recorded in `docs/build-18-changelog.md`.
+
 ## Later
+
+- Reward History and Private Reports:
+  - durable reward-cycle history, including reached and replaced goals;
+  - locally generated, parent-previewed weekly or monthly report exports;
+  - accessibility and multi-device validation for the expanded insights flow.
 
 - A later hosted-notification build may add APNs-backed prompt broadcast
   delivery; Build 12 remains CloudKit-driven and best-effort without claiming

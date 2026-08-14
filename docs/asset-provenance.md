@@ -33,6 +33,11 @@ provided directly by the project owner during Development CloudKit Validation
 0.5. The native copy is mechanically flattened to an opaque 1024×1024 PNG for
 Apple asset-catalog compliance; the supplied source file is not committed.
 
+The alternate app icons and their matching in-app previews were also supplied
+directly by the project owner. Their committed asset-catalog copies were
+mechanically resized to Apple-compliant 1024×1024 icon sources and 512×512
+device-local previews. No private household content is present in these assets.
+
 The launch-screen wordmark at
 `kyndyn/Resources/Assets.xcassets/KyndynSplash.imageset/KyndynSplash.png` was
 provided directly by the project owner for Build 5 and is committed unchanged.
