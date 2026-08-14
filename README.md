@@ -4,9 +4,9 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current release — 0.18.0 (Build 18)
+## Current release — 0.18.1 (Build 19)
 
-Build 18 combines weekly family insights, synchronized starting-XP repair,
+Build 19 is a focused reliability update to Build 18, combining weekly family insights, synchronized starting-XP repair,
 durable badge recognition, recognition polish, richer calendar and weather
 context, responsiveness improvements, and an expanded device-local app icon
 gallery. See [`docs/build-18-changelog.md`](docs/build-18-changelog.md) for the

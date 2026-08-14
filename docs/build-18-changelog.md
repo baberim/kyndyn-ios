@@ -1,4 +1,6 @@
-# Version 0.18.0 (Build 18)
+# Version 0.18.1 (Build 19)
+
+This is a small reliability iteration on the Build 18 feature set.
 
 ## What’s new
 
@@ -20,6 +22,10 @@
 - Added ten new alternate icons: Retro Game, Japandi, Prismatic, Atomic Age,
   LCD, Cosmic Outrun, Arcade, Translucent, Outrun, and CRT.
 - Added further accessibility, layout, stability, and synchronization polish.
+- Fixed fresh iCloud recovery for larger households so every available change
+  page is downloaded before XP and levels are recalculated.
+- Replaced the startup screen’s repetitive loading copy with rotating playful
+  messages.
 
 ## Validation
 

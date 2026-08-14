@@ -174,10 +174,39 @@ extension HouseholdCloudTransport {
                                zoneOwnerName: nil, after: token)
     }
 
+    func fetchAllChanges(
+        zoneName: String, scope: CloudDatabaseScope,
+        zoneOwnerName: String?, after initialToken: Data?
+    ) async throws -> RemoteChangeBatch {
+        var token = initialToken
+        var records: [CloudRecordEnvelope] = []
+        var deletedRecordNames: [String] = []
+        while true {
+            try Task.checkCancellation()
+            let batch = try await fetchChanges(
+                zoneName: zoneName, scope: scope,
+                zoneOwnerName: zoneOwnerName, after: token)
+            records.append(contentsOf: batch.records)
+            deletedRecordNames.append(contentsOf: batch.deletedRecordNames)
+            if !batch.moreComing {
+                return RemoteChangeBatch(
+                    records: records,
+                    deletedRecordNames: deletedRecordNames,
+                    changeToken: batch.changeToken,
+                    moreComing: false)
+            }
+            guard let nextToken = batch.changeToken, nextToken != token else {
+                throw CloudGatewayError.transient
+            }
+            token = nextToken
+        }
+    }
+
     func verifyRecord(recordName: String, zoneName: String,
                       scope: CloudDatabaseScope) async throws -> Bool {
-        let batch = try await fetchChanges(
-            zoneName: zoneName, scope: scope, after: nil)
+        let batch = try await fetchAllChanges(
+            zoneName: zoneName, scope: scope,
+            zoneOwnerName: nil, after: nil)
         return batch.records.contains { $0.recordName == recordName }
     }
 }
@@ -749,7 +778,7 @@ struct ProvisioningPreview: Equatable {
                 if !confirmed.isEmpty { context.delete(mutation) }
             }
             do {
-                let changes = try await transport.fetchChanges(
+                let changes = try await transport.fetchAllChanges(
                     zoneName: zone, scope: state.databaseScope,
                     zoneOwnerName: state.zoneOwnerName,
                     after: fullReconciliation ? nil : state.changeToken)
@@ -759,7 +788,7 @@ struct ProvisioningPreview: Equatable {
                 state.changeToken = changes.changeToken
             } catch CloudGatewayError.staleChangeToken {
                 state.changeToken = nil
-                let changes = try await transport.fetchChanges(
+                let changes = try await transport.fetchAllChanges(
                     zoneName: zone, scope: state.databaseScope,
                     zoneOwnerName: state.zoneOwnerName, after: nil)
                 try SyncRemoteApplier.apply(changes.records, context: context)
@@ -855,7 +884,7 @@ struct ProvisioningPreview: Equatable {
         var lastError: CloudGatewayError = .transient
         for attempt in 0..<4 {
             do {
-                return try await transport.fetchChanges(
+                return try await transport.fetchAllChanges(
                     zoneName: invitation.zoneName,
                     scope: .sharedDatabase,
                     zoneOwnerName: invitation.zoneOwnerName,
@@ -1420,7 +1449,7 @@ struct CloudKitHouseholdTransport: HouseholdCloudTransport, @unchecked Sendable 
                 throw map(error, operation: "discover-zones")
             }
             for zone in zones where zone.zoneID.zoneName.hasPrefix("kyndyn-household-") {
-                let batch = try await fetchChanges(
+                let batch = try await fetchAllChanges(
                     zoneName: zone.zoneID.zoneName,
                     scope: scope,
                     zoneOwnerName: zone.zoneID.ownerName,

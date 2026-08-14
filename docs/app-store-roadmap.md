@@ -200,7 +200,7 @@ See `docs/badge-recognition.md` for the implemented scope.
 
 See `docs/calendar-weather.md` for the implemented privacy boundary.
 
-Build 18 is released as version `0.18.0 (18)`. Its cumulative release notes are
+Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
 recorded in `docs/build-18-changelog.md`.
 
 ## Later
