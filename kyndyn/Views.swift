@@ -678,7 +678,10 @@ struct ProfilePickerView: View {
     @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
     @State private var isPullRefreshing = false
-    let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+
+    private var activePeople: [Person] {
+        people.filter { $0.deletedAt == nil }
+    }
 
     var body: some View {
         NavigationStack {
@@ -692,8 +695,11 @@ struct ProfilePickerView: View {
                             Text("Choose a profile to see the right quests.")
                                 .foregroundStyle(.secondary)
                         }
-                        LazyVGrid(columns: columns, spacing: 26) {
-                            ForEach(people.filter { $0.deletedAt == nil }) { person in
+                        LazyVGrid(
+                            columns: profileColumns(for: proxy.size.width),
+                            spacing: 26
+                        ) {
+                            ForEach(activePeople) { person in
                                 Button {
                                     app.selectedPersonID = person.id
                                     app.selectedTab = 0
@@ -746,6 +752,7 @@ struct ProfilePickerView: View {
                                 .accessibilityIdentifier("profile-\(person.name)")
                             }
                         }
+                        .frame(width: profileGridWidth(for: proxy.size.width))
                         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                     }
                     .padding(24)
@@ -760,6 +767,21 @@ struct ProfilePickerView: View {
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func profileColumns(for width: CGFloat) -> [GridItem] {
+        guard width >= 700 else {
+            return [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+        }
+        return Array(
+            repeating: GridItem(.fixed(190), spacing: 24, alignment: .top),
+            count: max(1, min(activePeople.count, 4)))
+    }
+
+    private func profileGridWidth(for width: CGFloat) -> CGFloat? {
+        guard width >= 700 else { return nil }
+        let count = CGFloat(max(1, min(activePeople.count, 4)))
+        return count * 190 + (count - 1) * 24
     }
 
     private func refreshFamilyData() async {
@@ -1258,6 +1280,15 @@ struct DashboardView: View {
                         }
                         dashboardModePicker
                             .padding(.horizontal)
+                        if ProgressionEngine.isSchedulePaused(
+                            on: .now, household: household),
+                           let end = household.schedulePauseEndsAt {
+                            KyndynCallout(
+                                kind: .information,
+                                message: "Scheduled quests and reminders resume after \(end.formatted(date: .abbreviated, time: .omitted)).",
+                                title: "Family schedules are paused")
+                            .padding(.horizontal)
+                        }
                         dayContext
                             .padding(.horizontal)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
@@ -1269,7 +1300,9 @@ struct DashboardView: View {
                                 personID: person.id, completions: completions,
                                 now: .now,
                                 timeZoneIdentifier: household.timeZoneIdentifier,
-                                startingXPAdjustment: person.startingXPAdjustment)
+                                startingXPAdjustment: person.startingXPAdjustment,
+                                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                                schedulePauseEndsAt: household.schedulePauseEndsAt)
                             VStack(spacing: 16) {
                                 broadcastNavigation
                                 progressSummary(
@@ -1630,7 +1663,8 @@ struct DashboardView: View {
         let memberQuests = quests.compactMap { quest -> (Quest, QuestTemporalStatus)? in
             let status = ProgressionEngine.temporalStatus(
                 for: quest, personID: member.id, completions: completions,
-                now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                household: household)
             return status == .inactive ? nil : (quest, status)
         }
         let waiting = memberQuests.filter { $0.1 == .overdue || $0.1 == .today }
@@ -1638,7 +1672,9 @@ struct DashboardView: View {
         let progress = ProgressionEngine.progress(
             personID: member.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: member.startingXPAdjustment)
+            startingXPAdjustment: member.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
 
         return Button {
             app.selectedPersonID = member.id
@@ -1969,7 +2005,9 @@ struct ProgressDetailView: View {
         ProgressionEngine.progress(
             personID: person.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: person.startingXPAdjustment)
+            startingXPAdjustment: person.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
     }
     private var familyRewardReached: Bool {
         let goal = ProgressionEngine.currentRewardGoal(
@@ -2504,13 +2542,15 @@ struct QuestListView: View {
                     ProgressionEngine.temporalStatus(
                         for: quest, personID: personID, completions: completions,
                         now: .now,
-                        timeZoneIdentifier: household.timeZoneIdentifier)
+                        timeZoneIdentifier: household.timeZoneIdentifier,
+                        household: household)
                 }
                 status = aggregateStatus(values)
             } else if let personID = selectedPersonID {
                 status = ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             } else {
                 status = .inactive
             }
@@ -3354,6 +3394,9 @@ struct ParentAreaView: View {
                         NavigationLink { FamilyBroadcastManagementView() } label: {
                             parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
+                        NavigationLink { SchedulePauseView() } label: {
+                            parentRow("Pause schedules", "Take a break without missed quests", "pause.circle.fill", KyndynTheme.green)
+                        }
                         NavigationLink { CloudSyncSettingsView() } label: {
                             parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
                         }
@@ -3459,7 +3502,8 @@ struct ParentAreaView: View {
             quest.participantIDs.compactMap { personID in
                 ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             }
         }
     }
@@ -3661,7 +3705,9 @@ struct FamilyInsightsView: View {
             }
             Text("These are factual summaries of family activity—not ratings or comparisons between people.")
                 .font(.footnote).foregroundStyle(.secondary)
-        }.kyndynCard(tint: KyndynTheme.amber)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .kyndynCard(tint: KyndynTheme.amber)
     }
 }
 
@@ -3857,6 +3903,90 @@ struct FamilyRewardSettingsView: View {
     }
 }
 
+struct SchedulePauseView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @State private var isEnabled = false
+    @State private var startDate = Date()
+    @State private var endDate = Date()
+    @State private var statusMessage: String?
+
+    private var household: Household? { households.first }
+
+    var body: some View {
+        Form {
+            Section {
+                KyndynCallout(
+                    kind: .information,
+                    message: "Scheduled quests won’t become waiting or overdue, reminders stop, and paused days won’t count as missed. Existing XP and history stay exactly as they are.",
+                    title: "Take a break without losing progress")
+            }
+            Section("Schedule") {
+                Toggle("Pause family schedules", isOn: $isEnabled)
+                if isEnabled {
+                    DatePicker("Starts", selection: $startDate,
+                               displayedComponents: .date)
+                    DatePicker("Ends", selection: $endDate, in: startDate...,
+                               displayedComponents: .date)
+                }
+            }
+            .onChange(of: startDate) { _, value in
+                if endDate < value { endDate = value }
+            }
+            Section {
+                Button("Save schedule pause", systemImage: "pause.circle.fill") {
+                    save()
+                }
+                if household?.schedulePauseStartsAt != nil {
+                    Button("Resume schedules now", systemImage: "play.circle.fill",
+                           role: .destructive) { clear() }
+                }
+            }
+            if let statusMessage {
+                Section {
+                    Label(statusMessage, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .navigationTitle("Schedule pause")
+        .task { load() }
+        .errorAlert(app: app)
+    }
+
+    private func load() {
+        guard let household else { return }
+        isEnabled = household.schedulePauseStartsAt != nil
+        startDate = household.schedulePauseStartsAt ?? .now
+        endDate = household.schedulePauseEndsAt
+            ?? Calendar.current.date(byAdding: .day, value: 6, to: .now) ?? .now
+    }
+
+    private func save() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: isEnabled ? startDate : nil,
+                end: isEnabled ? endDate : nil, context: context)
+            statusMessage = isEnabled
+                ? "Schedules resume automatically after the selected end date."
+                : "Family schedules are active."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+
+    private func clear() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: nil, end: nil, context: context)
+            statusMessage = "Family schedules resumed."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+}
+
 struct HouseholdDataProtectionView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
@@ -3874,12 +4004,40 @@ struct HouseholdDataProtectionView: View {
     @State private var showingRemoval = false
     @State private var removalConfirmation = ""
     @State private var verification: HouseholdBackupVerification?
+    @State private var safetyReport: HouseholdSafetyReport?
     @AppStorage("kyndyn.lastSuccessfulBackupExport")
     private var lastBackupExportTimestamp = 0.0
     @State private var recoveryReceipt: CloudRecoveryReceipt?
 
     var body: some View {
         List {
+            Section("Release safety check") {
+                if let safetyReport {
+                    LabeledContent("Household", value: safetyReport.summary)
+                    LabeledContent("Active profiles",
+                                   value: "\(safetyReport.activeProfiles)")
+                    LabeledContent("Active quests",
+                                   value: "\(safetyReport.activeQuests)")
+                    LabeledContent("Waiting to sync",
+                                   value: "\(safetyReport.pendingChanges)")
+                    LabeledContent("Conflicts needing review",
+                                   value: "\(safetyReport.unresolvedConflicts)")
+                    ForEach(safetyReport.notes, id: \.self) { note in
+                        Label(note, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Checked \(safetyReport.checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Check local relationships, backup freshness, and family-sync recovery signals without showing names, quest text, or record identifiers.")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Run safety check", systemImage: "checkmark.shield") {
+                    runSafetyCheck()
+                }
+                .accessibilityIdentifier("run-household-safety-check")
+            }
             Section("Protection status") {
                 if lastBackupExportTimestamp > 0 {
                     LabeledContent("Last private backup") {
@@ -4049,6 +4207,17 @@ struct HouseholdDataProtectionView: View {
             exporting = true
         } catch {
             app.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func runSafetyCheck() {
+        guard let household = households.first else { return }
+        do {
+            safetyReport = try HouseholdSafetyAudit.inspect(
+                household: household, context: context,
+                lastBackupExportTimestamp: lastBackupExportTimestamp)
+        } catch {
+            app.errorMessage = "The safety check couldn’t finish. Nothing was changed."
         }
     }
 

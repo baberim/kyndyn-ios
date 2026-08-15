@@ -239,6 +239,24 @@ the Development-versus-Production validation boundary.
 See `docs/build-21-app-store-readiness.md` for the implemented safeguards and
 remaining external App Store work.
 
+## Build 22 — Release Candidate Hardening
+
+- Add a protected, privacy-safe household safety check before broader release
+  testing.
+- Verify active parent coverage, quest assignments, completion relationships,
+  queued sync retries, unresolved conflicts, account state, and backup
+  freshness without exposing household content in diagnostics.
+- Add deterministic healthy and unsafe-household audit coverage plus a UI
+  journey for the protected check.
+- Add a synchronized household schedule pause with inclusive dates, automatic
+  resume, reminder suppression, and paused-day exclusion from weekly missed
+  summaries.
+- Revalidate simulator compilation while keeping Production CloudKit and
+  personal signing material outside the milestone.
+
+See `docs/build-22-release-candidate.md` for the implemented boundary and the
+remaining physical-device release checklist.
+
 ## Later
 
 - Reward History and Private Reports:

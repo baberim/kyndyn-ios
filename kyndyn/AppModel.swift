@@ -9,6 +9,7 @@ enum KyndynValidationError: LocalizedError, Equatable {
     case invalidRepeatInterval, deadlineBeforeStart, lastParent, archivedParticipant
     case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
     case emptyBroadcastMessage, broadcastMessageTooLong, broadcastExpired
+    case invalidSchedulePause
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ enum KyndynValidationError: LocalizedError, Equatable {
             return "Keep announcement messages to 500 characters or fewer."
         case .broadcastExpired:
             return "Choose an expiration time in the future."
+        case .invalidSchedulePause:
+            return "Choose an end date on or after the start date, within one year."
         }
     }
 }
@@ -648,7 +651,9 @@ enum LifecycleRules {
         let progress = ProgressionEngine.progress(
             personID: personID, completions: completions, now: now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: person.startingXPAdjustment)
+            startingXPAdjustment: person.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
         let goal = ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
         let rewardReached = goal.map {
             ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
@@ -714,5 +719,38 @@ enum LifecycleRules {
                                                        now: .now)
             try? await notificationScheduler.replaceKyndynReminders(with: candidates)
         }
+    }
+
+    func updateSchedulePause(
+        household: Household, start: Date?, end: Date?, context: ModelContext
+    ) throws {
+        if start != nil || end != nil {
+            guard let start, let end else {
+                throw KyndynValidationError.invalidSchedulePause
+            }
+            let calendar = ProgressionEngine.calendar(
+                timeZoneIdentifier: household.timeZoneIdentifier)
+            let normalizedStart = calendar.startOfDay(for: start)
+            let normalizedEnd = calendar.startOfDay(for: end)
+            guard normalizedStart <= normalizedEnd,
+                  normalizedEnd.timeIntervalSince(normalizedStart)
+                    <= 366 * 24 * 60 * 60 else {
+                throw KyndynValidationError.invalidSchedulePause
+            }
+            household.schedulePauseStartsAt = normalizedStart
+            household.schedulePauseEndsAt = normalizedEnd
+        } else {
+            household.schedulePauseStartsAt = nil
+            household.schedulePauseEndsAt = nil
+        }
+        household.schemaVersion = KyndynSchema.version
+        try context.save()
+        try SyncQueue.enqueue(
+            SyncSnapshot.household(household), operation: .createOrUpdate,
+            context: context)
+        NotificationCenter.default.post(
+            name: .kyndynAutomaticSyncRequested, object: nil,
+            userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
+        refreshReminders(context: context)
     }
 }

@@ -534,6 +534,22 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         return (container, household, state, [SyncSnapshot.household(household)])
     }
 
+    func testHouseholdSchedulePauseSnapshotRoundTrips() throws {
+        let (container, household, _, _) = try fixture()
+        let start = Date(timeIntervalSince1970: 1_786_320_000)
+        let end = start.addingTimeInterval(3 * 86_400)
+        household.schedulePauseStartsAt = start
+        household.schedulePauseEndsAt = end
+        let snapshot = SyncSnapshot.household(household)
+        container.mainContext.delete(household)
+        try container.mainContext.save()
+        try SyncRemoteApplier.apply([snapshot], context: container.mainContext)
+        let restored = try container.mainContext.fetch(
+            FetchDescriptor<Household>()).first
+        XCTAssertEqual(restored?.schedulePauseStartsAt, start)
+        XCTAssertEqual(restored?.schedulePauseEndsAt, end)
+    }
+
     func testOwnerProvisioningAndDuplicateAttemptAreIdempotent() async throws {
         let (container, household, state, records) = try fixture()
         let transport = InMemoryCloudTransport()
