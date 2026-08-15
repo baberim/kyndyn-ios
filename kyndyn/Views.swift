@@ -678,7 +678,10 @@ struct ProfilePickerView: View {
     @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
     @State private var isPullRefreshing = false
-    let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+
+    private var activePeople: [Person] {
+        people.filter { $0.deletedAt == nil }
+    }
 
     var body: some View {
         NavigationStack {
@@ -692,8 +695,11 @@ struct ProfilePickerView: View {
                             Text("Choose a profile to see the right quests.")
                                 .foregroundStyle(.secondary)
                         }
-                        LazyVGrid(columns: columns, spacing: 26) {
-                            ForEach(people.filter { $0.deletedAt == nil }) { person in
+                        LazyVGrid(
+                            columns: profileColumns(for: proxy.size.width),
+                            spacing: 26
+                        ) {
+                            ForEach(activePeople) { person in
                                 Button {
                                     app.selectedPersonID = person.id
                                     app.selectedTab = 0
@@ -746,6 +752,7 @@ struct ProfilePickerView: View {
                                 .accessibilityIdentifier("profile-\(person.name)")
                             }
                         }
+                        .frame(width: profileGridWidth(for: proxy.size.width))
                         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                     }
                     .padding(24)
@@ -760,6 +767,21 @@ struct ProfilePickerView: View {
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func profileColumns(for width: CGFloat) -> [GridItem] {
+        guard width >= 700 else {
+            return [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+        }
+        return Array(
+            repeating: GridItem(.fixed(190), spacing: 24, alignment: .top),
+            count: max(1, min(activePeople.count, 4)))
+    }
+
+    private func profileGridWidth(for width: CGFloat) -> CGFloat? {
+        guard width >= 700 else { return nil }
+        let count = CGFloat(max(1, min(activePeople.count, 4)))
+        return count * 190 + (count - 1) * 24
     }
 
     private func refreshFamilyData() async {
@@ -3661,7 +3683,9 @@ struct FamilyInsightsView: View {
             }
             Text("These are factual summaries of family activity—not ratings or comparisons between people.")
                 .font(.footnote).foregroundStyle(.secondary)
-        }.kyndynCard(tint: KyndynTheme.amber)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .kyndynCard(tint: KyndynTheme.amber)
     }
 }
 
