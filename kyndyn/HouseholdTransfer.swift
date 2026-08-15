@@ -48,6 +48,8 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var deletedAt: Date?
         var rewardTitle: String
         var rewardGoalXP: Int
+        var schedulePauseStartsAt: Date? = nil
+        var schedulePauseEndsAt: Date? = nil
     }
     struct PersonValue: Codable, Equatable, Sendable {
         var id: UUID
@@ -263,7 +265,9 @@ enum HouseholdTransferCodec {
                 timeZoneIdentifier: household.timeZoneIdentifier,
                 createdAt: household.createdAt, deletedAt: household.deletedAt,
                 rewardTitle: household.rewardTitle,
-                rewardGoalXP: household.rewardGoalXP),
+                rewardGoalXP: household.rewardGoalXP,
+                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                schedulePauseEndsAt: household.schedulePauseEndsAt),
             people: people.map {
                 .init(id: $0.id, name: $0.name, role: $0.role,
                       colorHex: $0.colorHex, companionID: $0.companionID,
@@ -358,6 +362,15 @@ enum HouseholdTransferCodec {
               (1...1_000_000).contains(household.rewardGoalXP) else {
             throw HouseholdTransferError.malformed("The family reward is invalid.")
         }
+        if household.schedulePauseStartsAt != nil || household.schedulePauseEndsAt != nil {
+            guard let start = household.schedulePauseStartsAt,
+                  let end = household.schedulePauseEndsAt,
+                  start <= end,
+                  end.timeIntervalSince(start) <= 366 * 24 * 60 * 60 else {
+                throw HouseholdTransferError.malformed(
+                    "The schedule pause dates are invalid.")
+            }
+        }
         guard people.count <= 100, quests.count <= 10_000,
               completions.count <= 250_000, rewardGoals.count <= 10_000 else {
             throw HouseholdTransferError.malformed("The document contains too many records.")
@@ -450,6 +463,8 @@ enum HouseholdRestoreService {
         household.schemaVersion = KyndynSchema.version
         household.createdAt = backup.household.createdAt
         household.deletedAt = backup.household.deletedAt
+        household.schedulePauseStartsAt = backup.household.schedulePauseStartsAt
+        household.schedulePauseEndsAt = backup.household.schedulePauseEndsAt
         context.insert(household)
         var insertedPeople: [Person] = []
         for value in backup.people {

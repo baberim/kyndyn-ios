@@ -369,6 +369,52 @@ final class ProgressionEngineTests: XCTestCase {
                        ProgressionEngine.dayKey(monday, timeZoneIdentifier: household.timeZoneIdentifier))
     }
 
+    @MainActor func testHouseholdSchedulePauseIsInclusiveAndResumes() throws {
+        let (_, household, person, quest) = try models()
+        quest.scheduleKind = .daily
+        quest.startDate = .distantPast
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let start = calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 10, hour: 12))!
+        let end = calendar.date(byAdding: .day, value: 2, to: start)!
+        household.schedulePauseStartsAt = start
+        household.schedulePauseEndsAt = end
+
+        XCTAssertFalse(ProgressionEngine.isScheduled(
+            quest, on: start, household: household))
+        XCTAssertFalse(ProgressionEngine.isScheduled(
+            quest, on: end, household: household))
+        XCTAssertEqual(ProgressionEngine.temporalStatus(
+            for: quest, personID: person.id, completions: [], now: end,
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            household: household), .upcoming)
+        let resumed = calendar.date(byAdding: .day, value: 1, to: end)!
+        XCTAssertTrue(ProgressionEngine.isScheduled(
+            quest, on: resumed, household: household))
+
+        let before = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id,
+            occurrenceDay: ProgressionEngine.dayKey(
+                calendar.date(byAdding: .day, value: -1, to: start)!,
+                timeZoneIdentifier: household.timeZoneIdentifier),
+            completedAt: calendar.date(byAdding: .day, value: -1, to: start)!,
+            awardedXP: 10)
+        let after = QuestCompletion(
+            householdID: household.id, questID: quest.id,
+            personID: person.id,
+            occurrenceDay: ProgressionEngine.dayKey(
+                resumed, timeZoneIdentifier: household.timeZoneIdentifier),
+            completedAt: resumed, awardedXP: 10)
+        let progress = ProgressionEngine.progress(
+            personID: person.id, completions: [before, after], now: resumed,
+            timeZoneIdentifier: household.timeZoneIdentifier,
+            schedulePauseStartsAt: start, schedulePauseEndsAt: end)
+        XCTAssertEqual(progress.currentStreak, 2)
+        XCTAssertEqual(progress.bestStreak, 2)
+    }
+
     @MainActor func testEveryOtherWeekUsesStartWeekAsAnchor() throws {
         let (_, household, _, quest) = try models()
         quest.scheduleKind = .weekly
@@ -695,6 +741,8 @@ final class HouseholdTransferTests: XCTestCase {
             name: "Fictional Harbor Family",
             timeZoneIdentifier: "America/New_York",
             rewardTitle: "Fictional Picnic", rewardGoalXP: 240)
+        household.schedulePauseStartsAt = Date(timeIntervalSince1970: 1_786_320_000)
+        household.schedulePauseEndsAt = Date(timeIntervalSince1970: 1_786_579_200)
         let parent = Person(
             householdID: household.id, name: "Avery", role: .parent,
             colorHex: "#6F2DBD", companionID: "spark")
@@ -736,6 +784,10 @@ final class HouseholdTransferTests: XCTestCase {
         let restoredEvents = try destination.mainContext.fetch(
             FetchDescriptor<QuestCompletion>())
         XCTAssertEqual(restored.id, household.id)
+        XCTAssertEqual(restored.schedulePauseStartsAt,
+                       household.schedulePauseStartsAt)
+        XCTAssertEqual(restored.schedulePauseEndsAt,
+                       household.schedulePauseEndsAt)
         XCTAssertEqual(restoredEvents.map(\.id), [event.id])
         XCTAssertEqual(restoredEvents.first?.awardedXP, 13)
         XCTAssertNotNil(restoredEvents.first?.reversedAt)
@@ -1100,6 +1152,16 @@ final class ReminderRulesTests: XCTestCase {
         XCTAssertTrue(first.first?.body.contains("Open kyndyn") == true)
         settings.showQuestDetailsOnLockScreen = true
         XCTAssertEqual(ReminderRules.candidates(quests: [quest], people: [person], settings: settings, household: household, now: now).first?.body, quest.title)
+    }
+
+    @MainActor func testHouseholdPauseSuppressesQuestAndParentReminders() {
+        let (household, person, quest, settings, now) = fixture()
+        household.schedulePauseStartsAt = now
+        household.schedulePauseEndsAt = now
+        settings.parentSummaryEligible = true
+        XCTAssertTrue(ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, now: now).isEmpty)
     }
 
     @MainActor func testDisabledArchivedAndWrongProfileCancelCandidates() {

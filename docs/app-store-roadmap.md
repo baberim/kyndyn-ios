@@ -248,6 +248,9 @@ remaining external App Store work.
   freshness without exposing household content in diagnostics.
 - Add deterministic healthy and unsafe-household audit coverage plus a UI
   journey for the protected check.
+- Add a synchronized household schedule pause with inclusive dates, automatic
+  resume, reminder suppression, and paused-day exclusion from weekly missed
+  summaries.
 - Revalidate simulator compilation while keeping Production CloudKit and
   personal signing material outside the milestone.
 

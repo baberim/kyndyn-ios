@@ -1280,6 +1280,15 @@ struct DashboardView: View {
                         }
                         dashboardModePicker
                             .padding(.horizontal)
+                        if ProgressionEngine.isSchedulePaused(
+                            on: .now, household: household),
+                           let end = household.schedulePauseEndsAt {
+                            KyndynCallout(
+                                kind: .information,
+                                message: "Scheduled quests and reminders resume after \(end.formatted(date: .abbreviated, time: .omitted)).",
+                                title: "Family schedules are paused")
+                            .padding(.horizontal)
+                        }
                         dayContext
                             .padding(.horizontal)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
@@ -1291,7 +1300,9 @@ struct DashboardView: View {
                                 personID: person.id, completions: completions,
                                 now: .now,
                                 timeZoneIdentifier: household.timeZoneIdentifier,
-                                startingXPAdjustment: person.startingXPAdjustment)
+                                startingXPAdjustment: person.startingXPAdjustment,
+                                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                                schedulePauseEndsAt: household.schedulePauseEndsAt)
                             VStack(spacing: 16) {
                                 broadcastNavigation
                                 progressSummary(
@@ -1652,7 +1663,8 @@ struct DashboardView: View {
         let memberQuests = quests.compactMap { quest -> (Quest, QuestTemporalStatus)? in
             let status = ProgressionEngine.temporalStatus(
                 for: quest, personID: member.id, completions: completions,
-                now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                household: household)
             return status == .inactive ? nil : (quest, status)
         }
         let waiting = memberQuests.filter { $0.1 == .overdue || $0.1 == .today }
@@ -1660,7 +1672,9 @@ struct DashboardView: View {
         let progress = ProgressionEngine.progress(
             personID: member.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: member.startingXPAdjustment)
+            startingXPAdjustment: member.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
 
         return Button {
             app.selectedPersonID = member.id
@@ -1991,7 +2005,9 @@ struct ProgressDetailView: View {
         ProgressionEngine.progress(
             personID: person.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: person.startingXPAdjustment)
+            startingXPAdjustment: person.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
     }
     private var familyRewardReached: Bool {
         let goal = ProgressionEngine.currentRewardGoal(
@@ -2526,13 +2542,15 @@ struct QuestListView: View {
                     ProgressionEngine.temporalStatus(
                         for: quest, personID: personID, completions: completions,
                         now: .now,
-                        timeZoneIdentifier: household.timeZoneIdentifier)
+                        timeZoneIdentifier: household.timeZoneIdentifier,
+                        household: household)
                 }
                 status = aggregateStatus(values)
             } else if let personID = selectedPersonID {
                 status = ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             } else {
                 status = .inactive
             }
@@ -3376,6 +3394,9 @@ struct ParentAreaView: View {
                         NavigationLink { FamilyBroadcastManagementView() } label: {
                             parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
+                        NavigationLink { SchedulePauseView() } label: {
+                            parentRow("Pause schedules", "Take a break without missed quests", "pause.circle.fill", KyndynTheme.green)
+                        }
                         NavigationLink { CloudSyncSettingsView() } label: {
                             parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
                         }
@@ -3481,7 +3502,8 @@ struct ParentAreaView: View {
             quest.participantIDs.compactMap { personID in
                 ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             }
         }
     }
@@ -3878,6 +3900,90 @@ struct FamilyRewardSettingsView: View {
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+}
+
+struct SchedulePauseView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @State private var isEnabled = false
+    @State private var startDate = Date()
+    @State private var endDate = Date()
+    @State private var statusMessage: String?
+
+    private var household: Household? { households.first }
+
+    var body: some View {
+        Form {
+            Section {
+                KyndynCallout(
+                    kind: .information,
+                    message: "Scheduled quests won’t become waiting or overdue, reminders stop, and paused days won’t count as missed. Existing XP and history stay exactly as they are.",
+                    title: "Take a break without losing progress")
+            }
+            Section("Schedule") {
+                Toggle("Pause family schedules", isOn: $isEnabled)
+                if isEnabled {
+                    DatePicker("Starts", selection: $startDate,
+                               displayedComponents: .date)
+                    DatePicker("Ends", selection: $endDate, in: startDate...,
+                               displayedComponents: .date)
+                }
+            }
+            .onChange(of: startDate) { _, value in
+                if endDate < value { endDate = value }
+            }
+            Section {
+                Button("Save schedule pause", systemImage: "pause.circle.fill") {
+                    save()
+                }
+                if household?.schedulePauseStartsAt != nil {
+                    Button("Resume schedules now", systemImage: "play.circle.fill",
+                           role: .destructive) { clear() }
+                }
+            }
+            if let statusMessage {
+                Section {
+                    Label(statusMessage, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .navigationTitle("Schedule pause")
+        .task { load() }
+        .errorAlert(app: app)
+    }
+
+    private func load() {
+        guard let household else { return }
+        isEnabled = household.schedulePauseStartsAt != nil
+        startDate = household.schedulePauseStartsAt ?? .now
+        endDate = household.schedulePauseEndsAt
+            ?? Calendar.current.date(byAdding: .day, value: 6, to: .now) ?? .now
+    }
+
+    private func save() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: isEnabled ? startDate : nil,
+                end: isEnabled ? endDate : nil, context: context)
+            statusMessage = isEnabled
+                ? "Schedules resume automatically after the selected end date."
+                : "Family schedules are active."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+
+    private func clear() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: nil, end: nil, context: context)
+            statusMessage = "Family schedules resumed."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
     }
 }
 

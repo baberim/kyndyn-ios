@@ -553,7 +553,9 @@ enum SyncSnapshot {
                 "createdAt": value.createdAt.ISO8601Format(),
                 "deletedAt": value.deletedAt?.ISO8601Format() ?? "",
                 "rewardTitle": value.rewardTitle,
-                "rewardGoalXP": String(value.rewardGoalXP)
+                "rewardGoalXP": String(value.rewardGoalXP),
+                "schedulePauseStartsAt": value.schedulePauseStartsAt?.ISO8601Format() ?? "",
+                "schedulePauseEndsAt": value.schedulePauseEndsAt?.ISO8601Format() ?? ""
             ], mutationID: mutationID, tombstone: value.deletedAt != nil)
     }
 
@@ -1293,6 +1295,14 @@ enum SyncRemoteApplier {
                     record.fields["rewardTitle"] ?? household.rewardTitle
                 household.rewardGoalXP = Int(record.fields["rewardGoalXP"] ?? "")
                     ?? household.rewardGoalXP
+                if record.fields.keys.contains("schedulePauseStartsAt") {
+                    household.schedulePauseStartsAt = date(
+                        record.fields["schedulePauseStartsAt"])
+                }
+                if record.fields.keys.contains("schedulePauseEndsAt") {
+                    household.schedulePauseEndsAt = date(
+                        record.fields["schedulePauseEndsAt"])
+                }
                 household.deletedAt = date(record.fields["deletedAt"])
             case .person:
                 let id = record.entityID

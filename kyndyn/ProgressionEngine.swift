@@ -38,6 +38,22 @@ enum ProgressionEngine {
         return formatter.string(from: date)
     }
 
+    static func isSchedulePaused(on date: Date, household: Household) -> Bool {
+        guard let startsAt = household.schedulePauseStartsAt,
+              let endsAt = household.schedulePauseEndsAt else { return false }
+        let calendar = calendar(timeZoneIdentifier: household.timeZoneIdentifier)
+        let day = calendar.startOfDay(for: date)
+        return day >= calendar.startOfDay(for: startsAt)
+            && day <= calendar.startOfDay(for: endsAt)
+    }
+
+    static func isScheduled(_ quest: Quest, on date: Date,
+                            household: Household) -> Bool {
+        !isSchedulePaused(on: date, household: household)
+            && isScheduled(quest, on: date,
+                           timeZoneIdentifier: household.timeZoneIdentifier)
+    }
+
     static func isScheduled(_ quest: Quest, on date: Date, timeZoneIdentifier: String) -> Bool {
         let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
         guard date >= calendar.startOfDay(for: quest.startDate) else { return false }
@@ -89,8 +105,12 @@ enum ProgressionEngine {
     }
 
     static func temporalStatus(for quest: Quest, personID: UUID, completions: [QuestCompletion],
-                               now: Date, timeZoneIdentifier: String) -> QuestTemporalStatus {
+                               now: Date, timeZoneIdentifier: String,
+                               household: Household? = nil) -> QuestTemporalStatus {
         guard quest.deletedAt == nil, quest.participantIDs.contains(personID) else { return .inactive }
+        if let household, isSchedulePaused(on: now, household: household) {
+            return .upcoming
+        }
         let calendar = calendar(timeZoneIdentifier: timeZoneIdentifier)
         let today = calendar.startOfDay(for: now)
         let start = calendar.startOfDay(for: quest.startDate)
@@ -143,7 +163,9 @@ enum ProgressionEngine {
 
     static func progress(personID: UUID, completions: [QuestCompletion], now: Date,
                          timeZoneIdentifier: String,
-                         startingXPAdjustment: Int = 0) -> PersonProgress {
+                         startingXPAdjustment: Int = 0,
+                         schedulePauseStartsAt: Date? = nil,
+                         schedulePauseEndsAt: Date? = nil) -> PersonProgress {
         let active = completions.filter { $0.personID == personID && $0.reversedAt == nil }
         let questXP = active.reduce(0) { $0 + $1.awardedXP }
         let xp = max(0, questXP + startingXPAdjustment)
@@ -153,7 +175,10 @@ enum ProgressionEngine {
         var run = 0
         var previous: Date?
         for day in days {
-            if let previous, calendar.dateComponents([.day], from: previous, to: day).day == 1 {
+            if let previous, streakDaysAreConsecutive(
+                previous, day, calendar: calendar,
+                pauseStart: schedulePauseStartsAt,
+                pauseEnd: schedulePauseEndsAt) {
                 run += 1
             } else {
                 run = 1
@@ -164,11 +189,17 @@ enum ProgressionEngine {
         let today = calendar.startOfDay(for: now)
         let last = days.last
         let current: Int
-        if let last, let gap = calendar.dateComponents([.day], from: last, to: today).day, gap <= 1 {
+        if let last, streakDaysAreConsecutive(
+            last, today, calendar: calendar,
+            pauseStart: schedulePauseStartsAt,
+            pauseEnd: schedulePauseEndsAt) {
             var value = 1
             var cursor = last
             for day in days.dropLast().reversed() {
-                guard calendar.dateComponents([.day], from: day, to: cursor).day == 1 else { break }
+                guard streakDaysAreConsecutive(
+                    day, cursor, calendar: calendar,
+                    pauseStart: schedulePauseStartsAt,
+                    pauseEnd: schedulePauseEndsAt) else { break }
                 value += 1; cursor = day
             }
             current = value
@@ -178,6 +209,24 @@ enum ProgressionEngine {
         return PersonProgress(xp: xp, level: xp / 100 + 1,
                               currentStreak: current, bestStreak: best,
                               completedCount: active.count, questXP: questXP)
+    }
+
+    private static func streakDaysAreConsecutive(
+        _ earlier: Date, _ later: Date, calendar: Calendar,
+        pauseStart: Date?, pauseEnd: Date?
+    ) -> Bool {
+        let first = calendar.startOfDay(for: earlier)
+        let last = calendar.startOfDay(for: later)
+        let gap = calendar.dateComponents([.day], from: first, to: last).day ?? 0
+        guard gap > 0 else { return true }
+        guard gap > 1, let pauseStart, let pauseEnd else { return gap == 1 }
+        let pausedFirst = calendar.startOfDay(for: pauseStart)
+        let pausedLast = calendar.startOfDay(for: pauseEnd)
+        for offset in 1..<gap {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: first),
+                  day >= pausedFirst, day <= pausedLast else { return false }
+        }
+        return true
     }
 
     static func familyXP(_ completions: [QuestCompletion]) -> Int {
@@ -281,8 +330,7 @@ enum InsightsEngine {
             for quest in householdQuests where quest.startDate <= dayEnd {
                 if let deleted = quest.deletedAt, deleted < day { continue }
                 guard ProgressionEngine.isScheduled(
-                    quest, on: day,
-                    timeZoneIdentifier: household.timeZoneIdentifier) else { continue }
+                    quest, on: day, household: household) else { continue }
                 let key = ProgressionEngine.dayKey(
                     day, timeZoneIdentifier: household.timeZoneIdentifier)
                 for person in activePeople where quest.participantIDs.contains(person.id) {
@@ -312,7 +360,9 @@ enum InsightsEngine {
             let progress = ProgressionEngine.progress(
                 personID: person.id, completions: completions, now: now,
                 timeZoneIdentifier: household.timeZoneIdentifier,
-                startingXPAdjustment: person.startingXPAdjustment)
+                startingXPAdjustment: person.startingXPAdjustment,
+                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                schedulePauseEndsAt: household.schedulePauseEndsAt)
             return PersonInsight(
                 personID: person.id, name: person.name, colorHex: person.colorHex,
                 completed: counts.completed, notCompleted: counts.missed,

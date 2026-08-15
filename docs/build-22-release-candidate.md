@@ -21,6 +21,24 @@ The report never includes names, quest or announcement text, record IDs,
 account fingerprints, tokens, invitation data, or CloudKit payloads. Running it
 does not modify records, trigger synchronization, or contact Apple services.
 
+## Household schedule pause
+
+Parents can open **Parent → Pause schedules** and select an inclusive start and
+end date. While the pause is active:
+
+- scheduled quests do not become waiting or overdue;
+- device reminders, including the parent evening summary, are not scheduled;
+- paused days are excluded from weekly missed-quest summaries;
+- completions, XP, levels, streak history, and quest definitions remain intact;
+- schedules resume automatically on the day after the selected end date.
+
+The two optional dates migrate additively, are included in private household
+backups, and synchronize as fields on the existing household CloudKit record.
+Older backups remain valid. Debug CloudKit may learn the new fields during
+testing; the project owner must review and promote the Development schema before
+a Production/TestFlight release that uses this feature. This work does not
+deploy or modify the Production schema.
+
 ## Automated coverage
 
 - A malformed fictional household produces actionable, content-free findings.
@@ -28,6 +46,8 @@ does not modify records, trigger synchronization, or contact Apple services.
 - The protected Parent UI can run and display the aggregate check.
 - Existing deterministic account-change, revoked-access, offline retry,
   recovery-integrity, and notification-rescheduling coverage remains in place.
+- Schedule-pause boundaries, automatic resume, reminder suppression, backup
+  round-trip, and cloud-envelope round-trip are covered with fictional data.
 
 ## Physical release checklist
 
@@ -42,4 +62,4 @@ The following still requires signed TestFlight builds and real Apple devices:
 7. VoiceOver, larger Dynamic Type, light/dark mode, iPhone, iPad, and Mac
    presentation.
 
-No Production CloudKit data or schema is changed by this build.
+No Production CloudKit data or schema is changed by this implementation.

@@ -9,7 +9,8 @@ This repository is a new native SwiftUI implementation. It is independent from t
 Build 22 is the release-candidate hardening pass. It adds a protected,
 privacy-safe household safety check covering local relationships, backup
 freshness, queued sync work, unresolved conflicts, and account-state recovery
-signals. See
+signals. It also adds a synchronized household schedule pause for vacations,
+illness, and other planned breaks without false missed quests or reminders. See
 [`docs/build-22-release-candidate.md`](docs/build-22-release-candidate.md).
 
 The app provides a locally usable vertical slice:
@@ -22,6 +23,7 @@ The app provides a locally usable vertical slice:
 - LocalAuthentication-protected parent tools with an optional device-only kyndyn PIN;
 - complete create/edit/archive/restore flows for people and quests;
 - one-time, daily, and selected-weekday schedules with household-local deadlines;
+- an inclusive, household-wide schedule pause with automatic resume;
 - private, device-local quest reminders with quiet hours and profile targeting;
 - local SwiftData persistence and offline operation;
 - protocol boundaries for sync, notifications, entitlements, and import.
