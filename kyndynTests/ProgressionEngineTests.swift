@@ -790,6 +790,70 @@ final class HouseholdTransferTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<PendingSyncMutation>()).isEmpty)
     }
 
+    @MainActor func testHouseholdSafetyAuditFindsRecoveryRisksWithoutContent()
+        throws {
+        let container = try transferContainer()
+        let context = container.mainContext
+        let household = Household(
+            name: "Fictional Lighthouse Family", timeZoneIdentifier: "UTC")
+        let parent = Person(
+            householdID: household.id, name: "Jordan", role: .parent,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Water the moon garden", xp: 10,
+            participantIDs: [UUID()])
+        let state = HouseholdCloudState(householdID: household.id)
+        state.mode = .accountChanged
+        context.insert(household); context.insert(parent); context.insert(quest)
+        context.insert(state)
+        try context.save()
+        let now = Date(timeIntervalSince1970: 2_000_000)
+
+        let report = try HouseholdSafetyAudit.inspect(
+            household: household, context: context,
+            lastBackupExportTimestamp: 0, now: now)
+
+        XCTAssertEqual(report.status, .review)
+        XCTAssertEqual(report.activeProfiles, 1)
+        XCTAssertEqual(report.activeQuests, 1)
+        XCTAssertTrue(report.notes.contains {
+            $0.contains("valid profile assignment")
+        })
+        XCTAssertTrue(report.notes.contains {
+            $0.contains("Family sync needs attention")
+        })
+        XCTAssertTrue(report.notes.contains {
+            $0.contains("fresh private backup")
+        })
+        XCTAssertFalse(report.notes.joined().contains("Jordan"))
+        XCTAssertFalse(report.notes.joined().contains("moon garden"))
+    }
+
+    @MainActor func testHouseholdSafetyAuditReportsReadyForHealthyLocalData()
+        throws {
+        let container = try transferContainer()
+        let context = container.mainContext
+        let household = Household(
+            name: "Fictional Cove Family", timeZoneIdentifier: "UTC")
+        let parent = Person(
+            householdID: household.id, name: "Riley", role: .parent,
+            colorHex: "#6F2DBD", companionID: "spark")
+        let quest = Quest(
+            householdID: household.id, title: "Pack towels", xp: 10,
+            participantIDs: [parent.id])
+        context.insert(household); context.insert(parent); context.insert(quest)
+        try context.save()
+        let now = Date(timeIntervalSince1970: 2_000_000)
+
+        let report = try HouseholdSafetyAudit.inspect(
+            household: household, context: context,
+            lastBackupExportTimestamp: now.timeIntervalSince1970 - 60,
+            now: now)
+
+        XCTAssertEqual(report.status, .ready)
+        XCTAssertTrue(report.notes.isEmpty)
+    }
+
     @MainActor func testRestoreRequiresEmptyHouseholdAndRejectsMalformedVersion()
         throws {
         let container = try transferContainer()

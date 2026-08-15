@@ -4,13 +4,13 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development — 0.21.0 (Build 21)
+## Current development — 0.22.0 (Build 22)
 
-Build 21 prepares the app's household-data controls for release: verified
-private exports now include announcements, the Parent area explains privacy
-boundaries, and a protected local-removal flow requires both a fresh backup and
-the exact household name. See
-[`docs/build-21-app-store-readiness.md`](docs/build-21-app-store-readiness.md).
+Build 22 is the release-candidate hardening pass. It adds a protected,
+privacy-safe household safety check covering local relationships, backup
+freshness, queued sync work, unresolved conflicts, and account-state recovery
+signals. See
+[`docs/build-22-release-candidate.md`](docs/build-22-release-candidate.md).
 
 The app provides a locally usable vertical slice:
 

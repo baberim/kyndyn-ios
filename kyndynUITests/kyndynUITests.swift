@@ -237,6 +237,24 @@ final class KyndynUITests: XCTestCase {
             .waitForExistence(timeout: 3))
     }
 
+    func testParentCanRunPrivacySafeHouseholdSafetyCheck() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Parent", in: app)
+        let dataAndPrivacy = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Data and privacy")
+        ).firstMatch
+        reveal(dataAndPrivacy, in: app)
+        dataAndPrivacy.tap()
+        XCTAssertTrue(app.navigationBars["Data and privacy"]
+            .waitForExistence(timeout: 3))
+        let check = app.buttons["run-household-safety-check"]
+        XCTAssertTrue(check.waitForExistence(timeout: 3))
+        check.tap()
+        XCTAssertTrue(app.staticTexts["Household"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Active profiles"].exists)
+        XCTAssertTrue(app.staticTexts["Waiting to sync"].exists)
+    }
+
     func testProfileColorSelectionDoesNotFallThroughToOrange() throws {
         let app = launch(parentUnlocked: true)
         tapTab("Profiles", in: app)

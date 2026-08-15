@@ -3874,12 +3874,40 @@ struct HouseholdDataProtectionView: View {
     @State private var showingRemoval = false
     @State private var removalConfirmation = ""
     @State private var verification: HouseholdBackupVerification?
+    @State private var safetyReport: HouseholdSafetyReport?
     @AppStorage("kyndyn.lastSuccessfulBackupExport")
     private var lastBackupExportTimestamp = 0.0
     @State private var recoveryReceipt: CloudRecoveryReceipt?
 
     var body: some View {
         List {
+            Section("Release safety check") {
+                if let safetyReport {
+                    LabeledContent("Household", value: safetyReport.summary)
+                    LabeledContent("Active profiles",
+                                   value: "\(safetyReport.activeProfiles)")
+                    LabeledContent("Active quests",
+                                   value: "\(safetyReport.activeQuests)")
+                    LabeledContent("Waiting to sync",
+                                   value: "\(safetyReport.pendingChanges)")
+                    LabeledContent("Conflicts needing review",
+                                   value: "\(safetyReport.unresolvedConflicts)")
+                    ForEach(safetyReport.notes, id: \.self) { note in
+                        Label(note, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Checked \(safetyReport.checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Check local relationships, backup freshness, and family-sync recovery signals without showing names, quest text, or record identifiers.")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Run safety check", systemImage: "checkmark.shield") {
+                    runSafetyCheck()
+                }
+                .accessibilityIdentifier("run-household-safety-check")
+            }
             Section("Protection status") {
                 if lastBackupExportTimestamp > 0 {
                     LabeledContent("Last private backup") {
@@ -4049,6 +4077,17 @@ struct HouseholdDataProtectionView: View {
             exporting = true
         } catch {
             app.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func runSafetyCheck() {
+        guard let household = households.first else { return }
+        do {
+            safetyReport = try HouseholdSafetyAudit.inspect(
+                household: household, context: context,
+                lastBackupExportTimestamp: lastBackupExportTimestamp)
+        } catch {
+            app.errorMessage = "The safety check couldn’t finish. Nothing was changed."
         }
     }
 
