@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 6
+    static let version = 7
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -29,6 +29,8 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var deletedAt: Date?
     var rewardTitle: String
     var rewardGoalXP: Int
+    var schedulePauseStartsAt: Date?
+    var schedulePauseEndsAt: Date?
     // Local diagnostic classification only. Never included in CloudKit records.
     var isSample: Bool = false
 
