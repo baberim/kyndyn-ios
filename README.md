@@ -11,7 +11,8 @@ Background, and App icon screens. It also restores the iPad-specific alternate
 icon declarations, while explaining when macOS does not permit an iPad app to
 change its icon instead of silently ignoring the selection. Compact and
 expanded weather views also identify the locally resolved city or town without
-persisting precise coordinates. See
+persisting precise coordinates, provide hourly and 10-day forecasts, and use
+condition-aware accents instead of a fixed blue treatment. See
 [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md).
 
 Build 22 is the release-candidate hardening pass. It adds a protected,

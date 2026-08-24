@@ -1271,6 +1271,7 @@ struct DashboardView: View {
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
     @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var weatherHourlyForecast: [DeviceWeatherHour] = []
     @State private var weatherForecast: [DeviceWeatherDay] = []
     @State private var presentedDayDetail: DayDetail?
     @State private var isLoadingWeather = false
@@ -1379,6 +1380,7 @@ struct DashboardView: View {
                 case .weather:
                     WeatherGlanceView(
                         setting: deviceSettings.first,
+                        hourlyForecast: weatherHourlyForecast,
                         forecast: weatherForecast,
                         isLoading: isLoadingWeather)
                 case .calendar:
@@ -1465,7 +1467,7 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
-        .kyndynCard(tint: .blue)
+        .kyndynCard(tint: weatherTint(for: setting.cachedWeatherSymbolName))
     }
 
     private var calendarSummary: some View {
@@ -1542,6 +1544,7 @@ struct DashboardView: View {
             setting.cachedWeatherSymbolName = snapshot.symbolName
             setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherHourlyForecast = snapshot.hourlyForecast
             weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
@@ -1566,6 +1569,7 @@ struct DashboardView: View {
             setting.cachedWeatherSymbolName = snapshot.symbolName
             setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherHourlyForecast = snapshot.hourlyForecast
             weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
@@ -1913,10 +1917,22 @@ private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
 }
 
 private struct WeatherGlanceView: View {
+    private enum ForecastMode: String, CaseIterable, Identifiable {
+        case hourly = "Hourly"
+        case daily = "10-day"
+        var id: String { rawValue }
+    }
+
     @Environment(\.dismiss) private var dismiss
     let setting: LocalDeviceSettings?
+    let hourlyForecast: [DeviceWeatherHour]
     let forecast: [DeviceWeatherDay]
     let isLoading: Bool
+    @State private var mode: ForecastMode = .hourly
+
+    private var tint: Color {
+        weatherTint(for: setting?.cachedWeatherSymbolName)
+    }
 
     var body: some View {
         NavigationStack {
@@ -1925,7 +1941,7 @@ private struct WeatherGlanceView: View {
                     if let temperature = setting?.cachedWeatherTemperature {
                         HStack(spacing: 16) {
                             Image(systemName: setting?.cachedWeatherSymbolName ?? "cloud.sun")
-                                .font(.system(size: 42)).foregroundStyle(.blue)
+                                .font(.system(size: 42)).foregroundStyle(tint)
                             VStack(alignment: .leading, spacing: 3) {
                                 if let locationName = setting?.cachedWeatherLocationName {
                                     Text(locationName)
@@ -1939,33 +1955,26 @@ private struct WeatherGlanceView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .kyndynCard(tint: .blue, raised: true)
+                        .kyndynCard(tint: tint, raised: true)
                     }
 
-                    if isLoading && forecast.isEmpty {
+                    Picker("Forecast", selection: $mode) {
+                        ForEach(ForecastMode.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if isLoading && hourlyForecast.isEmpty && forecast.isEmpty {
                         HStack { Spacer(); ProgressView("Updating forecast…"); Spacer() }
                             .padding(.vertical, 24)
-                    } else if forecast.isEmpty {
-                        KyndynCallout(kind: .information,
-                                      message: "A forecast isn’t available right now. Your last weather update is still shown above.")
+                    } else if mode == .hourly, !hourlyForecast.isEmpty {
+                        hourlyRows
+                    } else if mode == .daily, !forecast.isEmpty {
+                        dailyRows
                     } else {
-                        VStack(spacing: 0) {
-                            ForEach(forecast) { day in
-                                HStack(spacing: 12) {
-                                    Text(day.date.formatted(.dateTime.weekday(.wide)))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    Image(systemName: day.symbolName)
-                                        .foregroundStyle(.blue).frame(width: 28)
-                                    Text("\(Int(day.high.rounded()))°")
-                                        .fontWeight(.semibold).monospacedDigit()
-                                    Text("\(Int(day.low.rounded()))°")
-                                        .foregroundStyle(.secondary).monospacedDigit()
-                                }
-                                .padding(.vertical, 12)
-                                if day.id != forecast.last?.id { Divider() }
-                            }
-                        }
-                        .kyndynCard(tint: .blue)
+                        KyndynCallout(kind: .information,
+                                      message: "This forecast isn’t available right now. Your last weather update is still shown above.")
                     }
                 }
                 .padding()
@@ -1981,6 +1990,64 @@ private struct WeatherGlanceView: View {
         }
         .presentationDetents(forecast.count > 4 ? [.medium, .large] : [.medium])
     }
+
+    private var hourlyRows: some View {
+        VStack(spacing: 0) {
+            ForEach(hourlyForecast) { hour in
+                HStack(spacing: 12) {
+                    Text(hour.date.formatted(.dateTime.hour()))
+                        .frame(width: 68, alignment: .leading)
+                    Image(systemName: hour.symbolName)
+                        .foregroundStyle(weatherTint(for: hour.symbolName))
+                        .frame(width: 30)
+                    if hour.precipitationChance >= 0.05 {
+                        Label("\(Int((hour.precipitationChance * 100).rounded()))%",
+                              systemImage: "drop.fill")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                    Spacer()
+                    Text("\(Int(hour.temperature.rounded()))°")
+                        .fontWeight(.semibold).monospacedDigit()
+                }
+                .padding(.vertical, 12)
+                if hour.id != hourlyForecast.last?.id { Divider() }
+            }
+        }
+        .kyndynCard(tint: tint)
+    }
+
+    private var dailyRows: some View {
+        VStack(spacing: 0) {
+            ForEach(forecast) { day in
+                HStack(spacing: 12) {
+                    Text(day.date.formatted(.dateTime.weekday(.wide)))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: day.symbolName)
+                        .foregroundStyle(weatherTint(for: day.symbolName))
+                        .frame(width: 28)
+                    Text("\(Int(day.high.rounded()))°")
+                        .fontWeight(.semibold).monospacedDigit()
+                    Text("\(Int(day.low.rounded()))°")
+                        .foregroundStyle(.secondary).monospacedDigit()
+                }
+                .padding(.vertical, 12)
+                if day.id != forecast.last?.id { Divider() }
+            }
+        }
+        .kyndynCard(tint: tint)
+    }
+}
+
+private func weatherTint(for symbolName: String?) -> Color {
+    let symbol = symbolName?.lowercased() ?? ""
+    if symbol.contains("thunder") || symbol.contains("bolt") { return .indigo }
+    if symbol.contains("snow") || symbol.contains("sleet") { return .cyan }
+    if symbol.contains("rain") || symbol.contains("drizzle") { return .blue }
+    if symbol.contains("sun") { return .orange }
+    if symbol.contains("moon") { return .indigo }
+    if symbol.contains("cloud") || symbol.contains("fog") { return .teal }
+    return .blue
 }
 
 private struct CalendarGlanceView: View {

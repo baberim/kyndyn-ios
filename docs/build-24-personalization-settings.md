@@ -37,6 +37,11 @@ returned by Apple's geocoder. Kyndyn does not persist coordinates: only the
 resulting locality label is cached on the device alongside the weather summary,
 and both remain excluded from CloudKit and household backups.
 
+The expanded weather sheet includes an **Hourly / 10-day** switch. Hourly rows
+show the next 24 hours and meaningful precipitation chances. Weather accents
+now communicate conditions—warm for sun, teal for clouds, blue for rain, cyan
+for snow, and indigo for storms or nighttime—instead of always appearing blue.
+
 ## Delivery boundary
 
 This milestone updates source, tests, documentation, and Git only. It does not

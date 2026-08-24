@@ -94,7 +94,16 @@ struct DeviceWeatherSnapshot: Equatable, Sendable {
     let condition: String
     let symbolName: String
     let fetchedAt: Date
+    let hourlyForecast: [DeviceWeatherHour]
     let dailyForecast: [DeviceWeatherDay]
+}
+
+struct DeviceWeatherHour: Identifiable, Equatable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let temperature: Double
+    let precipitationChance: Double
+    let symbolName: String
 }
 
 struct DeviceWeatherDay: Identifiable, Equatable, Sendable {
@@ -123,8 +132,8 @@ struct AppleWeatherProvider: WeatherProviding {
     func weather(latitude: Double, longitude: Double) async throws -> DeviceWeatherSnapshot {
         let location = CLLocation(latitude: latitude, longitude: longitude)
         let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first
-        let (current, daily) = try await WeatherService.shared.weather(
-            for: location, including: .current, .daily)
+        let (current, hourly, daily) = try await WeatherService.shared.weather(
+            for: location, including: .current, .hourly, .daily)
         let today = daily.forecast.first
         return DeviceWeatherSnapshot(
             locationName: placemark?.locality
@@ -138,6 +147,16 @@ struct AppleWeatherProvider: WeatherProviding {
             condition: current.condition.description,
             symbolName: current.symbolName,
             fetchedAt: .now,
+            hourlyForecast: hourly.forecast
+                .filter { $0.date >= Date.now.addingTimeInterval(-300) }
+                .prefix(24).map {
+                    DeviceWeatherHour(
+                        date: $0.date,
+                        temperature: $0.temperature
+                            .converted(to: .fahrenheit).value,
+                        precipitationChance: $0.precipitationChance,
+                        symbolName: $0.symbolName)
+                },
             dailyForecast: daily.forecast.prefix(10).map {
                 DeviceWeatherDay(
                     date: $0.date,
