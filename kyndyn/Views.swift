@@ -2361,9 +2361,6 @@ private struct ProfileCustomizationView: View {
             .navigationTitle(section.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                 }
