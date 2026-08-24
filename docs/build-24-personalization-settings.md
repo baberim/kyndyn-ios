@@ -39,7 +39,7 @@ and both remain excluded from CloudKit and household backups.
 
 The expanded weather sheet includes an **Hourly / 10-day** switch. Hourly rows
 show the next 24 hours and meaningful precipitation chances. Weather accents
-now communicate conditions—warm for sun, teal for clouds, blue for rain, cyan
+now communicate conditions—warm for sun, slate for clouds, blue for rain, cyan
 for snow, and indigo for storms or nighttime—instead of always appearing blue.
 
 ## Delivery boundary

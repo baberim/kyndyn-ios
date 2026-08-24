@@ -1438,9 +1438,11 @@ struct DashboardView: View {
     }
 
     private func weatherSummary(_ setting: LocalDeviceSettings) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let tint = weatherTint(for: setting.cachedWeatherSymbolName)
+        return VStack(alignment: .leading, spacing: 6) {
             Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
                 .font(.headline)
+                .foregroundStyle(tint)
             if let locationName = setting.cachedWeatherLocationName {
                 Text(locationName)
                     .font(.caption.weight(.medium))
@@ -1467,7 +1469,7 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
-        .kyndynCard(tint: weatherTint(for: setting.cachedWeatherSymbolName))
+        .kyndynCard(tint: tint)
     }
 
     private var calendarSummary: some View {
@@ -2046,7 +2048,7 @@ private func weatherTint(for symbolName: String?) -> Color {
     if symbol.contains("rain") || symbol.contains("drizzle") { return .blue }
     if symbol.contains("sun") { return .orange }
     if symbol.contains("moon") { return .indigo }
-    if symbol.contains("cloud") || symbol.contains("fog") { return .teal }
+    if symbol.contains("cloud") || symbol.contains("fog") { return .gray }
     return .blue
 }
 
