@@ -247,6 +247,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var cachedWeatherLow: Double?
     var cachedWeatherCondition: String?
     var cachedWeatherSymbolName: String?
+    var cachedWeatherLocationName: String?
     var cachedWeatherAt: Date?
     init() {
         self.id = UUID()

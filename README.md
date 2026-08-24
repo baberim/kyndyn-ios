@@ -9,7 +9,9 @@ This repository is a new native SwiftUI implementation. It is independent from t
 Build 24 breaks everyday personalization into focused App color, Companion,
 Background, and App icon screens. It also restores the iPad-specific alternate
 icon declarations, while explaining when macOS does not permit an iPad app to
-change its icon instead of silently ignoring the selection. See
+change its icon instead of silently ignoring the selection. Compact and
+expanded weather views also identify the locally resolved city or town without
+persisting precise coordinates. See
 [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md).
 
 Build 22 is the release-candidate hardening pass. It adds a protected,

@@ -30,6 +30,13 @@ explains the platform limitation instead of silently ignoring taps.
 App-icon selection remains device-local and never enters CloudKit or a private
 household backup.
 
+## Local weather context
+
+The compact Home weather card and expanded forecast now show the city or town
+returned by Apple's geocoder. Kyndyn does not persist coordinates: only the
+resulting locality label is cached on the device alongside the weather summary,
+and both remain excluded from CloudKit and household backups.
+
 ## Delivery boundary
 
 This milestone updates source, tests, documentation, and Git only. It does not

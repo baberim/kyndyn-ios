@@ -87,6 +87,7 @@ final class EventKitCalendarProvider: CalendarProviding, @unchecked Sendable {
 }
 
 struct DeviceWeatherSnapshot: Equatable, Sendable {
+    let locationName: String?
     let temperature: Double
     let high: Double
     let low: Double
@@ -121,10 +122,14 @@ protocol WeatherProviding: Sendable {
 struct AppleWeatherProvider: WeatherProviding {
     func weather(latitude: Double, longitude: Double) async throws -> DeviceWeatherSnapshot {
         let location = CLLocation(latitude: latitude, longitude: longitude)
+        let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first
         let (current, daily) = try await WeatherService.shared.weather(
             for: location, including: .current, .daily)
         let today = daily.forecast.first
         return DeviceWeatherSnapshot(
+            locationName: placemark?.locality
+                ?? placemark?.subAdministrativeArea
+                ?? placemark?.administrativeArea,
             temperature: current.temperature.converted(to: .fahrenheit).value,
             high: today?.highTemperature.converted(to: .fahrenheit).value
                 ?? current.temperature.converted(to: .fahrenheit).value,

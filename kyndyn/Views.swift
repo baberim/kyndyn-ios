@@ -1164,7 +1164,7 @@ struct WeatherSettingsView: View {
                 }
             }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
+                KyndynCallout(kind: .privacy, message: "kyndyn never saves precise coordinates. A short-lived weather summary and city or town name stay on this device and are excluded from family sync and backups.")
             }
         }
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
@@ -1184,6 +1184,7 @@ struct WeatherSettingsView: View {
             setting.cachedWeatherLow = value.low
             setting.cachedWeatherCondition = value.condition
             setting.cachedWeatherSymbolName = value.symbolName
+            setting.cachedWeatherLocationName = value.locationName
             setting.cachedWeatherAt = value.fetchedAt
             try context.save()
             message = "Weather is ready on Home."
@@ -1195,7 +1196,8 @@ struct WeatherSettingsView: View {
     private func clearCache(_ setting: LocalDeviceSettings) {
         setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
         setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
-        setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
+        setting.cachedWeatherSymbolName = nil
+        setting.cachedWeatherLocationName = nil; setting.cachedWeatherAt = nil
     }
 
     private func openAppSettings() {
@@ -1437,6 +1439,12 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
                 .font(.headline)
+            if let locationName = setting.cachedWeatherLocationName {
+                Text(locationName)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if let temperature = setting.cachedWeatherTemperature {
                 Text("\(Int(temperature.rounded()))°")
                     .font(.title.bold().monospacedDigit())
@@ -1532,6 +1540,7 @@ struct DashboardView: View {
             setting.cachedWeatherLow = snapshot.low
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
             weatherForecast = snapshot.dailyForecast
             try? context.save()
@@ -1555,6 +1564,7 @@ struct DashboardView: View {
             setting.cachedWeatherLow = snapshot.low
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
             weatherForecast = snapshot.dailyForecast
             try? context.save()
@@ -1917,6 +1927,11 @@ private struct WeatherGlanceView: View {
                             Image(systemName: setting?.cachedWeatherSymbolName ?? "cloud.sun")
                                 .font(.system(size: 42)).foregroundStyle(.blue)
                             VStack(alignment: .leading, spacing: 3) {
+                                if let locationName = setting?.cachedWeatherLocationName {
+                                    Text(locationName)
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text("\(Int(temperature.rounded()))°")
                                     .font(.largeTitle.bold().monospacedDigit())
                                 Text(setting?.cachedWeatherCondition ?? "Local weather")
