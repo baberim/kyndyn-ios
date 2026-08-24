@@ -30,6 +30,8 @@ struct DeviceCalendarEvent: Identifiable, Equatable, Sendable {
     let endDate: Date
     let isAllDay: Bool
     let calendarID: String
+    let calendarTitle: String
+    let calendarColorHex: String
 }
 
 protocol CalendarProviding: Sendable {
@@ -77,7 +79,9 @@ final class EventKitCalendarProvider: CalendarProviding, @unchecked Sendable {
                     startDate: $0.startDate,
                     endDate: $0.endDate,
                     isAllDay: $0.isAllDay,
-                    calendarID: $0.calendar.calendarIdentifier)
+                    calendarID: $0.calendar.calendarIdentifier,
+                    calendarTitle: $0.calendar.title,
+                    calendarColorHex: UIColor(cgColor: $0.calendar.cgColor).hexString)
             }.sorted { $0.startDate < $1.startDate }
     }
 }

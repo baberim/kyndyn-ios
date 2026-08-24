@@ -1451,8 +1451,15 @@ struct DashboardView: View {
                 .font(.headline)
             if let event = calendarEvents.first {
                 Text(event.title).font(.subheadline.bold()).lineLimit(1)
-                Text(calendarTime(for: event))
-                    .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color(hex: event.calendarColorHex))
+                        .frame(width: 7, height: 7)
+                    Text(event.calendarTitle).lineLimit(1)
+                    Text("•")
+                    Text(calendarTime(for: event)).lineLimit(1)
+                }
+                .font(.caption).foregroundStyle(.secondary)
                 if calendarEvents.count > 1 {
                     Text("+\(calendarEvents.count - 1) more in the next 2 weeks")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -1463,7 +1470,9 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
-        .kyndynCard(tint: .orange)
+        .kyndynCard(tint: calendarEvents.first.map {
+            Color(hex: $0.calendarColorHex)
+        } ?? .orange)
     }
 
     private func calendarTime(for event: DeviceCalendarEvent) -> String {
@@ -1959,11 +1968,22 @@ private struct CalendarGlanceView: View {
                         ForEach(events) { event in
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(event.title).font(.headline)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color(hex: event.calendarColorHex))
+                                        .frame(width: 9, height: 9)
+                                    Text(event.calendarTitle)
+                                }
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color(hex: event.calendarColorHex))
                                 Label(eventTime(event), systemImage: "clock")
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .kyndynCard(tint: .orange)
+                            .kyndynCard(tint: Color(hex: event.calendarColorHex))
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(
+                                "\(event.title), \(event.calendarTitle), \(eventTime(event))")
                         }
                     }
                 }

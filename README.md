@@ -4,7 +4,7 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development — 0.22.0 (Build 22)
+## Current development — 0.22.1 (Build 23)
 
 Build 22 is the release-candidate hardening pass. It adds a protected,
 privacy-safe household safety check covering local relationships, backup
@@ -12,6 +12,10 @@ freshness, queued sync work, unresolved conflicts, and account-state recovery
 signals. It also adds a synchronized household schedule pause for vacations,
 illness, and other planned breaks without false missed quests or reminders. See
 [`docs/build-22-release-candidate.md`](docs/build-22-release-candidate.md).
+
+Build 23 is a focused calendar presentation update. Upcoming events now retain
+the source calendar's device-local name and color so families can distinguish
+events at a glance without sending calendar details to shared storage.
 
 The app provides a locally usable vertical slice:
 

@@ -254,6 +254,15 @@ remaining external App Store work.
 - Revalidate simulator compilation while keeping Production CloudKit and
   personal signing material outside the milestone.
 
+## Build 23 — Calendar Identity Polish
+
+- Preserve each EventKit calendar's device-local display name and color when
+  presenting upcoming events.
+- Use the source calendar color for event-card accents and borders on the Home
+  preview and expanded Coming up sheet.
+- Keep calendar titles, colors, identifiers, and event details out of CloudKit,
+  household backups, and shared records.
+
 See `docs/build-22-release-candidate.md` for the implemented boundary and the
 remaining physical-device release checklist.
 
