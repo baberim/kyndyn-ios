@@ -110,13 +110,20 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["app-icon-original"].exists)
         XCTAssertTrue(app.buttons["app-icon-pastel"].exists)
         app.navigationBars["App icon"].buttons["Settings"].tap()
-        app.buttons["settings-my-profile"].tap()
-        XCTAssertTrue(app.navigationBars["My profile"]
+        XCTAssertTrue(app.buttons["settings-app-color"].exists)
+        XCTAssertTrue(app.buttons["settings-companion"].exists)
+        XCTAssertTrue(app.buttons["settings-background"].exists)
+        app.buttons["settings-app-color"].tap()
+        XCTAssertTrue(app.navigationBars["App color"]
             .waitForExistence(timeout: 3))
         let teal = app.buttons["Teal profile color"]
         reveal(teal, in: app)
         teal.tap()
         XCTAssertTrue(app.descendants(matching: .any)["profile-custom-color"].exists)
+        app.buttons["Save"].tap()
+        app.buttons["settings-companion"].tap()
+        XCTAssertTrue(app.navigationBars["Companion"]
+            .waitForExistence(timeout: 3))
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Orbit")
         ).firstMatch.tap()

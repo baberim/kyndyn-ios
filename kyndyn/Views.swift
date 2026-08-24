@@ -863,11 +863,38 @@ struct SettingsView: View {
                 Section("Personalization") {
                     if let activePerson {
                         NavigationLink {
-                            MyProfileView(person: activePerson)
+                            ProfileCustomizationView(person: activePerson, section: .color)
                         } label: {
-                            profileSettingsRow(activePerson)
+                            settingsRow(
+                                title: "App color",
+                                subtitle: "Use your profile color throughout kyndyn",
+                                systemImage: "paintpalette.fill",
+                                tint: Color(hex: activePerson.colorHex))
                         }
-                        .accessibilityIdentifier("settings-my-profile")
+                        .accessibilityIdentifier("settings-app-color")
+                        NavigationLink {
+                            ProfileCustomizationView(person: activePerson, section: .companion)
+                        } label: {
+                            HStack(spacing: 12) {
+                                settingsIconTile(tint: Color(hex: activePerson.colorHex)) {
+                                    CompanionArt(id: activePerson.companionID).padding(3)
+                                }
+                                settingsRowText(
+                                    title: "Companion",
+                                    subtitle: "Choose who joins you on your day")
+                            }
+                        }
+                        .accessibilityIdentifier("settings-companion")
+                        NavigationLink {
+                            ProfileCustomizationView(person: activePerson, section: .background)
+                        } label: {
+                            settingsRow(
+                                title: "Background",
+                                subtitle: "Choose the scene behind your companion",
+                                systemImage: "photo.fill",
+                                tint: Color(hex: activePerson.colorHex))
+                        }
+                        .accessibilityIdentifier("settings-background")
                     } else {
                         Text("Choose a person from Profiles to customize a profile.")
                             .foregroundStyle(.secondary)
@@ -949,18 +976,6 @@ struct SettingsView: View {
         automaticSync.request(.manual)
         await automaticSync.waitUntilIdle()
         try? await minimumVisibleTime
-    }
-
-    private func profileSettingsRow(_ person: Person) -> some View {
-        HStack(spacing: 12) {
-            settingsIconTile(tint: Color(hex: person.colorHex)) {
-                CompanionArt(id: person.companionID)
-                    .padding(3)
-            }
-            settingsRowText(
-                title: "My profile",
-                subtitle: "Color, companion, and background")
-        }
     }
 
     private func settingsRow(
@@ -1568,9 +1583,9 @@ struct DashboardView: View {
     }
 
     private func unlockMessage(_ value: String?) -> String {
-        guard let value else { return "A new item is ready in My profile." }
+        guard let value else { return "A new item is ready in Settings." }
         let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { return "A new item is ready in My profile." }
+        guard parts.count == 2 else { return "A new item is ready in Settings." }
         if parts[0] == "badge",
            let badge = RecognitionEngine.badgeCatalog.first(where: {
                $0.id == parts[1]
@@ -1584,7 +1599,7 @@ struct DashboardView: View {
             }
             return badge.detail
         }
-        return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
+        return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in Settings."
     }
 
     private func unlockTitle(_ value: String?) -> String {
@@ -2208,8 +2223,23 @@ private struct BadgeTile: View {
     }
 }
 
-struct MyProfileView: View {
+private enum ProfileCustomizationSection {
+    case color
+    case companion
+    case background
+
+    var title: String {
+        switch self {
+        case .color: "App color"
+        case .companion: "Companion"
+        case .background: "Background"
+        }
+    }
+}
+
+private struct ProfileCustomizationView: View {
     let person: Person
+    let section: ProfileCustomizationSection
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -2227,8 +2257,9 @@ struct MyProfileView: View {
         Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
     }
 
-    init(person: Person) {
+    init(person: Person, section: ProfileCustomizationSection) {
         self.person = person
+        self.section = section
         _colorHex = State(initialValue: person.colorHex)
         _companionID = State(initialValue: person.companionID)
         _backgroundID = State(initialValue: person.backgroundID)
@@ -2243,74 +2274,81 @@ struct MyProfileView: View {
                         accent: Color(hex: colorHex))
                         .frame(height: horizontalSizeClass == .compact ? 150 : 210)
                         .accessibilityLabel("Preview for \(person.name)")
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("App color").font(.headline)
-                        ProfileColorSelector(selection: $colorHex)
-                    }
-                    .kyndynCard(tint: Color(hex: colorHex))
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Companion").font(.headline)
-                        LazyVGrid(columns: companionColumns, spacing: 12) {
-                            ForEach(CollectionCatalog.companions) { choice in
-                                let earned = person.earnedCompanionIDs.contains(choice.id)
-                                Button {
-                                    if earned { companionID = choice.id }
-                                } label: {
-                                    VStack {
-                                        CompanionArt(id: choice.id)
-                                            .frame(width: 62, height: 62)
-                                            .saturation(earned ? 1 : 0)
-                                            .opacity(earned ? 1 : 0.35)
-                                        Text(choice.name).font(.caption.bold())
-                                        if companionID == choice.id {
-                                            Label("Active", systemImage: "checkmark.circle.fill")
+                    switch section {
+                    case .color:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("App color").font(.headline)
+                            Text("This color personalizes navigation, highlights, and your profile without changing anyone else’s view.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            ProfileColorSelector(selection: $colorHex)
+                        }
+                        .kyndynCard(tint: Color(hex: colorHex))
+                    case .companion:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Companion").font(.headline)
+                            LazyVGrid(columns: companionColumns, spacing: 12) {
+                                ForEach(CollectionCatalog.companions) { choice in
+                                    let earned = person.earnedCompanionIDs.contains(choice.id)
+                                    Button {
+                                        if earned { companionID = choice.id }
+                                    } label: {
+                                        VStack {
+                                            CompanionArt(id: choice.id)
+                                                .frame(width: 62, height: 62)
+                                                .saturation(earned ? 1 : 0)
+                                                .opacity(earned ? 1 : 0.35)
+                                            Text(choice.name).font(.caption.bold())
+                                            if companionID == choice.id {
+                                                Label("Active", systemImage: "checkmark.circle.fill")
+                                                    .font(.caption2)
+                                            } else if !earned {
+                                                VStack(spacing: 2) {
+                                                    Label("Locked", systemImage: "lock.fill")
+                                                    Text(choice.unlockHint).lineLimit(2)
+                                                }
                                                 .font(.caption2)
-                                        } else if !earned {
-                                            VStack(spacing: 2) {
-                                                Label("Locked", systemImage: "lock.fill")
-                                                Text(choice.unlockHint).lineLimit(2)
                                             }
-                                            .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 116)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(!earned)
+                                    .accessibilityIdentifier("collection-companion-\(choice.id)")
+                                    .kyndynCard(tint: companionID == choice.id
+                                                ? Color(hex: colorHex) : .secondary)
+                                }
+                            }
+                        }
+                    case .background:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Background").font(.headline)
+                            LazyVGrid(columns: backgroundColumns, spacing: 16) {
+                                ForEach(CollectionCatalog.backgrounds) { background in
+                                    let earned = person.earnedBackgroundIDs.contains(background.id)
+                                    Button {
+                                        if earned { backgroundID = background.id }
+                                    } label: {
+                                        VStack(spacing: 6) {
+                                            ProfileScene(
+                                                backgroundID: background.id,
+                                                companionID: companionID,
+                                                accent: Color(hex: colorHex))
+                                                .frame(height: horizontalSizeClass == .compact ? 82 : 120)
+                                                .saturation(earned ? 1 : 0)
+                                                .opacity(earned ? 1 : 0.42)
+                                            Text(background.name).font(.caption.bold())
+                                            Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
+                                                .font(.caption2).foregroundStyle(.secondary)
+                                                .lineLimit(2)
                                         }
                                     }
-                                    .frame(maxWidth: .infinity, minHeight: 116)
+                                    .buttonStyle(.plain).disabled(!earned)
+                                    .accessibilityIdentifier("collection-background-\(background.id)")
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(!earned)
-                                .accessibilityIdentifier("collection-companion-\(choice.id)")
-                                .kyndynCard(tint: companionID == choice.id
-                                            ? Color(hex: colorHex) : .secondary)
                             }
                         }
+                        .kyndynCard(tint: Color(hex: colorHex))
                     }
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Background").font(.headline)
-                        LazyVGrid(columns: backgroundColumns, spacing: 16) {
-                            ForEach(CollectionCatalog.backgrounds) { background in
-                                let earned = person.earnedBackgroundIDs.contains(background.id)
-                                Button {
-                                    if earned { backgroundID = background.id }
-                                } label: {
-                                    VStack(spacing: 6) {
-                                        ProfileScene(
-                                            backgroundID: background.id,
-                                            companionID: companionID,
-                                            accent: Color(hex: colorHex))
-                                            .frame(height: horizontalSizeClass == .compact ? 82 : 120)
-                                            .saturation(earned ? 1 : 0)
-                                            .opacity(earned ? 1 : 0.42)
-                                        Text(background.name).font(.caption.bold())
-                                        Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
-                                            .font(.caption2).foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                    }
-                                }
-                                .buttonStyle(.plain).disabled(!earned)
-                                .accessibilityIdentifier("collection-background-\(background.id)")
-                            }
-                        }
-                    }
-                    .kyndynCard(tint: Color(hex: colorHex))
                     Text("Parents still manage names, roles, and family permissions.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -2320,7 +2358,7 @@ struct MyProfileView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
-            .navigationTitle("My profile")
+            .navigationTitle(section.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -2406,6 +2444,17 @@ struct AppIconPickerView: View {
     @State private var isChanging = false
     @State private var errorMessage: String?
 
+    private var supportsIconChanges: Bool {
+        UIApplication.shared.supportsAlternateIcons
+    }
+
+    private var unavailableMessage: String {
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            return "This Mac is running the iPad version of kyndyn, and macOS does not currently allow that app to change its icon. Your icon choices remain available on iPhone and iPad."
+        }
+        return "This device does not currently allow kyndyn to change its app icon. You can still use every other personalization option."
+    }
+
     private let columns = [
         GridItem(.adaptive(minimum: 96, maximum: 112), spacing: 14)
     ]
@@ -2415,7 +2464,7 @@ struct AppIconPickerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "iphone")
+                        Image(systemName: "apps.iphone")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(KyndynTheme.purple)
                             .frame(width: 22)
@@ -2427,12 +2476,20 @@ struct AppIconPickerView: View {
                     }
                     .kyndynCard(tint: KyndynTheme.purple)
 
+                    if !supportsIconChanges {
+                        KyndynCallout(
+                            kind: .information,
+                            message: unavailableMessage,
+                            title: "Icon changes unavailable here")
+                            .accessibilityIdentifier("app-icon-unavailable")
+                    }
+
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(AppIconChoice.choices) { choice in
                             AppIconChoiceButton(
                                 choice: choice,
                                 isSelected: selectedName == choice.alternateName,
-                                isDisabled: isChanging
+                                isDisabled: isChanging || !supportsIconChanges
                             ) {
                                 change(to: choice.alternateName)
                             }
@@ -2463,8 +2520,11 @@ struct AppIconPickerView: View {
     }
 
     private func change(to alternateName: String?) {
-        guard UIApplication.shared.supportsAlternateIcons,
-              selectedName != alternateName else { return }
+        guard supportsIconChanges else {
+            errorMessage = unavailableMessage
+            return
+        }
+        guard selectedName != alternateName else { return }
         isChanging = true
         UIApplication.shared.setAlternateIconName(alternateName) { error in
             Task { @MainActor in

@@ -263,8 +263,58 @@ remaining external App Store work.
 - Keep calendar titles, colors, identifiers, and event details out of CloudKit,
   household backups, and shared records.
 
-See `docs/build-22-release-candidate.md` for the implemented boundary and the
+See `docs/build-22-release-candidate.md` for the Build 22 implementation and
 remaining physical-device release checklist.
+
+## Build 24 — Focused Personalization Settings
+
+- Replace the combined My profile editor with separate App color, Companion,
+  Background, and App icon destinations in everyday Settings.
+- Preserve synchronized profile appearance and earned collection rules while
+  keeping app-icon choice local to each installation.
+- Restore explicit alternate-icon declarations for iPad.
+- Explain Apple platform restrictions when an iPad app running on Mac reports
+  that alternate icons are unavailable instead of silently ignoring taps.
+
+See `docs/build-24-personalization-settings.md` for the implemented boundary.
+
+## Next builds — recommended order
+
+### Build 25 — Multi-device release confidence
+
+- Complete the physical owner/participant checklist for automatic sync,
+  offline recovery, invitations, revocation, relaunch, and empty-install
+  recovery.
+- Add a parent-readable recent sync-health summary without exposing CloudKit
+  identifiers or raw errors.
+- Verify schedule-pause fields in Development and promote only the reviewed
+  schema additions before relying on them in Production.
+
+### Build 26 — Parent planning and reward expansion
+
+- Improve bulk quest planning and assignment without weakening the validated
+  schedule editor.
+- Support multiple prepared or rotating family rewards while keeping one clear
+  active goal.
+- Preserve reward and XP history when goals change.
+
+### Build 27 — Hosted family notifications
+
+- Add the minimal authenticated service needed for dependable APNs delivery of
+  family broadcasts and other explicitly approved alerts.
+- Keep CloudKit synchronization hints, local quest reminders, and visible
+  family announcements as separate notification categories.
+- Add token rotation, revocation, privacy controls, rate limits, and operating
+  cost monitoring before external release.
+
+### Build 28 — Premium boundaries and StoreKit foundation
+
+- Finalize the free-versus-premium feature matrix without removing the core
+  family loop, security, backups, recovery, or earned items.
+- Define household entitlement ownership, Family Sharing, complimentary access,
+  expiration, refunds, restoration, and grandfathering.
+- Add StoreKit only after those behaviors are covered by deterministic and
+  sandbox tests.
 
 ## Later
 
