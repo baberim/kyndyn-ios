@@ -312,6 +312,11 @@ they require the owner's Apple devices and CloudKit Console access.
 - Add token rotation, revocation, privacy controls, rate limits, and operating
   cost monitoring before external release.
 
+Bootstrap started: the Git-deployed Cloudflare Worker boundary is documented in
+`docs/build-27-hosted-notifications.md`. It currently fails closed and does not
+accept device tokens or send notifications until authentication, D1, and APNs
+secret configuration are completed.
+
 ### Build 28 — Premium boundaries and StoreKit foundation
 
 - Finalize the free-versus-premium feature matrix without removing the core
