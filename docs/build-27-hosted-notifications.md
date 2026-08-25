@@ -15,20 +15,25 @@ device-local quest reminders.
 
 ## Bootstrap state
 
-The initial Worker exposes only a content-free health check. Its D1 binding and
-first reviewed schema migration are versioned with the Worker, but migrations
+The Worker exposes a content-free health check and a capability-authenticated
+enrollment boundary. Its D1 binding and reviewed schema migrations are
+versioned with the Worker, but migrations
 are applied explicitly rather than during ordinary code deployment.
-Notification APIs fail closed until the following are implemented and reviewed:
+Device enrollment now uses separate random household capabilities, encrypted
+APNs-token storage, bounded rate limits, request timestamps, and single-use
+nonces. Broadcast submission and APNs delivery continue to fail closed until
+the following are implemented and reviewed:
 
-1. authenticated, household-scoped device enrollment;
-2. token replacement, revocation, and expiration;
+1. APNs delivery using the correct Sandbox or Production key;
+2. invalid-token handling and bounded delivery retry;
 3. D1 storage with no names, quest titles, PIN material, CloudKit tokens,
    calendar details, precise location, plaintext device tokens, or message
    content in diagnostic logs;
 4. separate APNs Sandbox and Production routing;
 5. parent-controlled categories, privacy copy, and opt-out behavior;
-6. rate limits, replay protection, bounded retries, and delivery receipts;
-7. operating-cost and failure monitoring.
+6. bounded delivery retries and content-free delivery receipts;
+7. operating-cost and failure monitoring;
+8. capability rotation and household-wide revocation controls.
 
 ## Apple configuration
 
