@@ -4,15 +4,17 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development — 0.23.0 (Build 24)
+## Current development — 0.24.0 (Build 25)
 
-Build 24 breaks everyday personalization into focused App color, Companion,
+The combined Builds 24–25 release breaks everyday personalization into focused App color, Companion,
 Background, and App icon screens. It also restores the iPad-specific alternate
 icon declarations, while explaining when macOS does not permit an iPad app to
 change its icon instead of silently ignoring the selection. Compact and
 expanded weather views also identify the locally resolved city or town without
 persisting precise coordinates, provide hourly and 10-day forecasts, and use
-condition-aware accents instead of a fixed blue treatment. See
+condition-aware accents instead of a fixed blue treatment. Family sync now
+includes a privacy-safe recent health summary for completed, queued, waiting,
+and actionable states. See
 [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md).
 
 Build 22 is the release-candidate hardening pass. It adds a protected,

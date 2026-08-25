@@ -1,6 +1,6 @@
-# Build 24 — Focused Personalization Settings
+# Builds 24–25 — Personalization and Multi-device Confidence
 
-Build 24 is version `0.23.0 (24)`. It separates everyday visual choices so
+The combined release is version `0.24.0 (25)`. It separates everyday visual choices so
 people no longer need to navigate one oversized profile editor.
 
 ## Settings organization
@@ -46,3 +46,22 @@ for snow, and indigo for storms or nighttime—instead of always appearing blue.
 
 This milestone updates source, tests, documentation, and Git only. It does not
 archive, upload, deploy a CloudKit schema, or modify App Store Connect.
+
+## Multi-device confidence
+
+**Parent → Family sync** now includes a recent sync-health summary. It clearly
+distinguishes local-only storage, safely queued changes, ordinary reconnecting,
+a recent successful sync, and account/access problems requiring attention. The
+summary is derived from local sync metadata and deliberately excludes family
+names, quest titles, CloudKit identifiers, and Apple's raw error text.
+
+Deterministic tests cover healthy, pending, and access-removed summaries. The
+existing multi-device engine remains unchanged: mutations stay offline-first,
+idempotent, and routed to the correct owner-private or participant-shared zone.
+
+Physical validation still requires the owner's iPhone and participant iPad.
+Before release, verify automatic foreground sync, offline catch-up, invitation
+acceptance, revocation, relaunch with pending changes, and empty-install
+recovery. The synchronized schedule-pause fields must also be reviewed in the
+Development CloudKit schema and promoted through Apple's console before a
+Production build relies on them. No Production schema is changed by this code.

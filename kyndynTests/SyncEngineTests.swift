@@ -147,6 +147,36 @@ private actor RecordingNotificationScheduler: NotificationScheduling {
 
 @MainActor
 final class SyncMetadataAndQueueTests: XCTestCase {
+    func testSyncHealthSummaryIsPrivacySafeAndDeterministic() {
+        let state = HouseholdCloudState(householdID: UUID())
+        state.mode = .owner
+        state.lastSuccessfulSyncAt = Date(timeIntervalSince1970: 1_000)
+
+        let healthy = SyncHealthSummary.make(
+            state: state, pendingCount: 0,
+            now: Date(timeIntervalSince1970: 1_030))
+        XCTAssertEqual(healthy.title, "No problems detected")
+        XCTAssertEqual(healthy.detail, "A sync finished just now.")
+        XCTAssertEqual(healthy.tone, .healthy)
+
+        let waiting = SyncHealthSummary.make(state: state, pendingCount: 2)
+        XCTAssertEqual(waiting.title, "Waiting to finish")
+        XCTAssertTrue(waiting.detail.contains("2 local changes"))
+        XCTAssertFalse(waiting.detail.contains(state.householdID.uuidString))
+    }
+
+    func testSyncHealthSummaryExplainsActionableFailureWithoutRawError() {
+        let state = HouseholdCloudState(householdID: UUID())
+        state.mode = .needsAttention
+        state.lastErrorCategoryRaw = SyncErrorCategory.accessRevoked.rawValue
+
+        let summary = SyncHealthSummary.make(state: state, pendingCount: 0)
+        XCTAssertEqual(summary.title, "Family sync needs attention")
+        XCTAssertEqual(summary.detail,
+                       "Access to the shared household was removed.")
+        XCTAssertEqual(summary.tone, .attention)
+    }
+
     private func schema() -> Schema {
         Schema([
             Household.self, Person.self, Quest.self, QuestCompletion.self,

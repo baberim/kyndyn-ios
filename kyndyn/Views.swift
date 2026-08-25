@@ -5176,6 +5176,18 @@ struct CloudSyncSettingsView: View {
                         .accessibilityIdentifier("cloud-configuration-readiness")
                 }
             }
+            Section("Recent sync health") {
+                let health = SyncHealthSummary.make(
+                    state: state, pendingCount: pending.count)
+                Label(health.title, systemImage: healthIcon(health.tone))
+                    .foregroundStyle(healthColor(health.tone))
+                Text(health.detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text("This summary never includes names, quest titles, cloud record IDs, or Apple’s raw error text.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             Section("What family sync does") {
                 Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
                 KyndynCallout(kind: .localOnly, message: "Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences never leave this device.")
@@ -5283,6 +5295,24 @@ struct CloudSyncSettingsView: View {
     private var configurationIsReady: Bool {
         if case .ready = configuration.readiness { return true }
         return false
+    }
+
+    private func healthIcon(_ tone: SyncHealthSummary.Tone) -> String {
+        switch tone {
+        case .healthy: "checkmark.circle.fill"
+        case .waiting: "clock.arrow.circlepath"
+        case .attention: "exclamationmark.triangle.fill"
+        case .localOnly: "iphone"
+        }
+    }
+
+    private func healthColor(_ tone: SyncHealthSummary.Tone) -> Color {
+        switch tone {
+        case .healthy: .green
+        case .waiting: .orange
+        case .attention: .red
+        case .localOnly: .secondary
+        }
     }
 
     private func ensureState() {

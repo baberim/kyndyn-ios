@@ -280,7 +280,7 @@ See `docs/build-24-personalization-settings.md` for the implemented boundary.
 
 ## Next builds — recommended order
 
-### Build 25 — Multi-device release confidence
+### Build 25 — Multi-device release confidence — implemented with Build 24
 
 - Complete the physical owner/participant checklist for automatic sync,
   offline recovery, invitations, revocation, relaunch, and empty-install
@@ -289,6 +289,11 @@ See `docs/build-24-personalization-settings.md` for the implemented boundary.
   identifiers or raw errors.
 - Verify schedule-pause fields in Development and promote only the reviewed
   schema additions before relying on them in Production.
+
+Implemented in `0.24.0 (25)`: the parent-readable privacy-safe sync-health
+summary and deterministic state coverage. The physical-device checklist and
+Development-to-Production schema review remain release validation steps because
+they require the owner's Apple devices and CloudKit Console access.
 
 ### Build 26 — Parent planning and reward expansion
 
