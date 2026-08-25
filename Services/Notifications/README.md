@@ -1,10 +1,10 @@
 # kyndyn notification service
 
 This directory contains the Cloudflare Worker planned for hosted kyndyn family
-notifications. The first deployment is deliberately limited to a content-free
-`GET /health` response. All `/v1/` operations return `503` until authenticated
-device registration, privacy controls, and APNs delivery are
-implemented and reviewed.
+notifications. It provides a content-free `GET /health` response plus
+capability-authenticated household provisioning and encrypted device
+registration/revocation. Broadcast delivery remains disabled until APNs key
+handling and delivery behavior are implemented and reviewed.
 
 ## Git-connected bootstrap
 
@@ -28,6 +28,7 @@ Cloudflare secrets after the authentication and D1 layers are ready:
 
 - `APNS_SANDBOX_PRIVATE_KEY`
 - `APNS_PRODUCTION_PRIVATE_KEY`
+- `DEVICE_TOKEN_ENCRYPTION_KEY`
 
 Local development files `.dev.vars` and `.env*` are ignored by Git. The checked
 in `.env.example` contains identifiers only and no private material.
@@ -50,9 +51,12 @@ location, or plaintext APNs device tokens.
 
 ## Current safety state
 
-- no device tokens are accepted or stored;
+- device tokens are accepted only with a household enrollment capability and
+  are encrypted before D1 storage;
 - no notification payloads can be submitted;
 - no APNs connection is attempted;
 - no household or person information is logged;
+- requests use bounded rate limits, recent timestamps, and replay-resistant
+  nonces;
 - the D1 binding is configured, but migrations remain an explicit reviewed
   deployment step.
