@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "check": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply kyndyn-notifications-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply kyndyn-notifications-db --remote",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run"

@@ -1,4 +1,5 @@
 export interface Environment {
+  DB: D1Database;
   SERVICE_STAGE: string;
 }
 

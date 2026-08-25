@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import worker, { type Environment } from "../src/index";
 
-const env: Environment = { SERVICE_STAGE: "test" };
+const env = { SERVICE_STAGE: "test" } as Environment;
 
 describe("notification service bootstrap", () => {
   it("returns a content-free health response", async () => {
