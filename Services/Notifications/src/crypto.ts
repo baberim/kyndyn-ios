@@ -65,6 +65,23 @@ export const encrypt = async (
   };
 };
 
+export const decrypt = async (
+  keyValue: string,
+  encrypted: EncryptedValue
+): Promise<string> => {
+  const keyBytes = decodeBase64URL(keyValue);
+  if (keyBytes.byteLength !== 32) throw new Error("invalid_server_key");
+  const nonce = decodeBase64URL(encrypted.nonce);
+  if (nonce.byteLength !== 12) throw new Error("invalid_nonce");
+  const key = await crypto.subtle.importKey(
+    "raw", keyBytes, "AES-GCM", false, ["decrypt"]
+  );
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: nonce }, key, decodeBase64URL(encrypted.ciphertext)
+  );
+  return new TextDecoder().decode(plaintext);
+};
+
 export const requireCapability = (value: unknown): string => {
   if (typeof value !== "string") throw new Error("invalid_capability");
   const decoded = decodeBase64URL(value);

@@ -21,19 +21,22 @@ versioned with the Worker, but migrations
 are applied explicitly rather than during ordinary code deployment.
 Device enrollment now uses separate random household capabilities, encrypted
 APNs-token storage, bounded rate limits, request timestamps, and single-use
-nonces. Broadcast submission and APNs delivery continue to fail closed until
-the following are implemented and reviewed:
+nonces. Broadcast submission and APNs delivery are implemented behind encrypted
+Worker secrets and continue to fail closed until both Apple private keys are
+installed. The remaining app-facing work is:
 
-1. APNs delivery using the correct Sandbox or Production key;
-2. invalid-token handling and bounded delivery retry;
+1. iOS device enrollment and revocation wiring;
+2. parent-facing broadcast permission and composition UI;
 3. D1 storage with no names, quest titles, PIN material, CloudKit tokens,
    calendar details, precise location, plaintext device tokens, or message
    content in diagnostic logs;
-4. separate APNs Sandbox and Production routing;
-5. parent-controlled categories, privacy copy, and opt-out behavior;
-6. bounded delivery retries and content-free delivery receipts;
-7. operating-cost and failure monitoring;
-8. capability rotation and household-wide revocation controls.
+4. parent-controlled categories, privacy copy, and opt-out behavior;
+5. operating-cost and failure monitoring;
+6. capability rotation and household-wide revocation controls.
+
+The Worker already routes Sandbox and Production tokens separately, rejects
+oversized broadcast content, invalidates rejected device tokens, classifies
+transient failures for bounded retry, and stores only content-free receipts.
 
 ## Apple configuration
 
@@ -54,5 +57,5 @@ pull-request builds may use Cloudflare preview versions. A Git deployment does
 not deploy or modify the app's CloudKit production schema.
 
 The D1 database ID is deployment configuration rather than a credential. Apple
-private keys and the future device-token encryption key remain encrypted Worker
+private keys and the device-token encryption key remain encrypted Worker
 secrets and never enter `wrangler.jsonc`, D1, Git, or build logs.

@@ -3,8 +3,9 @@
 This directory contains the Cloudflare Worker planned for hosted kyndyn family
 notifications. It provides a content-free `GET /health` response plus
 capability-authenticated household provisioning and encrypted device
-registration/revocation. Broadcast delivery remains disabled until APNs key
-handling and delivery behavior are implemented and reviewed.
+registration/revocation. Owner-authorized family broadcasts route to the
+matching APNs Sandbox or Production environment when both encrypted Apple
+private-key secrets are configured.
 
 ## Git-connected bootstrap
 
@@ -53,10 +54,25 @@ location, or plaintext APNs device tokens.
 
 - device tokens are accepted only with a household enrollment capability and
   are encrypted before D1 storage;
-- no notification payloads can be submitted;
-- no APNs connection is attempted;
+- family broadcasts require the household admin capability and a fresh,
+  single-use request;
+- visible broadcast text is sent directly to APNs and is never persisted in
+  D1 or application logs;
+- delivery receipts contain identifiers and result categories only;
+- invalid APNs tokens disable themselves and transient failures remain safely
+  retryable under the same notification UUID;
+- a household is limited to 16 active notification devices and 10 broadcast
+  requests per minute;
 - no household or person information is logged;
 - requests use bounded rate limits, recent timestamps, and replay-resistant
   nonces;
 - the D1 binding is configured, but migrations remain an explicit reviewed
   deployment step.
+
+## Broadcast request boundary
+
+`POST /v1/broadcasts` accepts a household UUID, stable notification UUID,
+optional sender-device UUID, short title, short body, recent ISO-8601 timestamp,
+and single-use nonce. The household admin capability is supplied as a bearer
+token. Retrying the same notification UUID does not redeliver to devices that
+already accepted or permanently rejected it.
