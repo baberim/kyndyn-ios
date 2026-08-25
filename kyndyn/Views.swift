@@ -1440,7 +1440,8 @@ struct DashboardView: View {
     private func weatherSummary(_ setting: LocalDeviceSettings) -> some View {
         let tint = weatherTint(for: setting.cachedWeatherSymbolName)
         return VStack(alignment: .leading, spacing: 6) {
-            Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
+            Label(setting.cachedWeatherCondition ?? "Local weather",
+                  systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
                 .font(.headline)
                 .foregroundStyle(tint)
             if let locationName = setting.cachedWeatherLocationName {
@@ -1456,8 +1457,6 @@ struct DashboardView: View {
                     Text("H \(Int(high.rounded()))°  L \(Int(low.rounded()))°")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Text(setting.cachedWeatherCondition ?? "Local weather")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 if let fetchedAt = setting.cachedWeatherAt {
                     Text(WeatherCachePolicy.isFresh(fetchedAt)
                          ? "Updated recently" : "Last updated \(fetchedAt.formatted(date: .omitted, time: .shortened))")
