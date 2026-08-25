@@ -10,5 +10,13 @@
   },
   "vars": {
     "SERVICE_STAGE": "bootstrap"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kyndyn-notifications-db",
+      "database_id": "47479a8c-276b-4de3-b95e-cbfe13c1f777",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
