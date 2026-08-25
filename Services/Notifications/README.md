@@ -76,3 +76,11 @@ optional sender-device UUID, short title, short body, recent ISO-8601 timestamp,
 and single-use nonce. The household admin capability is supplied as a bearer
 token. Retrying the same notification UUID does not redeliver to devices that
 already accepted or permanently rejected it.
+
+## Participant pairing
+
+The owner can create a 12-character, single-use pairing code that expires after
+10 minutes. D1 stores only its keyed hash. A participant uses the code once to
+register that device and receives a device-specific revocable capability for
+future token refresh or self-removal. Household admin and enrollment
+capabilities are never shared with participant devices.

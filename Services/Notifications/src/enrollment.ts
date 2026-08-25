@@ -12,7 +12,7 @@ type HouseholdRow = {
   state: string;
 };
 
-const authorization = (request: Request): string => {
+export const authorization = (request: Request): string => {
   const value = request.headers.get("authorization");
   if (!value?.startsWith("Bearer ")) {
     throw new RequestError(401, "unauthorized", "Authorization is required.");
@@ -20,6 +20,28 @@ const authorization = (request: Request): string => {
   try {
     return requireCapability(value.slice(7));
   } catch {
+    throw new RequestError(401, "unauthorized", "Authorization is invalid.");
+  }
+};
+
+const authorizeDeviceOrHousehold = async (
+  env: Environment,
+  request: Request,
+  householdID: string,
+  deviceID: string,
+  householdKind: "admin" | "enrollment"
+): Promise<void> => {
+  const capability = authorization(request);
+  const candidate = await digest(capability);
+  const row = await household(env, householdID);
+  const householdHash = householdKind === "admin"
+    ? row.admin_secret_hash : row.enrollment_secret_hash;
+  if (timingSafeEqual(candidate, householdHash)) return;
+  const device = await env.DB.prepare(
+    "SELECT device_secret_hash FROM notification_devices WHERE id = ? AND household_id = ?"
+  ).bind(deviceID, householdID).first<{ device_secret_hash: string | null }>();
+  if (!device?.device_secret_hash
+      || !timingSafeEqual(candidate, device.device_secret_hash)) {
     throw new RequestError(401, "unauthorized", "Authorization is invalid.");
   }
 };
@@ -153,10 +175,28 @@ export const registerDevice = async (
   const appBuild = requireBuild(body.appBuild);
   const nonce = requireNonce(body.nonce);
   requireRecentTimestamp(body.timestamp, now.getTime());
-  await authorize(env, request, householdID, "enrollment");
+  await authorizeDeviceOrHousehold(
+    env, request, householdID, deviceID, "enrollment"
+  );
   await rateLimit(env, `register:${householdID}`, 30, now);
   await useNonce(env, householdID, nonce, now);
 
+  await upsertDevice(
+    env, householdID, deviceID, environment, deviceToken, appBuild, null, now
+  );
+  return Response.json({ deviceID, registered: true });
+};
+
+export const upsertDevice = async (
+  env: Environment,
+  householdID: string,
+  deviceID: string,
+  environment: "sandbox" | "production",
+  deviceToken: string,
+  appBuild: number | null,
+  deviceSecretHash: string | null,
+  now: Date
+): Promise<void> => {
   const tokenHash = await hmac(
     env.DEVICE_TOKEN_ENCRYPTION_KEY,
     `apns:${environment}:${deviceToken}`
@@ -193,21 +233,22 @@ export const registerDevice = async (
   const result = await env.DB.prepare(
     "INSERT INTO notification_devices "
       + "(id, household_id, environment, token_hash, token_ciphertext, token_nonce, "
-      + "broadcasts_enabled, status, app_build, last_seen_at, created_at, updated_at) "
-      + "VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?) "
+      + "broadcasts_enabled, status, app_build, last_seen_at, created_at, updated_at, device_secret_hash) "
+      + "VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?, ?) "
       + "ON CONFLICT(id) DO UPDATE SET environment = excluded.environment, "
       + "token_hash = excluded.token_hash, token_ciphertext = excluded.token_ciphertext, "
       + "token_nonce = excluded.token_nonce, broadcasts_enabled = 1, status = 'active', "
       + "app_build = excluded.app_build, last_seen_at = excluded.last_seen_at, "
+      + "device_secret_hash = COALESCE(excluded.device_secret_hash, device_secret_hash), "
       + "updated_at = excluded.updated_at WHERE household_id = excluded.household_id"
   ).bind(
     deviceID, householdID, environment, tokenHash, encrypted.ciphertext,
-    encrypted.nonce, appBuild, now.toISOString(), now.toISOString(), now.toISOString()
+    encrypted.nonce, appBuild, now.toISOString(), now.toISOString(), now.toISOString(),
+    deviceSecretHash
   ).run();
   if (!result.success || result.meta.changes !== 1) {
     throw new RequestError(409, "device_conflict", "The device could not be registered safely.");
   }
-  return Response.json({ deviceID, registered: true });
 };
 
 export const revokeDevice = async (
@@ -220,7 +261,7 @@ export const revokeDevice = async (
   const deviceID = requireUUID(body.deviceID, "deviceID");
   const nonce = requireNonce(body.nonce);
   requireRecentTimestamp(body.timestamp, now.getTime());
-  await authorize(env, request, householdID, "enrollment");
+  await authorizeDeviceOrHousehold(env, request, householdID, deviceID, "admin");
   await rateLimit(env, `revoke:${householdID}`, 30, now);
   await useNonce(env, householdID, nonce, now);
   await env.DB.prepare(
