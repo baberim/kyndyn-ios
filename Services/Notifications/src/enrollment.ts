@@ -173,6 +173,7 @@ export const registerDevice = async (
   const environment = requireEnvironment(body.environment);
   const deviceToken = requireDeviceToken(body.deviceToken);
   const appBuild = requireBuild(body.appBuild);
+  const showBroadcastDetails = body.showBroadcastDetails === true;
   const nonce = requireNonce(body.nonce);
   requireRecentTimestamp(body.timestamp, now.getTime());
   await authorizeDeviceOrHousehold(
@@ -182,7 +183,8 @@ export const registerDevice = async (
   await useNonce(env, householdID, nonce, now);
 
   await upsertDevice(
-    env, householdID, deviceID, environment, deviceToken, appBuild, null, now
+    env, householdID, deviceID, environment, deviceToken, appBuild, null,
+    showBroadcastDetails, now
   );
   return Response.json({ deviceID, registered: true });
 };
@@ -195,6 +197,7 @@ export const upsertDevice = async (
   deviceToken: string,
   appBuild: number | null,
   deviceSecretHash: string | null,
+  showBroadcastDetails: boolean,
   now: Date
 ): Promise<void> => {
   const tokenHash = await hmac(
@@ -233,18 +236,20 @@ export const upsertDevice = async (
   const result = await env.DB.prepare(
     "INSERT INTO notification_devices "
       + "(id, household_id, environment, token_hash, token_ciphertext, token_nonce, "
-      + "broadcasts_enabled, status, app_build, last_seen_at, created_at, updated_at, device_secret_hash) "
-      + "VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?, ?) "
+      + "broadcasts_enabled, status, app_build, last_seen_at, created_at, updated_at, "
+      + "device_secret_hash, show_broadcast_details) "
+      + "VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?, ?, ?) "
       + "ON CONFLICT(id) DO UPDATE SET environment = excluded.environment, "
       + "token_hash = excluded.token_hash, token_ciphertext = excluded.token_ciphertext, "
       + "token_nonce = excluded.token_nonce, broadcasts_enabled = 1, status = 'active', "
       + "app_build = excluded.app_build, last_seen_at = excluded.last_seen_at, "
       + "device_secret_hash = COALESCE(excluded.device_secret_hash, device_secret_hash), "
+      + "show_broadcast_details = excluded.show_broadcast_details, "
       + "updated_at = excluded.updated_at WHERE household_id = excluded.household_id"
   ).bind(
     deviceID, householdID, environment, tokenHash, encrypted.ciphertext,
     encrypted.nonce, appBuild, now.toISOString(), now.toISOString(), now.toISOString(),
-    deviceSecretHash
+    deviceSecretHash, showBroadcastDetails ? 1 : 0
   ).run();
   if (!result.success || result.meta.changes !== 1) {
     throw new RequestError(409, "device_conflict", "The device could not be registered safely.");

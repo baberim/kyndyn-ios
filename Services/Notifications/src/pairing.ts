@@ -62,6 +62,7 @@ export const pairDevice = async (
   const environment = requireEnvironment(body.environment);
   const deviceToken = requireDeviceToken(body.deviceToken);
   const appBuild = requireBuild(body.appBuild);
+  const showBroadcastDetails = body.showBroadcastDetails === true;
   requireRecentTimestamp(body.timestamp, now.getTime());
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   await rateLimit(env, `pair-use:${ip}`, 10, now);
@@ -85,7 +86,7 @@ export const pairDevice = async (
   );
   await upsertDevice(
     env, pairing.household_id, deviceID, environment, deviceToken, appBuild,
-    await digest(deviceCapability), now
+    await digest(deviceCapability), showBroadcastDetails, now
   );
   return Response.json({
     householdID: pairing.household_id,

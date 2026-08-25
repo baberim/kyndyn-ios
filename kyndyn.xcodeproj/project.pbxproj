@@ -13,6 +13,7 @@
 		A10000000000000000000004 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* Services.swift */; };
 		A10000000000000000000005 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* AppModel.swift */; };
 		A10000000000000000000006 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* Views.swift */; };
+		A10000000000000000000040 /* HostedNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000040 /* HostedNotifications.swift */; };
 		A10000000000000000000007 /* spark.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* spark.png */; };
 		A10000000000000000000008 /* orbit.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* orbit.png */; };
 		A10000000000000000000009 /* pixel.png in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* pixel.png */; };
@@ -79,6 +80,7 @@
 		B10000000000000000000004 /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		B10000000000000000000040 /* HostedNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostedNotifications.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* spark.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = spark.png; sourceTree = "<group>"; };
 		B10000000000000000000008 /* orbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = orbit.png; sourceTree = "<group>"; };
 		B10000000000000000000009 /* pixel.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = pixel.png; sourceTree = "<group>"; };
@@ -176,6 +178,7 @@
 				B10000000000000000000004 /* Services.swift */,
 				B10000000000000000000005 /* AppModel.swift */,
 				B10000000000000000000006 /* Views.swift */,
+				B10000000000000000000040 /* HostedNotifications.swift */,
 				B10000000000000000000018 /* DesignSystem.swift */,
 				B10000000000000000000013 /* SyncEngine.swift */,
 				B10000000000000000000017 /* HouseholdTransfer.swift */,
@@ -433,6 +436,7 @@
 				A10000000000000000000004 /* Services.swift in Sources */,
 				A10000000000000000000005 /* AppModel.swift in Sources */,
 				A10000000000000000000006 /* Views.swift in Sources */,
+				A10000000000000000000040 /* HostedNotifications.swift in Sources */,
 				A10000000000000000000014 /* DesignSystem.swift in Sources */,
 				A10000000000000000000010 /* SyncEngine.swift in Sources */,
 			);
@@ -512,13 +516,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.18.1;
+				MARKETING_VERSION = 0.27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -537,13 +541,13 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.18.1;
+				MARKETING_VERSION = 0.27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

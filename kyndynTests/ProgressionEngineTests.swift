@@ -2,6 +2,49 @@ import XCTest
 import SwiftData
 @testable import kyndyn
 
+private final class MemoryHostedCredentialStore:
+    HostedNotificationCredentialStoring, @unchecked Sendable {
+    var value: HostedNotificationIdentity?
+    init(_ value: HostedNotificationIdentity? = nil) { self.value = value }
+    func load() -> HostedNotificationIdentity? { value }
+    func save(_ identity: HostedNotificationIdentity) throws { value = identity }
+    func remove() throws { value = nil }
+}
+
+final class HostedNotificationFoundationTests: XCTestCase {
+    func testHostedIdentityRoundTripsWithoutDeviceTokenPayload() throws {
+        let identity = HostedNotificationIdentity(
+            role: .participant, householdID: UUID(), deviceID: UUID(),
+            adminCapability: nil, enrollmentCapability: nil,
+            deviceCapability: "device-capability")
+        let data = try JSONEncoder().encode(identity)
+        XCTAssertEqual(
+            try JSONDecoder().decode(HostedNotificationIdentity.self, from: data),
+            identity)
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("deviceToken"))
+    }
+
+    func testCapabilitiesAreUniqueAndURLSafe() {
+        let first = HostedNotificationServiceClient.randomCapability()
+        let second = HostedNotificationServiceClient.randomCapability()
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(first.count, 43)
+        XCTAssertNotNil(first.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression))
+    }
+
+    @MainActor func testCoordinatorRestoresOwnerRoleFromSecureStore() {
+        let identity = HostedNotificationIdentity(
+            role: .owner, householdID: UUID(), deviceID: UUID(),
+            adminCapability: "admin", enrollmentCapability: "enroll",
+            deviceCapability: nil)
+        let coordinator = HostedNotificationCoordinator(
+            store: MemoryHostedCredentialStore(identity))
+        XCTAssertTrue(coordinator.isConnected)
+        XCTAssertTrue(coordinator.isOwner)
+        XCTAssertEqual(coordinator.status, "Waiting for Apple")
+    }
+}
+
 final class DeviceContextPolicyTests: XCTestCase {
     func testWeatherCacheExpiresAfterThirtyMinutes() {
         let now = Date(timeIntervalSince1970: 10_000)

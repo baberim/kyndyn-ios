@@ -9,7 +9,19 @@ type DeviceRow = {
   environment: "sandbox" | "production";
   token_ciphertext: string;
   token_nonce: string;
+  show_broadcast_details: number;
 };
+
+export const broadcastPayload = (
+  showDetails: boolean,
+  notificationID: string,
+  title: string,
+  body: string
+): { notificationID: string; title: string; body: string } => ({
+  notificationID,
+  title: showDetails ? title : "Family announcement",
+  body: showDetails ? body : "Open kyndyn to read it."
+});
 
 const text = (value: unknown, field: string, maximum: number): string => {
   if (typeof value !== "string") {
@@ -55,8 +67,8 @@ export const sendBroadcast = async (
   const notificationID = requireUUID(body.notificationID, "notificationID");
   const senderDeviceID = body.senderDeviceID === undefined
     ? null : requireUUID(body.senderDeviceID, "senderDeviceID");
-  const title = text(body.title, "title", 60);
-  const messageBody = text(body.body, "body", 180);
+  const title = text(body.title, "title", 80);
+  const messageBody = text(body.body, "body", 500);
   const nonce = requireNonce(body.nonce);
   requireRecentTimestamp(body.timestamp, now.getTime());
   await authorize(env, request, householdID, "admin");
@@ -68,7 +80,7 @@ export const sendBroadcast = async (
   ).bind(now.toISOString()).run();
 
   const devices = await env.DB.prepare(
-    "SELECT id, environment, token_ciphertext, token_nonce FROM notification_devices "
+    "SELECT id, environment, token_ciphertext, token_nonce, show_broadcast_details FROM notification_devices "
       + "WHERE household_id = ? AND status = 'active' AND broadcasts_enabled = 1 "
       + "ORDER BY created_at LIMIT 16"
   ).bind(householdID).all<DeviceRow>();
@@ -98,9 +110,14 @@ export const sendBroadcast = async (
       ciphertext: device.token_ciphertext,
       nonce: device.token_nonce
     });
-    const outcome = await sendAPNS(env, device.environment, deviceToken, {
-      notificationID, title, body: messageBody
-    }, now);
+    const outcome = await sendAPNS(
+      env, device.environment, deviceToken,
+      broadcastPayload(
+        device.show_broadcast_details === 1,
+        notificationID, title, messageBody
+      ),
+      now
+    );
     await receipt(
       env, householdID, device.id, notificationID,
       outcome.result, outcome.errorCategory, now
