@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  decodeBase64URL, digest, encodeBase64URL, encrypt,
+  decodeBase64URL, decrypt, digest, encodeBase64URL, encrypt,
   hasValidServerKey, hmac, requireCapability
 } from "../src/crypto";
 
@@ -28,6 +28,7 @@ describe("notification cryptography", () => {
     expect(first.ciphertext).not.toBe(second.ciphertext);
     expect(first.nonce).not.toBe(second.nonce);
     expect(decodeBase64URL(first.nonce)).toHaveLength(12);
+    expect(await decrypt(key, first)).toBe("a".repeat(64));
   });
 
   it("recognizes only 32-byte server keys", () => {

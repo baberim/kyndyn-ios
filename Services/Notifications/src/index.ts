@@ -1,10 +1,18 @@
 import { provisionHousehold, registerDevice, revokeDevice } from "./enrollment";
 import { hasValidServerKey } from "./crypto";
+import { validateAPNSConfiguration } from "./apns";
+import { sendBroadcast } from "./broadcast";
 import { RequestError } from "./validation";
 
 export interface Environment {
   DB: D1Database;
   DEVICE_TOKEN_ENCRYPTION_KEY: string;
+  APPLE_TEAM_ID: string;
+  APNS_TOPIC: string;
+  APNS_SANDBOX_KEY_ID: string;
+  APNS_PRODUCTION_KEY_ID: string;
+  APNS_SANDBOX_PRIVATE_KEY: string;
+  APNS_PRODUCTION_PRIVATE_KEY: string;
   SERVICE_STAGE: string;
 }
 
@@ -66,6 +74,13 @@ export default {
       if (request.method === "POST" && url.pathname === "/v1/devices/revoke") {
         requireEnrollmentConfiguration(env);
         return secure(await revokeDevice(request, env));
+      }
+      if (request.method === "POST" && url.pathname === "/v1/broadcasts") {
+        requireEnrollmentConfiguration(env);
+        if (!validateAPNSConfiguration(env)) {
+          throw new RequestError(503, "service_not_configured", "Notification delivery is not enabled.");
+        }
+        return secure(await sendBroadcast(request, env));
       }
 
       if (url.pathname.startsWith("/v1/")) {

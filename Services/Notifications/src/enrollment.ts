@@ -35,7 +35,7 @@ const household = async (env: Environment, id: string): Promise<HouseholdRow> =>
   return row;
 };
 
-const authorize = async (
+export const authorize = async (
   env: Environment,
   request: Request,
   id: string,
@@ -50,7 +50,7 @@ const authorize = async (
   }
 };
 
-const rateLimit = async (
+export const rateLimit = async (
   env: Environment,
   scope: string,
   limit: number,
@@ -76,7 +76,7 @@ const rateLimit = async (
   }
 };
 
-const useNonce = async (
+export const useNonce = async (
   env: Environment,
   householdID: string,
   nonce: string,
@@ -85,10 +85,14 @@ const useNonce = async (
   const nonceHash = await digest(nonce);
   const expires = new Date(now.getTime() + 10 * 60_000).toISOString();
   try {
-    await env.DB.prepare(
-      "INSERT INTO notification_request_nonces "
-        + "(household_id, nonce_hash, used_at, expires_at) VALUES (?, ?, ?, ?)"
-    ).bind(householdID, nonceHash, now.toISOString(), expires).run();
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM notification_request_nonces WHERE expires_at < ?")
+        .bind(now.toISOString()),
+      env.DB.prepare(
+        "INSERT INTO notification_request_nonces "
+          + "(household_id, nonce_hash, used_at, expires_at) VALUES (?, ?, ?, ?)"
+      ).bind(householdID, nonceHash, now.toISOString(), expires)
+    ]);
   } catch {
     throw new RequestError(409, "replayed_request", "This request was already used.");
   }
@@ -162,6 +166,15 @@ export const registerDevice = async (
   ).bind(deviceID).first<{ household_id: string }>();
   if (existingDevice && existingDevice.household_id !== householdID) {
     throw new RequestError(409, "device_conflict", "This device registration conflicts with another household.");
+  }
+  if (!existingDevice) {
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM notification_devices "
+        + "WHERE household_id = ? AND status = 'active'"
+    ).bind(householdID).first<{ count: number }>();
+    if ((count?.count ?? 0) >= 16) {
+      throw new RequestError(409, "device_limit", "This household has reached its device limit.");
+    }
   }
   const existingToken = await env.DB.prepare(
     "SELECT id FROM notification_devices WHERE household_id = ? AND environment = ? AND token_hash = ?"

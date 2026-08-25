@@ -9,7 +9,11 @@
     "head_sampling_rate": 0.1
   },
   "vars": {
-    "SERVICE_STAGE": "bootstrap"
+    "SERVICE_STAGE": "delivery",
+    "APPLE_TEAM_ID": "96TZPZ6H89",
+    "APNS_TOPIC": "com.kyndynfamily.kyndyn",
+    "APNS_SANDBOX_KEY_ID": "2K8PCHCCV8",
+    "APNS_PRODUCTION_KEY_ID": "G6L8MSV9F4"
   },
   "d1_databases": [
     {
