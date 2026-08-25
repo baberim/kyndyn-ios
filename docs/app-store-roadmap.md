@@ -203,13 +203,13 @@ See `docs/calendar-weather.md` for the implemented privacy boundary.
 Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
 recorded in `docs/build-18-changelog.md`.
 
-## Hosted family notifications — bootstrap
+## Build 27 — Hosted family notifications
 
-The fail-closed Cloudflare Worker boundary is documented in
-`docs/build-27-hosted-notifications.md`. It currently exposes only a
-content-free health check and does not accept device tokens or send
-notifications until authentication, D1, and APNs secret configuration are
-completed.
+The capability-authenticated Cloudflare Worker, encrypted APNs-token storage,
+Sandbox/Production APNs routing, owner enrollment, short-lived device pairing,
+revocation, and iOS owner/participant controls are implemented and documented
+in `docs/build-27-hosted-notifications.md`. Physical owner/participant delivery
+validation is the remaining release gate.
 
 ## Later
 
@@ -218,9 +218,10 @@ completed.
   - locally generated, parent-previewed weekly or monthly report exports;
   - accessibility and multi-device validation for the expanded insights flow.
 
-- A later hosted-notification build may add APNs-backed prompt broadcast
-  delivery; Build 12 remains CloudKit-driven and best-effort without claiming
-  guaranteed background delivery.
+- Later notification operations work may add protected device management,
+  capability rotation, delivery monitoring, and additional explicitly approved
+  categories. Apple delivery remains best-effort and is never described as
+  guaranteed.
 - Business Model and Entitlements must be designed and approved before adding
   StoreKit:
   - Keep the core family loop free: one household, parent and child profiles,

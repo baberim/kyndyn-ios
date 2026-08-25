@@ -13,7 +13,7 @@ device-local quest reminders.
 - Hosted APNs delivery is reserved for visible family announcements and future
   alerts that a parent explicitly enables.
 
-## Bootstrap state
+## Implemented state
 
 The Worker exposes a content-free health check and a capability-authenticated
 enrollment boundary. Its D1 binding and reviewed schema migrations are
@@ -21,21 +21,21 @@ versioned with the Worker, but migrations
 are applied explicitly rather than during ordinary code deployment.
 Device enrollment now uses separate random household capabilities, encrypted
 APNs-token storage, bounded rate limits, request timestamps, and single-use
-nonces. Broadcast submission and APNs delivery are implemented behind encrypted
-Worker secrets and continue to fail closed until both Apple private keys are
-installed. Participant devices use short-lived, single-use pairing codes and
+nonces. Broadcast submission and APNs delivery are active behind encrypted
+Worker secrets. Participant devices use short-lived, single-use pairing codes and
 receive only a device-specific revocable credential. They never receive the
-household admin or owner enrollment capability. The remaining app-facing work
-is:
+household admin or owner enrollment capability.
 
-1. iOS device enrollment and revocation wiring;
-2. parent-facing broadcast permission and composition UI;
-3. D1 storage with no names, quest titles, PIN material, CloudKit tokens,
-   calendar details, precise location, plaintext device tokens, or message
-   content in diagnostic logs;
-4. parent-controlled categories, privacy copy, and opt-out behavior;
-5. operating-cost and failure monitoring;
-6. capability rotation and household-wide revocation controls.
+The iOS app lets the household owner enable push delivery from the protected
+Announcements area, create a ten-minute one-use pairing code, and copy it to an
+invited device. A family device enters that code under Reminders, stores only
+its revocable device credential in the device-only Keychain, refreshes its APNs
+token after relaunch, and can disconnect itself. Publishing a new announcement
+attempts hosted delivery but never rolls back or blocks the local/CloudKit save
+when the network or notification service is unavailable.
+
+Future operations work includes cost/failure monitoring, capability rotation,
+and a protected household-wide device-management surface.
 
 The Worker already routes Sandbox and Production tokens separately, rejects
 oversized broadcast content, invalidates rejected device tokens, classifies
@@ -62,3 +62,13 @@ not deploy or modify the app's CloudKit production schema.
 The D1 database ID is deployment configuration rather than a credential. Apple
 private keys and the device-token encryption key remain encrypted Worker
 secrets and never enter `wrangler.jsonc`, D1, Git, or build logs.
+
+## Validation boundary
+
+- Worker request, cryptography, APNs routing, pairing, replay protection, and
+  validation behavior are covered by deterministic tests.
+- The iOS target compiles and focused credential/identity tests use fictional
+  values only.
+- End-to-end APNs delivery must be tested on signed physical devices. The
+  simulator cannot prove Apple push delivery.
+- Production CloudKit is unrelated to this deployment and was not modified.

@@ -3033,6 +3033,10 @@ struct FamilyBroadcastManagementView: View {
     @Query private var broadcasts: [FamilyBroadcast]
     @Query private var cloudStates: [HouseholdCloudState]
     @State private var showNew = false
+    @State private var hosted = HostedNotificationCoordinator.shared
+    @State private var pairingCode: PairingCodeResponse?
+    @State private var hostedMessage: String?
+    @State private var hostedBusy = false
 
     private var canPublish: Bool {
         cloudStates.first?.mode != .participant
@@ -3044,6 +3048,42 @@ struct FamilyBroadcastManagementView: View {
 
     var body: some View {
         List {
+            if canPublish {
+                Section("Family notifications") {
+                    LabeledContent("Push delivery", value: hosted.status)
+                    if let detail = hosted.lastError {
+                        Text(detail).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if hosted.isOwner {
+                        Button("Create device pairing code") {
+                            Task { await createPairingCode() }
+                        }
+                        .disabled(hostedBusy)
+                        if let pairingCode {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(pairingCode.pairingCode)
+                                    .font(.title3.monospaced().weight(.semibold))
+                                    .textSelection(.enabled)
+                                Text("Enter this one-time code on the other device. It expires in 10 minutes.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                                Button("Copy code", systemImage: "doc.on.doc") {
+                                    UIPasteboard.general.string = pairingCode.pairingCode
+                                }
+                            }
+                        }
+                    } else {
+                        Button("Turn on push delivery") {
+                            Task { await enableOwnerNotifications() }
+                        }
+                        .disabled(hostedBusy)
+                        Text("This owner device creates short-lived codes for each invited family device. Family announcements still work inside kyndyn if push delivery is unavailable.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if let hostedMessage {
+                        Text(hostedMessage).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
             if !canPublish {
                 Section {
                     Label("Only the household owner can publish announcements in this version.",
@@ -3102,6 +3142,30 @@ struct FamilyBroadcastManagementView: View {
         }
     }
 
+    @MainActor private func enableOwnerNotifications() async {
+        hostedBusy = true
+        defer { hostedBusy = false }
+        do {
+            try await hosted.enableOwner()
+            hostedMessage = "Push delivery is ready on this device."
+        } catch {
+            hosted.recordFailure(error)
+            hostedMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor private func createPairingCode() async {
+        hostedBusy = true
+        defer { hostedBusy = false }
+        do {
+            pairingCode = try await hosted.createPairingCode()
+            hostedMessage = nil
+        } catch {
+            hosted.recordFailure(error)
+            hostedMessage = error.localizedDescription
+        }
+    }
+
     private func status(_ broadcast: FamilyBroadcast) -> String {
         guard let expiresAt = broadcast.expiresAt else { return "No expiration" }
         return expiresAt > .now
@@ -3119,6 +3183,7 @@ struct FamilyBroadcastEditorView: View {
     @State private var draft: FamilyBroadcastDraft
     @State private var hasExpiration: Bool
     @State private var errorMessage: String?
+    @State private var hosted = HostedNotificationCoordinator.shared
 
     init(broadcast: FamilyBroadcast?) {
         self.broadcast = broadcast
@@ -3173,10 +3238,24 @@ struct FamilyBroadcastEditorView: View {
         guard let household = households.first else { return }
         draft.expiresAt = hasExpiration ? draft.expiresAt : nil
         do {
-            try app.saveBroadcast(
+            let saved = try app.saveBroadcast(
                 broadcast, draft: draft, household: household,
                 context: context)
             dismiss()
+            if broadcast == nil {
+                Task {
+                    do {
+                        let result = try await hosted.sendBroadcast(
+                            id: saved.id, title: saved.title,
+                            message: saved.message)
+                        if let result, result.retryable > 0 || result.failed > 0 {
+                            app.errorMessage = "The announcement was saved. Some devices may receive it later."
+                        }
+                    } catch {
+                        app.errorMessage = "The announcement was saved, but push delivery needs attention. It remains available inside kyndyn."
+                    }
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -4809,6 +4888,11 @@ struct NotificationSettingsView: View {
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: NotificationPermissionState = .notDetermined
     @State private var explanation = false
+    @State private var hosted = HostedNotificationCoordinator.shared
+    @State private var pairingCode = ""
+    @State private var hostedMessage: String?
+    @State private var hostedBusy = false
+    @State private var confirmDisconnect = false
     private let scheduler: NotificationScheduling = UserNotificationScheduler()
 
     var body: some View {
@@ -4834,6 +4918,31 @@ struct NotificationSettingsView: View {
                     Toggle("Eligible for parent summaries", isOn: binding(setting, \.parentSummaryEligible))
                         .disabled(people.first(where: { $0.id == setting.devicePersonID })?.role != .parent)
                 }
+                Section("Family push delivery") {
+                    LabeledContent("Status", value: hosted.status)
+                    if hosted.isConnected {
+                        Text(hosted.isOwner
+                             ? "This is the notification owner device. Pair additional devices from Parent → Announcements."
+                             : "This device can receive family announcements even when kyndyn is closed.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Disconnect this device", role: .destructive) {
+                            confirmDisconnect = true
+                        }
+                    } else {
+                        TextField("Pairing code", text: $pairingCode)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                        Button("Connect this device") {
+                            Task { await pairDevice() }
+                        }
+                        .disabled(pairingCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hostedBusy)
+                        Text("Ask the household owner to create a one-time code in Parent → Announcements.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if let detail = hosted.lastError ?? hostedMessage {
+                        Text(detail).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 Section("Timing") {
                     DatePicker("Default reminder", selection: timeBinding(setting, hour: \.defaultReminderHour, minute: \.defaultReminderMinute), displayedComponents: .hourAndMinute)
                     DatePicker("Quiet hours start", selection: timeBinding(setting, hour: \.quietStartHour, minute: \.quietStartMinute), displayedComponents: .hourAndMinute)
@@ -4851,8 +4960,16 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("Reminders")
         .task { permission = await scheduler.permissionState(); await reschedule() }
+        .task {
+            if let setting = settings.first {
+                hosted.setShowBroadcastDetails(setting.showBroadcastDetailsOnLockScreen)
+            }
+        }
         .onChange(of: settings.first?.notificationsEnabled) { _, _ in Task { await reschedule() } }
         .onChange(of: settings.first?.devicePersonID) { _, _ in Task { await reschedule() } }
+        .onChange(of: settings.first?.showBroadcastDetailsOnLockScreen) { _, value in
+            if let value { hosted.setShowBroadcastDetails(value) }
+        }
         .alert("Useful, private reminders", isPresented: $explanation) {
             Button("Not now", role: .cancel) {}
             Button("Continue") {
@@ -4860,6 +4977,18 @@ struct NotificationSettingsView: View {
             }
         } message: {
             Text("kyndyn can remind this device about locally stored quests. You choose the profile, timing, and whether quest names appear.")
+        }
+        .confirmationDialog(
+            "Stop family push delivery on this device?",
+            isPresented: $confirmDisconnect,
+            titleVisibility: .visible
+        ) {
+            Button("Disconnect", role: .destructive) {
+                Task { await disconnectHostedNotifications() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Announcements will still appear inside kyndyn after it synchronizes.")
         }
     }
 
@@ -4887,6 +5016,31 @@ struct NotificationSettingsView: View {
             reminderPreferences: reminderPreferences, now: .now)
         do { try await scheduler.replaceKyndynReminders(with: candidates) }
         catch { app.errorMessage = "kyndyn couldn’t update reminders. Your quests are unchanged." }
+    }
+
+    @MainActor private func pairDevice() async {
+        hostedBusy = true
+        defer { hostedBusy = false }
+        do {
+            try await hosted.pair(code: pairingCode)
+            pairingCode = ""
+            hostedMessage = "This device is connected."
+        } catch {
+            hosted.recordFailure(error)
+            hostedMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor private func disconnectHostedNotifications() async {
+        hostedBusy = true
+        defer { hostedBusy = false }
+        do {
+            try await hosted.disconnect()
+            hostedMessage = "Push delivery is off on this device."
+        } catch {
+            hosted.recordFailure(error)
+            hostedMessage = error.localizedDescription
+        }
     }
 }
 
