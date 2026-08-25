@@ -8,3 +8,10 @@ xcuserdata/
 *.mobileprovision
 Secrets.xcconfig
 
+# Cloudflare Worker local state and dependencies
+node_modules/
+.pnpm-store/
+.wrangler/
+.dev.vars
+.env*
+!.env.example

@@ -105,3 +105,6 @@ See [`docs/build-15-weekly-insights.md`](docs/build-15-weekly-insights.md) for
 the protected weekly overview and deterministic trend rules.
 See [`docs/calendar-weather.md`](docs/calendar-weather.md) for Build 18’s
 device-local calendar and weather privacy boundary.
+See
+[`docs/build-27-hosted-notifications.md`](docs/build-27-hosted-notifications.md)
+for the fail-closed Cloudflare/APNs service bootstrap and its privacy boundary.

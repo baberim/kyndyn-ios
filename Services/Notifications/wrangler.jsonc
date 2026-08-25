@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kyndyn-notifications",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-25",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "vars": {
+    "SERVICE_STAGE": "bootstrap"
+  }
+}

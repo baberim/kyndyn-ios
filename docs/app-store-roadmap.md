@@ -203,6 +203,14 @@ See `docs/calendar-weather.md` for the implemented privacy boundary.
 Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
 recorded in `docs/build-18-changelog.md`.
 
+## Hosted family notifications — bootstrap
+
+The fail-closed Cloudflare Worker boundary is documented in
+`docs/build-27-hosted-notifications.md`. It currently exposes only a
+content-free health check and does not accept device tokens or send
+notifications until authentication, D1, and APNs secret configuration are
+completed.
+
 ## Later
 
 - Reward History and Private Reports:
