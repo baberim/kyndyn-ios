@@ -23,7 +23,10 @@ Device enrollment now uses separate random household capabilities, encrypted
 APNs-token storage, bounded rate limits, request timestamps, and single-use
 nonces. Broadcast submission and APNs delivery are implemented behind encrypted
 Worker secrets and continue to fail closed until both Apple private keys are
-installed. The remaining app-facing work is:
+installed. Participant devices use short-lived, single-use pairing codes and
+receive only a device-specific revocable credential. They never receive the
+household admin or owner enrollment capability. The remaining app-facing work
+is:
 
 1. iOS device enrollment and revocation wiring;
 2. parent-facing broadcast permission and composition UI;

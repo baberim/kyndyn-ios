@@ -2,6 +2,7 @@ import { provisionHousehold, registerDevice, revokeDevice } from "./enrollment";
 import { hasValidServerKey } from "./crypto";
 import { validateAPNSConfiguration } from "./apns";
 import { sendBroadcast } from "./broadcast";
+import { createPairingCode, pairDevice } from "./pairing";
 import { RequestError } from "./validation";
 
 export interface Environment {
@@ -81,6 +82,14 @@ export default {
           throw new RequestError(503, "service_not_configured", "Notification delivery is not enabled.");
         }
         return secure(await sendBroadcast(request, env));
+      }
+      if (request.method === "POST" && url.pathname === "/v1/pairing-codes") {
+        requireEnrollmentConfiguration(env);
+        return secure(await createPairingCode(request, env));
+      }
+      if (request.method === "POST" && url.pathname === "/v1/devices/pair") {
+        requireEnrollmentConfiguration(env);
+        return secure(await pairDevice(request, env));
       }
 
       if (url.pathname.startsWith("/v1/")) {
