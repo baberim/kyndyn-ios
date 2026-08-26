@@ -17,9 +17,11 @@ The five actions are registered as App Shortcuts with suggested Siri phrases
 and are explained under Settings → Siri & Shortcuts.
 
 The iOS 27 compatibility follow-up adds exact spoken variants for Today’s
-quests, text-based profile and quest resolution, and a direct Shortcuts link in
-Settings. The generated app bundle was inspected and contains all five actions,
-entities, queries, and shortcut phrase templates as discoverable metadata.
+quests, parameterized profile phrases, text-based profile and quest resolution,
+and a direct Shortcuts link in Settings. The generated app bundle was inspected
+and contains all five actions, entities, queries, and shortcut phrase templates
+as discoverable metadata. Spoken profile names resolve against the profile name
+stored in Kyndyn; the app does not infer legal names, nicknames, or aliases.
 
 ## Data and mutation rules
 

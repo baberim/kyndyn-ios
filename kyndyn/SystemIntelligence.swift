@@ -207,7 +207,9 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
                 "Show my \(.applicationName) quests",
                 "Show today’s quests in \(.applicationName)",
                 "Show today’s \(.applicationName) quests",
-                "What are today’s \(.applicationName) quests"
+                "What are today’s \(.applicationName) quests",
+                "Show \(\.$person)’s quests in \(.applicationName)",
+                "Show \(\.$person)’s \(.applicationName) quests"
             ],
             shortTitle: "Today’s quests",
             systemImageName: "checklist")

@@ -1028,6 +1028,8 @@ struct SiriShortcutsHelpView: View {
             }
             Section("Try saying") {
                 Label("“Show today’s Kyndyn quests”", systemImage: "checklist")
+                Label("“Show Millie’s Kyndyn quests”",
+                      systemImage: "person.text.rectangle")
                 Label("“Show family reward progress in kyndyn”",
                       systemImage: "gift.fill")
                 Label("“Open a profile in kyndyn”",
