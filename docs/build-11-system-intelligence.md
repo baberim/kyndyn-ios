@@ -16,6 +16,11 @@ Kyndyn backend.
 The five actions are registered as App Shortcuts with suggested Siri phrases
 and are explained under Settings → Siri & Shortcuts.
 
+The iOS 27 compatibility follow-up adds exact spoken variants for Today’s
+quests, text-based profile and quest resolution, and a direct Shortcuts link in
+Settings. The generated app bundle was inspected and contains all five actions,
+entities, queries, and shortcut phrase templates as discoverable metadata.
+
 ## Data and mutation rules
 
 Person and quest-occurrence App Entities use existing stable UUIDs and
@@ -41,9 +46,12 @@ payloads or lock-screen previews by this integration.
 
 App Intents provide the stable integration across supported releases. Siri
 recognition and background execution remain controlled by Apple and can vary by
-device, language, settings, and OS version. Newer App Schema, onscreen-awareness,
-and richer Apple Intelligence capabilities remain availability-gated follow-up
-work; they are not claimed on devices that do not support them.
+device, language, settings, and OS version. Apple's iOS 27 App Schemas improve
+natural-language understanding for supported domains, but the current SDK does
+not provide a task, chore, or family-quest schema. Kyndyn therefore keeps its
+honest custom App Intents rather than mapping private family data onto an
+unrelated schema. Onscreen awareness and richer Apple Intelligence capabilities
+remain availability-gated follow-up work.
 
 Physical-device validation should cover Siri and Shortcuts discovery, locked
 and unlocked execution, offline completion and undo, app relaunch, and later

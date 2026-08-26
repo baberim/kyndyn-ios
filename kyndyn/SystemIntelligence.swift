@@ -41,7 +41,7 @@ struct KyndynPersonEntity: AppEntity {
     }
 }
 
-struct KyndynPersonQuery: EntityQuery {
+struct KyndynPersonQuery: EntityStringQuery {
     func entities(for identifiers: [UUID]) async throws -> [KyndynPersonEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.people(ids: Set(identifiers))
@@ -50,6 +50,11 @@ struct KyndynPersonQuery: EntityQuery {
     func suggestedEntities() async throws -> [KyndynPersonEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.people()
+    }
+
+    func entities(matching string: String) async throws -> [KyndynPersonEntity] {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        return try await KyndynIntentStore.shared.people(matching: string)
     }
 }
 
@@ -71,7 +76,7 @@ struct KyndynQuestOccurrenceEntity: AppEntity {
     }
 }
 
-struct KyndynQuestOccurrenceQuery: EntityQuery {
+struct KyndynQuestOccurrenceQuery: EntityStringQuery {
     func entities(for identifiers: [String]) async throws
         -> [KyndynQuestOccurrenceEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
@@ -83,6 +88,13 @@ struct KyndynQuestOccurrenceQuery: EntityQuery {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.occurrences(
             includeCompleted: true)
+    }
+
+    func entities(matching string: String) async throws
+        -> [KyndynQuestOccurrenceEntity] {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        return try await KyndynIntentStore.shared.occurrences(
+            matching: string, includeCompleted: true)
     }
 }
 
@@ -192,6 +204,9 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
             intent: ListTodayQuestsIntent(),
             phrases: [
                 "Show my quests in \(.applicationName)",
+                "Show my \(.applicationName) quests",
+                "Show today’s quests in \(.applicationName)",
+                "Show today’s \(.applicationName) quests",
                 "What are today’s \(.applicationName) quests"
             ],
             shortTitle: "Today’s quests",
@@ -253,6 +268,14 @@ final class KyndynIntentStore {
         .map { KyndynPersonEntity(id: $0.id, name: $0.name) }
     }
 
+    func people(matching string: String) throws -> [KyndynPersonEntity] {
+        let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return try people() }
+        return try people().filter {
+            $0.name.localizedCaseInsensitiveContains(normalized)
+        }
+    }
+
     func occurrences(ids: Set<String>? = nil, includeCompleted: Bool) throws
         -> [KyndynQuestOccurrenceEntity] {
         let context = try requiredContext()
@@ -303,6 +326,18 @@ final class KyndynIntentStore {
             }
             return $0.title.localizedCaseInsensitiveCompare($1.title) ==
                 .orderedAscending
+        }
+    }
+
+    func occurrences(matching string: String, includeCompleted: Bool) throws
+        -> [KyndynQuestOccurrenceEntity] {
+        let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return try occurrences(includeCompleted: includeCompleted)
+        }
+        return try occurrences(includeCompleted: includeCompleted).filter {
+            $0.title.localizedCaseInsensitiveContains(normalized) ||
+                $0.personName.localizedCaseInsensitiveContains(normalized)
         }
     }
 

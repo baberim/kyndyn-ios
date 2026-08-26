@@ -109,6 +109,12 @@ final class SystemIntelligenceTests: XCTestCase {
         defer { KyndynIntentStore.shared.resetForTesting() }
         XCTAssertEqual(try KyndynIntentStore.shared.people().map(\.name),
                        ["Avery"])
+        XCTAssertEqual(try KyndynIntentStore.shared.people(
+            matching: "ave").map(\.name), ["Avery"])
+        XCTAssertTrue(try KyndynIntentStore.shared.people(
+            matching: "missing").isEmpty)
+        XCTAssertEqual(try KyndynIntentStore.shared.occurrences(
+            matching: "books", includeCompleted: true).count, 1)
         let today = try KyndynIntentStore.shared.todaySummary(
             personID: person.id)
         XCTAssertTrue(today.contains("Put books away"))

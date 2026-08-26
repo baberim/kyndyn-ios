@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import AppIntents
 
 private let companionChoices = CollectionCatalog.companionIDs
 private let colorChoices = [
@@ -1019,8 +1020,14 @@ struct SettingsView: View {
 struct SiriShortcutsHelpView: View {
     var body: some View {
         List {
+            Section {
+                ShortcutsLink()
+                    .shortcutsLinkStyle(.automaticOutline)
+            } footer: {
+                Text("If Kyndyn’s actions appear here and run when tapped, the app has registered them correctly with Apple’s system.")
+            }
             Section("Try saying") {
-                Label("“Show my quests in kyndyn”", systemImage: "checklist")
+                Label("“Show today’s Kyndyn quests”", systemImage: "checklist")
                 Label("“Show family reward progress in kyndyn”",
                       systemImage: "gift.fill")
                 Label("“Open a profile in kyndyn”",
