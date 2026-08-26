@@ -297,6 +297,9 @@ they require the owner's Apple devices and CloudKit Console access.
 
 ### Build 26 — Parent planning and reward expansion
 
+This scope was deferred when hosted notifications became the higher priority;
+it is now scheduled as Build 30 below.
+
 - Improve bulk quest planning and assignment without weakening the validated
   schedule editor.
 - Support multiple prepared or rotating family rewards while keeping one clear
@@ -320,14 +323,53 @@ routing. Version `0.27.1 (28)` reconciles the complete Builds 20–25 feature li
 and prevents paired devices from receiving both hosted and CloudKit-fallback
 alerts for the same announcement.
 
-### Build 29 — Premium boundaries and StoreKit foundation
+### Build 29 — Consolidated release candidate
+
+- Reconcile household safety, schedule pause, personalization, calendar,
+  weather, sync health, and hosted-notification work onto one release line.
+- Keep pull-to-refresh behavior and visible feedback consistent throughout
+  refreshable screens, including device-local calendar and weather context.
+- Prevent duplicate delivery when hosted APNs succeeds while preserving the
+  CloudKit fallback for devices that are not enrolled with the hosted service.
+- Revalidate the complete native suite, iPhone and iPad compilation, Release
+  configuration, and the hosted-notification service before TestFlight.
+
+See `docs/build-29-release-candidate.md` for validation and handoff details.
+
+## Next builds — recommended order
+
+### Build 30 — Parent planning and reward expansion
+
+- Improve bulk quest planning and assignment without weakening the validated
+  schedule editor.
+- Support multiple prepared or rotating family rewards while keeping one clear
+  active goal.
+- Preserve reward and XP history when goals change.
+
+### Build 31 — Reward history and private reports
+
+- Add durable reward-cycle history, including reached and replaced goals.
+- Add locally generated, parent-previewed weekly or monthly report exports.
+- Validate accessibility and multi-device behavior for expanded insights.
+
+### Build 32 — Premium boundaries and entitlement design
 
 - Finalize the free-versus-premium feature matrix without removing the core
   family loop, security, backups, recovery, or earned items.
 - Define household entitlement ownership, Family Sharing, complimentary access,
   expiration, refunds, restoration, and grandfathering.
-- Add StoreKit only after those behaviors are covered by deterministic and
-  sandbox tests.
+
+### Build 33 — StoreKit implementation
+
+- Add StoreKit only after Build 32's product and family-purchase rules are
+  approved and covered by deterministic tests.
+- Validate purchases, restoration, expiration, refunds, Family Sharing, and
+  complimentary access in Apple's sandbox before TestFlight.
+
+### Build 34 — Public-release hardening
+
+- Complete the remaining security, accessibility, localization, privacy,
+  support, physical-device, and App Store release gates.
 
 ## Later
 
