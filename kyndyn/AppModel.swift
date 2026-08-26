@@ -66,6 +66,14 @@ struct QuestDraft {
     var reminderTime = Date()
 }
 
+struct SiriQuestDraft: Identifiable, Equatable, Sendable {
+    let id = UUID()
+    let title: String
+    let personID: UUID
+    let xp: Int
+    let dueDate: Date?
+}
+
 struct FamilyBroadcastDraft {
     var title = "Family update"
     var message = ""
@@ -151,6 +159,7 @@ enum LifecycleRules {
     var selectedTab = 0
     var errorMessage: String?
     var isPreparing = true
+    var pendingSiriQuestDraft: SiriQuestDraft?
     @ObservationIgnored private let notificationScheduler: NotificationScheduling
 
     init(notificationScheduler: NotificationScheduling = UserNotificationScheduler()) {

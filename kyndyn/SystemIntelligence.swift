@@ -9,6 +9,7 @@ enum KyndynIntentError: LocalizedError, Equatable {
     case occurrenceUnavailable
     case alreadyComplete
     case notComplete
+    case invalidQuestDraft
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum KyndynIntentError: LocalizedError, Equatable {
             return "That quest is already complete."
         case .notComplete:
             return "That quest has not been completed."
+        case .invalidQuestDraft:
+            return "Check the quest name and XP, then try again."
         }
     }
 }
@@ -198,6 +201,32 @@ struct UndoQuestOccurrenceIntent: AppIntent {
     }
 }
 
+struct PrepareQuestIntent: AppIntent {
+    static let title: LocalizedStringResource = "Add a Kyndyn Quest"
+    static let description = IntentDescription(
+        "Prepares a quest for a parent to review and create in Kyndyn.")
+    static let openAppWhenRun = true
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "Quest name") var questName: String
+    @Parameter(title: "Profile") var person: KyndynPersonEntity
+    @Parameter(title: "XP", default: 10) var xp: Int
+    @Parameter(title: "Due date") var dueDate: Date?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$questName) for \(\.$person), worth \(\.$xp) XP, due \(\.$dueDate)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        try await KyndynIntentStore.shared.prepareQuest(
+            title: questName, personID: person.id, xp: xp,
+            dueDate: dueDate)
+        return .result(dialog: "Review this quest in Kyndyn to create it.")
+    }
+}
+
 struct KyndynAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -233,6 +262,14 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
             phrases: ["Undo a quest in \(.applicationName)"],
             shortTitle: "Undo quest",
             systemImageName: "arrow.uturn.backward.circle.fill")
+        AppShortcut(
+            intent: PrepareQuestIntent(),
+            phrases: [
+                "Add a quest in \(.applicationName)",
+                "Create a quest in \(.applicationName)"
+            ],
+            shortTitle: "Add quest",
+            systemImageName: "plus.circle.fill")
     }
 }
 
@@ -386,6 +423,22 @@ final class KyndynIntentStore {
         try context.save()
         appModel?.selectedPersonID = personID
         appModel?.selectedTab = 0
+    }
+
+    func prepareQuest(title: String, personID: UUID, xp: Int,
+                      dueDate: Date?) throws {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.count <= 120,
+              (1...500).contains(xp) else {
+            throw KyndynIntentError.invalidQuestDraft
+        }
+        guard try people(ids: [personID]).first != nil else {
+            throw KyndynIntentError.personUnavailable
+        }
+        guard let appModel else { throw KyndynIntentError.storeUnavailable }
+        appModel.pendingSiriQuestDraft = SiriQuestDraft(
+            title: normalized, personID: personID, xp: xp,
+            dueDate: dueDate)
     }
 
     func complete(occurrenceID: String) throws -> String {
