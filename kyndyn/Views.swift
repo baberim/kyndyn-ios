@@ -1053,6 +1053,7 @@ struct CalendarSettingsView: View {
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: DevicePermissionState = .notRequested
     @State private var calendars: [DeviceCalendar] = []
+    @State private var isPullRefreshing = false
     private let provider = EventKitCalendarProvider()
 
     var body: some View {
@@ -1114,6 +1115,14 @@ struct CalendarSettingsView: View {
                 KyndynCallout(kind: .privacy, message: "Calendar choices and event details stay on this device. kyndyn does not family-sync them or include them in backups.")
             }
         }
+        .refreshable {
+            isPullRefreshing = true
+            defer { isPullRefreshing = false }
+            await Task.yield()
+            reload()
+            try? await Task.sleep(for: .milliseconds(550))
+        }
+        .refreshStatusPill(isRefreshing: isPullRefreshing)
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
         .navigationTitle("Calendar").navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
@@ -1135,6 +1144,7 @@ struct WeatherSettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var settings: [LocalDeviceSettings]
     @State private var isLoading = false
+    @State private var isPullRefreshing = false
     @State private var message: String?
 
     var body: some View {
@@ -1167,6 +1177,15 @@ struct WeatherSettingsView: View {
                 KyndynCallout(kind: .privacy, message: "kyndyn never saves precise coordinates. A short-lived weather summary and city or town name stay on this device and are excluded from family sync and backups.")
             }
         }
+        .refreshable {
+            guard let setting = settings.first else { return }
+            isPullRefreshing = true
+            defer { isPullRefreshing = false }
+            async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+            if setting.weatherIntegrationEnabled { await load(setting) }
+            try? await minimumVisibleTime
+        }
+        .refreshStatusPill(isRefreshing: isPullRefreshing)
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
         .navigationTitle("Weather").navigationBarTitleDisplayMode(.inline)
     }
@@ -1362,6 +1381,8 @@ struct DashboardView: View {
                     for: .milliseconds(550))
                 automaticSync.request(.manual)
                 await automaticSync.waitUntilIdle()
+                refreshCalendarEvents()
+                await refreshWeatherDetails()
                 try? await minimumVisibleTime
                 rotateGreeting()
             }
@@ -1382,9 +1403,12 @@ struct DashboardView: View {
                         setting: deviceSettings.first,
                         hourlyForecast: weatherHourlyForecast,
                         forecast: weatherForecast,
-                        isLoading: isLoadingWeather)
+                        isLoading: isLoadingWeather,
+                        onRefresh: { await refreshWeatherDetails() })
                 case .calendar:
-                    CalendarGlanceView(events: calendarEvents)
+                    CalendarGlanceView(
+                        events: calendarEvents,
+                        onRefresh: { refreshCalendarEvents() })
                 }
             }
             .alert(unlockTitle(unlockToPresent), isPresented: Binding(
@@ -1929,6 +1953,8 @@ private struct WeatherGlanceView: View {
     let hourlyForecast: [DeviceWeatherHour]
     let forecast: [DeviceWeatherDay]
     let isLoading: Bool
+    let onRefresh: @MainActor () async -> Void
+    @State private var isPullRefreshing = false
     @State private var mode: ForecastMode = .hourly
 
     private var tint: Color {
@@ -1980,6 +2006,14 @@ private struct WeatherGlanceView: View {
                 }
                 .padding()
             }
+            .refreshable {
+                isPullRefreshing = true
+                defer { isPullRefreshing = false }
+                async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+                await onRefresh()
+                try? await minimumVisibleTime
+            }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .background(KyndynScreenBackground())
             .navigationTitle("Weather")
             .navigationBarTitleDisplayMode(.inline)
@@ -2054,6 +2088,8 @@ private func weatherTint(for symbolName: String?) -> Color {
 private struct CalendarGlanceView: View {
     @Environment(\.dismiss) private var dismiss
     let events: [DeviceCalendarEvent]
+    let onRefresh: @MainActor () async -> Void
+    @State private var isPullRefreshing = false
 
     var body: some View {
         NavigationStack {
@@ -2087,6 +2123,14 @@ private struct CalendarGlanceView: View {
                 }
                 .padding()
             }
+            .refreshable {
+                isPullRefreshing = true
+                defer { isPullRefreshing = false }
+                async let minimumVisibleTime: Void = Task.sleep(for: .milliseconds(550))
+                await onRefresh()
+                try? await minimumVisibleTime
+            }
+            .refreshStatusPill(isRefreshing: isPullRefreshing)
             .background(KyndynScreenBackground())
             .navigationTitle("Coming up")
             .navigationBarTitleDisplayMode(.inline)
@@ -2184,6 +2228,7 @@ struct ProgressDetailView: View {
                     }
                 }
             }
+            .familyRefreshable()
             .navigationTitle("\(person.name)’s progress")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -2256,6 +2301,7 @@ struct BadgeGalleryView: View {
             .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
             .frame(maxWidth: .infinity)
         }
+        .familyRefreshable()
         .background(KyndynScreenBackground())
         .navigationTitle("\(person.name)’s badges")
         .accessibilityIdentifier("badge-gallery")
@@ -3330,6 +3376,7 @@ struct FamilyBroadcastListView: View {
                 }
             }
         }
+        .familyRefreshable()
         .scrollContentBackground(.hidden)
         .background(KyndynScreenBackground())
         .navigationTitle("Announcements")
@@ -3847,6 +3894,7 @@ struct FamilyInsightsView: View {
                 ContentUnavailableView("Insights unavailable", systemImage: "chart.bar")
             }
         }
+        .familyRefreshable()
         .background(KyndynScreenBackground())
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
@@ -4000,7 +4048,9 @@ struct PersonInsightsView: View {
                 }
                 KyndynCallout(kind: .information, message: "Progress compares this person only with their own activity. Starting XP affects total level but is never reported as XP earned during a week.")
             }.padding().frame(maxWidth: AdaptiveLayout.managementContentMaximum).frame(maxWidth: .infinity)
-        }.background(KyndynScreenBackground()).navigationTitle(person.name)
+        }
+        .familyRefreshable()
+        .background(KyndynScreenBackground()).navigationTitle(person.name)
     }
 }
 
@@ -4512,6 +4562,7 @@ struct PeopleManagementView: View {
                 }
             }
         }
+        .familyRefreshable()
         .navigationTitle("People")
         .toolbar { Button("Add", systemImage: "plus") { newPerson = true } }
         .sheet(isPresented: $newPerson) { NavigationStack { PersonEditorView(person: nil) } }
@@ -4723,6 +4774,7 @@ struct QuestManagementView: View {
                 }
             }
         }
+        .familyRefreshable()
         .navigationTitle("Quests")
         .toolbar { Button("Add", systemImage: "plus") { newQuest = true } }
         .sheet(isPresented: $newQuest) { NavigationStack { QuestEditorView(quest: nil) } }
@@ -4780,6 +4832,7 @@ struct QuestPlanningView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .familyRefreshable()
         .navigationTitle("Quest planning")
         .accessibilityIdentifier("quest-planning")
     }
@@ -4863,6 +4916,7 @@ struct QuestScheduleOverviewView: View {
                 Text(day.date.formatted(.dateTime.weekday(.wide).month().day()))
             }
         }
+        .familyRefreshable()
         .navigationTitle("Two-week schedule")
         .accessibilityIdentifier("quest-schedule-overview")
     }
@@ -5636,6 +5690,27 @@ struct NotificationSettingsView: View {
 
 // MARK: - Shared presentation
 
+private struct FamilyRefreshableModifier: ViewModifier {
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @State private var isRefreshing = false
+
+    func body(content: Content) -> some View {
+        content
+            .refreshable {
+                guard !isRefreshing else { return }
+                isRefreshing = true
+                defer { isRefreshing = false }
+                await Task.yield()
+                async let minimumVisibleTime: Void = Task.sleep(
+                    for: .milliseconds(550))
+                automaticSync.request(.manual)
+                await automaticSync.waitUntilIdle()
+                try? await minimumVisibleTime
+            }
+            .refreshStatusPill(isRefreshing: isRefreshing)
+    }
+}
+
 struct ProfileColorSelector: View {
     @Binding var selection: String
 
@@ -5728,6 +5803,10 @@ struct ProgressStat: View {
 }
 
 extension View {
+    func familyRefreshable() -> some View {
+        modifier(FamilyRefreshableModifier())
+    }
+
     func card() -> some View {
         kyndynCard()
     }
