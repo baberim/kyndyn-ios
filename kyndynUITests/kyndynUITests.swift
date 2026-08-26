@@ -110,13 +110,20 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["app-icon-original"].exists)
         XCTAssertTrue(app.buttons["app-icon-pastel"].exists)
         app.navigationBars["App icon"].buttons["Settings"].tap()
-        app.buttons["settings-my-profile"].tap()
-        XCTAssertTrue(app.navigationBars["My profile"]
+        XCTAssertTrue(app.buttons["settings-app-color"].exists)
+        XCTAssertTrue(app.buttons["settings-companion"].exists)
+        XCTAssertTrue(app.buttons["settings-background"].exists)
+        app.buttons["settings-app-color"].tap()
+        XCTAssertTrue(app.navigationBars["App color"]
             .waitForExistence(timeout: 3))
         let teal = app.buttons["Teal profile color"]
         reveal(teal, in: app)
         teal.tap()
         XCTAssertTrue(app.descendants(matching: .any)["profile-custom-color"].exists)
+        app.buttons["Save"].tap()
+        app.buttons["settings-companion"].tap()
+        XCTAssertTrue(app.navigationBars["Companion"]
+            .waitForExistence(timeout: 3))
         app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Orbit")
         ).firstMatch.tap()
@@ -235,6 +242,26 @@ final class KyndynUITests: XCTestCase {
         app.staticTexts["Two-week schedule"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["quest-schedule-overview"]
             .waitForExistence(timeout: 3))
+    }
+
+    func testParentCanRunPrivacySafeHouseholdSafetyCheck() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Profiles", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        let dataAndPrivacy = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Data and privacy")
+        ).firstMatch
+        reveal(dataAndPrivacy, in: app)
+        dataAndPrivacy.tap()
+        XCTAssertTrue(app.navigationBars["Data and privacy"]
+            .waitForExistence(timeout: 3))
+        let check = app.buttons["run-household-safety-check"]
+        XCTAssertTrue(check.waitForExistence(timeout: 3))
+        check.tap()
+        XCTAssertTrue(app.staticTexts["Household"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Active profiles"].exists)
+        XCTAssertTrue(app.staticTexts["Waiting to sync"].exists)
     }
 
     func testProfileColorSelectionDoesNotFallThroughToOrange() throws {

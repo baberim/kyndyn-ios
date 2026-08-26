@@ -4,13 +4,13 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current release — 0.18.1 (Build 19)
+## Current release candidate — 0.27.1 (Build 28)
 
-Build 19 is a focused reliability update to Build 18, combining weekly family insights, synchronized starting-XP repair,
-durable badge recognition, recognition polish, richer calendar and weather
-context, responsiveness improvements, and an expanded device-local app icon
-gallery. See [`docs/build-18-changelog.md`](docs/build-18-changelog.md) for the
-cumulative tester-facing changelog.
+Build 28 reconciles the complete household-safety, release-readiness,
+schedule-pause, personalization, weather, calendar-color, sync-health, and
+hosted-notification work into one release line. It also prevents paired devices
+from presenting both the hosted APNs alert and the CloudKit local fallback for
+the same family announcement.
 
 The app provides a locally usable vertical slice:
 
@@ -109,3 +109,9 @@ See
 [`docs/build-27-hosted-notifications.md`](docs/build-27-hosted-notifications.md)
 for secure owner enrollment, one-time device pairing, APNs family-announcement
 delivery, opt-out behavior, and the service privacy boundary.
+See [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md)
+for the separated App color, Companion, Background, and App icon settings.
+See [`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md),
+[`docs/build-21-app-store-readiness.md`](docs/build-21-app-store-readiness.md),
+and [`docs/build-22-release-candidate.md`](docs/build-22-release-candidate.md)
+for the current household-data and release-safety gates.

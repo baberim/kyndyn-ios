@@ -30,6 +30,8 @@ struct DeviceCalendarEvent: Identifiable, Equatable, Sendable {
     let endDate: Date
     let isAllDay: Bool
     let calendarID: String
+    let calendarTitle: String
+    let calendarColorHex: String
 }
 
 protocol CalendarProviding: Sendable {
@@ -77,19 +79,31 @@ final class EventKitCalendarProvider: CalendarProviding, @unchecked Sendable {
                     startDate: $0.startDate,
                     endDate: $0.endDate,
                     isAllDay: $0.isAllDay,
-                    calendarID: $0.calendar.calendarIdentifier)
+                    calendarID: $0.calendar.calendarIdentifier,
+                    calendarTitle: $0.calendar.title,
+                    calendarColorHex: UIColor(cgColor: $0.calendar.cgColor).hexString)
             }.sorted { $0.startDate < $1.startDate }
     }
 }
 
 struct DeviceWeatherSnapshot: Equatable, Sendable {
+    let locationName: String?
     let temperature: Double
     let high: Double
     let low: Double
     let condition: String
     let symbolName: String
     let fetchedAt: Date
+    let hourlyForecast: [DeviceWeatherHour]
     let dailyForecast: [DeviceWeatherDay]
+}
+
+struct DeviceWeatherHour: Identifiable, Equatable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let temperature: Double
+    let precipitationChance: Double
+    let symbolName: String
 }
 
 struct DeviceWeatherDay: Identifiable, Equatable, Sendable {
@@ -117,10 +131,14 @@ protocol WeatherProviding: Sendable {
 struct AppleWeatherProvider: WeatherProviding {
     func weather(latitude: Double, longitude: Double) async throws -> DeviceWeatherSnapshot {
         let location = CLLocation(latitude: latitude, longitude: longitude)
-        let (current, daily) = try await WeatherService.shared.weather(
-            for: location, including: .current, .daily)
+        let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first
+        let (current, hourly, daily) = try await WeatherService.shared.weather(
+            for: location, including: .current, .hourly, .daily)
         let today = daily.forecast.first
         return DeviceWeatherSnapshot(
+            locationName: placemark?.locality
+                ?? placemark?.subAdministrativeArea
+                ?? placemark?.administrativeArea,
             temperature: current.temperature.converted(to: .fahrenheit).value,
             high: today?.highTemperature.converted(to: .fahrenheit).value
                 ?? current.temperature.converted(to: .fahrenheit).value,
@@ -129,6 +147,16 @@ struct AppleWeatherProvider: WeatherProviding {
             condition: current.condition.description,
             symbolName: current.symbolName,
             fetchedAt: .now,
+            hourlyForecast: hourly.forecast
+                .filter { $0.date >= Date.now.addingTimeInterval(-300) }
+                .prefix(24).map {
+                    DeviceWeatherHour(
+                        date: $0.date,
+                        temperature: $0.temperature
+                            .converted(to: .fahrenheit).value,
+                        precipitationChance: $0.precipitationChance,
+                        symbolName: $0.symbolName)
+                },
             dailyForecast: daily.forecast.prefix(10).map {
                 DeviceWeatherDay(
                     date: $0.date,
@@ -602,13 +630,16 @@ enum ReminderRules {
                            reminderPreferences: [LocalQuestReminder] = [],
                            now: Date) -> [ReminderCandidate] {
         guard settings.notificationsEnabled, let profileID = settings.devicePersonID else { return [] }
+        guard !ProgressionEngine.isSchedulePaused(on: now, household: household) else {
+            return []
+        }
         let calendar = ProgressionEngine.calendar(timeZoneIdentifier: household.timeZoneIdentifier)
         let activePersonIDs = Set(people.filter { $0.deletedAt == nil }.map(\.id))
         guard activePersonIDs.contains(profileID) else { return [] }
         let start = calendar.startOfDay(for: now)
         var candidates: [ReminderCandidate] = quests.filter {
             $0.deletedAt == nil && $0.participantIDs.contains(profileID) &&
-            ProgressionEngine.isScheduled($0, on: now, timeZoneIdentifier: household.timeZoneIdentifier)
+            ProgressionEngine.isScheduled($0, on: now, household: household)
         }.compactMap { quest -> ReminderCandidate? in
             let preference = reminderPreferences.first { $0.questID == quest.id }
             if let preference, !preference.isEnabled { return nil }

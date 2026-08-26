@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum KyndynSchema {
-    static let version = 6
+    static let version = 7
 }
 
 enum ProfileRole: String, Codable, CaseIterable {
@@ -29,6 +29,8 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var deletedAt: Date?
     var rewardTitle: String
     var rewardGoalXP: Int
+    var schedulePauseStartsAt: Date?
+    var schedulePauseEndsAt: Date?
     // Local diagnostic classification only. Never included in CloudKit records.
     var isSample: Bool = false
 
@@ -245,6 +247,7 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var cachedWeatherLow: Double?
     var cachedWeatherCondition: String?
     var cachedWeatherSymbolName: String?
+    var cachedWeatherLocationName: String?
     var cachedWeatherAt: Date?
     init() {
         self.id = UUID()
@@ -317,6 +320,69 @@ enum SyncErrorCategory: String, Codable {
     case offline, notSignedIn, restricted, accountChanged, accessRevoked
     case staleChangeToken, serverRejected, incompatibleSchema, malformedShare
     case transient, unknown
+}
+
+struct SyncHealthSummary: Equatable {
+    enum Tone: Equatable { case healthy, waiting, attention, localOnly }
+
+    let title: String
+    let detail: String
+    let tone: Tone
+
+    static func make(state: HouseholdCloudState?, pendingCount: Int,
+                     now: Date = .now) -> SyncHealthSummary {
+        guard let state, state.mode != .localOnly else {
+            return .init(title: "Stored on this device",
+                         detail: "Family sync is not enabled for this household.",
+                         tone: .localOnly)
+        }
+        if state.mode == .accountChanged {
+            return .init(title: "iCloud account changed",
+                         detail: "Confirm the account before this household syncs again.",
+                         tone: .attention)
+        }
+        if state.mode == .needsAttention {
+            return .init(title: "Family sync needs attention",
+                         detail: safeErrorDetail(state.lastErrorCategoryRaw),
+                         tone: .attention)
+        }
+        if pendingCount > 0 {
+            return .init(
+                title: "Waiting to finish",
+                detail: "\(pendingCount) local \(pendingCount == 1 ? "change is" : "changes are") safe and waiting to sync.",
+                tone: .waiting)
+        }
+        if state.mode == .recoverableError || state.mode == .paused ||
+            state.mode == .unavailable {
+            return .init(title: "Waiting to reconnect",
+                         detail: safeErrorDetail(state.lastErrorCategoryRaw),
+                         tone: .waiting)
+        }
+        if let lastSync = state.lastSuccessfulSyncAt {
+            let age = max(0, now.timeIntervalSince(lastSync))
+            let freshness: String
+            if age < 90 { freshness = "A sync finished just now." }
+            else if age < 3_600 { freshness = "A sync finished recently." }
+            else { freshness = "Last sync: \(lastSync.formatted(date: .abbreviated, time: .shortened))." }
+            return .init(title: "No problems detected", detail: freshness,
+                         tone: .healthy)
+        }
+        return .init(title: "Ready to synchronize",
+                     detail: "No completed sync has been recorded on this device yet.",
+                     tone: .waiting)
+    }
+
+    private static func safeErrorDetail(_ rawValue: String?) -> String {
+        switch rawValue.flatMap(SyncErrorCategory.init(rawValue:)) {
+        case .offline: return "This device is offline. Local changes remain safe."
+        case .notSignedIn: return "Sign in to iCloud to continue family sync."
+        case .restricted: return "iCloud access is restricted on this device."
+        case .accountChanged: return "Confirm the iCloud account before syncing again."
+        case .accessRevoked: return "Access to the shared household was removed."
+        case .incompatibleSchema: return "Update kyndyn before opening this shared household."
+        default: return "Kyndyn will retry safely when Apple and the network are ready."
+        }
+    }
 }
 
 @Model final class HouseholdCloudState {
