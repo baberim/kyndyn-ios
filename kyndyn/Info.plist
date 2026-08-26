@@ -59,6 +59,34 @@
 			<dict><key>CFBundleIconFiles</key><array><string>AppIconTranslucentFoil</string></array><key>UIPrerenderedIcon</key><false/></dict>
 		</dict>
 	</dict>
+	<key>CFBundleIcons~ipad</key>
+	<dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>AppIconCRT</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconCRT</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconArcade</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconArcade</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconAtomicAge</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconAtomicAge</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconJapandi</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconJapandi</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconLCD</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconLCD</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconOutrun</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconOutrun</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconOutrun2</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconOutrun2</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconPastel</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconPastel</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconRetroGame</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconRetroGame</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconTranslucent</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconTranslucent</string></array><key>UIPrerenderedIcon</key><false/></dict>
+			<key>AppIconTranslucentFoil</key>
+			<dict><key>CFBundleIconFiles</key><array><string>AppIconTranslucentFoil</string></array><key>UIPrerenderedIcon</key><false/></dict>
+		</dict>
+	</dict>
 	<key>CKSharingSupported</key>
 	<true/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>

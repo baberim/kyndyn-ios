@@ -367,12 +367,10 @@ struct OnboardingView: View {
 
 struct CloudHouseholdRecoveryView: View {
     @Environment(CloudSyncController.self) private var sync
-    @Environment(AppModel.self) private var app
-    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var candidates = [CloudHouseholdCandidate]()
     @State private var hasChecked = false
+    @State private var selectedCandidate: CloudHouseholdCandidate?
 
     var body: some View {
         NavigationStack {
@@ -394,7 +392,7 @@ struct CloudHouseholdRecoveryView: View {
                     Section("Families found") {
                         ForEach(candidates) { candidate in
                             Button {
-                                recover(candidate)
+                                selectedCandidate = candidate
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(candidate.householdName).font(.headline)
@@ -420,6 +418,12 @@ struct CloudHouseholdRecoveryView: View {
                 }
             }
             .task { check() }
+            .sheet(item: $selectedCandidate) { candidate in
+                CloudRecoveryPreviewView(candidate: candidate) {
+                    selectedCandidate = nil
+                    dismiss()
+                }
+            }
         }
     }
 
@@ -430,8 +434,114 @@ struct CloudHouseholdRecoveryView: View {
         }
     }
 
-    private func recover(_ candidate: CloudHouseholdCandidate) {
+}
+
+struct CloudRecoveryPreviewView: View {
+    @Environment(CloudSyncController.self) private var sync
+    @Environment(AppModel.self) private var app
+    @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    let candidate: CloudHouseholdCandidate
+    let onFinished: () -> Void
+    @State private var isRecovering = false
+    @State private var didRecover = false
+
+    private var preview: CloudRecoveryPreview {
+        CloudRecoveryAudit.preview(candidate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if didRecover {
+                    List {
+                        Section {
+                            ContentUnavailableView(
+                                "Recovery complete",
+                                systemImage: "checkmark.icloud.fill",
+                                description: Text(
+                                    "Kyndyn verified the recovered profiles, quests, and history before saving them."))
+                        }
+                        recoveryCounts
+                        Section {
+                            Button("Continue to my family") { onFinished() }
+                                .frame(maxWidth: .infinity)
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
+                } else {
+                    List {
+                        Section {
+                            KyndynCallout(
+                                kind: preview.isSafeToRecover ? .information : .caution,
+                                message: preview.isSafeToRecover
+                                    ? "Review what Kyndyn found before anything is saved on this device."
+                                    : "This cloud copy did not pass Kyndyn’s safety checks and will not be restored.")
+                        }
+                        recoveryCounts
+                        if !preview.issues.isEmpty {
+                            Section("Needs attention") {
+                                ForEach(preview.issues, id: \.self) { issue in
+                                    Label(issue, systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        Section("What happens next") {
+                            Text("Recovery creates this household on an empty installation. It does not delete or modify the cloud copy.")
+                            Text("Kyndyn verifies the restored record counts before reporting success. Keep a separate private backup after recovery.")
+                                .foregroundStyle(.secondary)
+                        }
+                        if isRecovering {
+                            Section { ProgressView("Verifying and recovering…") }
+                        } else if sync.lastErrorCategory != nil {
+                            Section { KyndynCallout(kind: .caution, message: sync.statusMessage) }
+                        }
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        Button("Recover this family", systemImage: "icloud.and.arrow.down") {
+                            recover()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(!preview.isSafeToRecover || isRecovering)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(.bar)
+                    }
+                }
+            }
+            .navigationTitle(didRecover ? "Recovered" : "Review recovery")
+            .toolbar {
+                if !didRecover {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                            .disabled(isRecovering)
+                    }
+                }
+            }
+        }
+        .interactiveDismissDisabled(isRecovering)
+    }
+
+    @ViewBuilder private var recoveryCounts: some View {
+        Section(preview.householdName) {
+            LabeledContent("Profiles", value: "\(preview.activePeople) active · \(preview.people) total")
+            LabeledContent("Quests", value: "\(preview.quests - preview.archivedQuests) active · \(preview.quests) total")
+            LabeledContent("Completion history", value: "\(preview.completions)")
+            if preview.undoneCompletions > 0 {
+                LabeledContent("Undone completions", value: "\(preview.undoneCompletions)")
+            }
+            LabeledContent("Starting XP adjustments", value: "\(preview.startingXP) XP")
+            LabeledContent("Active completion XP", value: "\(preview.awardedXP) XP")
+        }
+    }
+
+    private func recover() {
+        isRecovering = true
         Task {
+            defer { isRecovering = false }
             guard await sync.recoverHousehold(candidate, context: context) != nil else {
                 return
             }
@@ -440,7 +550,7 @@ struct CloudHouseholdRecoveryView: View {
                 $0.householdID == candidate.householdID && $0.deletedAt == nil
             })?.id
             automaticSync.request(.accountRecovery)
-            dismiss()
+            didRecover = true
         }
     }
 }
@@ -568,7 +678,10 @@ struct ProfilePickerView: View {
     @Query private var completions: [QuestCompletion]
     @Query private var settings: [LocalDeviceSettings]
     @State private var isPullRefreshing = false
-    let columns = [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+
+    private var activePeople: [Person] {
+        people.filter { $0.deletedAt == nil }
+    }
 
     var body: some View {
         NavigationStack {
@@ -582,8 +695,11 @@ struct ProfilePickerView: View {
                             Text("Choose a profile to see the right quests.")
                                 .foregroundStyle(.secondary)
                         }
-                        LazyVGrid(columns: columns, spacing: 26) {
-                            ForEach(people.filter { $0.deletedAt == nil }) { person in
+                        LazyVGrid(
+                            columns: profileColumns(for: proxy.size.width),
+                            spacing: 26
+                        ) {
+                            ForEach(activePeople) { person in
                                 Button {
                                     app.selectedPersonID = person.id
                                     app.selectedTab = 0
@@ -636,6 +752,7 @@ struct ProfilePickerView: View {
                                 .accessibilityIdentifier("profile-\(person.name)")
                             }
                         }
+                        .frame(width: profileGridWidth(for: proxy.size.width))
                         .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
                     }
                     .padding(24)
@@ -650,6 +767,21 @@ struct ProfilePickerView: View {
             .background(KyndynScreenBackground())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func profileColumns(for width: CGFloat) -> [GridItem] {
+        guard width >= 700 else {
+            return [GridItem(.adaptive(minimum: 128, maximum: 190), spacing: 24)]
+        }
+        return Array(
+            repeating: GridItem(.fixed(190), spacing: 24, alignment: .top),
+            count: max(1, min(activePeople.count, 4)))
+    }
+
+    private func profileGridWidth(for width: CGFloat) -> CGFloat? {
+        guard width >= 700 else { return nil }
+        let count = CGFloat(max(1, min(activePeople.count, 4)))
+        return count * 190 + (count - 1) * 24
     }
 
     private func refreshFamilyData() async {
@@ -731,11 +863,38 @@ struct SettingsView: View {
                 Section("Personalization") {
                     if let activePerson {
                         NavigationLink {
-                            MyProfileView(person: activePerson)
+                            ProfileCustomizationView(person: activePerson, section: .color)
                         } label: {
-                            profileSettingsRow(activePerson)
+                            settingsRow(
+                                title: "App color",
+                                subtitle: "Use your profile color throughout kyndyn",
+                                systemImage: "paintpalette.fill",
+                                tint: Color(hex: activePerson.colorHex))
                         }
-                        .accessibilityIdentifier("settings-my-profile")
+                        .accessibilityIdentifier("settings-app-color")
+                        NavigationLink {
+                            ProfileCustomizationView(person: activePerson, section: .companion)
+                        } label: {
+                            HStack(spacing: 12) {
+                                settingsIconTile(tint: Color(hex: activePerson.colorHex)) {
+                                    CompanionArt(id: activePerson.companionID).padding(3)
+                                }
+                                settingsRowText(
+                                    title: "Companion",
+                                    subtitle: "Choose who joins you on your day")
+                            }
+                        }
+                        .accessibilityIdentifier("settings-companion")
+                        NavigationLink {
+                            ProfileCustomizationView(person: activePerson, section: .background)
+                        } label: {
+                            settingsRow(
+                                title: "Background",
+                                subtitle: "Choose the scene behind your companion",
+                                systemImage: "photo.fill",
+                                tint: Color(hex: activePerson.colorHex))
+                        }
+                        .accessibilityIdentifier("settings-background")
                     } else {
                         Text("Choose a person from Profiles to customize a profile.")
                             .foregroundStyle(.secondary)
@@ -817,18 +976,6 @@ struct SettingsView: View {
         automaticSync.request(.manual)
         await automaticSync.waitUntilIdle()
         try? await minimumVisibleTime
-    }
-
-    private func profileSettingsRow(_ person: Person) -> some View {
-        HStack(spacing: 12) {
-            settingsIconTile(tint: Color(hex: person.colorHex)) {
-                CompanionArt(id: person.companionID)
-                    .padding(3)
-            }
-            settingsRowText(
-                title: "My profile",
-                subtitle: "Color, companion, and background")
-        }
     }
 
     private func settingsRow(
@@ -1017,7 +1164,7 @@ struct WeatherSettingsView: View {
                 }
             }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "kyndyn never saves your location. A short-lived weather summary stays on this device and is excluded from family sync and backups.")
+                KyndynCallout(kind: .privacy, message: "kyndyn never saves precise coordinates. A short-lived weather summary and city or town name stay on this device and are excluded from family sync and backups.")
             }
         }
         .scrollContentBackground(.hidden).background(KyndynScreenBackground())
@@ -1037,6 +1184,7 @@ struct WeatherSettingsView: View {
             setting.cachedWeatherLow = value.low
             setting.cachedWeatherCondition = value.condition
             setting.cachedWeatherSymbolName = value.symbolName
+            setting.cachedWeatherLocationName = value.locationName
             setting.cachedWeatherAt = value.fetchedAt
             try context.save()
             message = "Weather is ready on Home."
@@ -1048,7 +1196,8 @@ struct WeatherSettingsView: View {
     private func clearCache(_ setting: LocalDeviceSettings) {
         setting.cachedWeatherTemperature = nil; setting.cachedWeatherHigh = nil
         setting.cachedWeatherLow = nil; setting.cachedWeatherCondition = nil
-        setting.cachedWeatherSymbolName = nil; setting.cachedWeatherAt = nil
+        setting.cachedWeatherSymbolName = nil
+        setting.cachedWeatherLocationName = nil; setting.cachedWeatherAt = nil
     }
 
     private func openAppSettings() {
@@ -1122,6 +1271,7 @@ struct DashboardView: View {
     @State private var unlockToPresent: String?
     @State private var greetingMessage = "Small steps count."
     @State private var calendarEvents: [DeviceCalendarEvent] = []
+    @State private var weatherHourlyForecast: [DeviceWeatherHour] = []
     @State private var weatherForecast: [DeviceWeatherDay] = []
     @State private var presentedDayDetail: DayDetail?
     @State private var isLoadingWeather = false
@@ -1148,6 +1298,15 @@ struct DashboardView: View {
                         }
                         dashboardModePicker
                             .padding(.horizontal)
+                        if ProgressionEngine.isSchedulePaused(
+                            on: .now, household: household),
+                           let end = household.schedulePauseEndsAt {
+                            KyndynCallout(
+                                kind: .information,
+                                message: "Scheduled quests and reminders resume after \(end.formatted(date: .abbreviated, time: .omitted)).",
+                                title: "Family schedules are paused")
+                            .padding(.horizontal)
+                        }
                         dayContext
                             .padding(.horizontal)
                         if deviceSettings.first?.showsHouseholdDashboard == true {
@@ -1159,7 +1318,9 @@ struct DashboardView: View {
                                 personID: person.id, completions: completions,
                                 now: .now,
                                 timeZoneIdentifier: household.timeZoneIdentifier,
-                                startingXPAdjustment: person.startingXPAdjustment)
+                                startingXPAdjustment: person.startingXPAdjustment,
+                                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                                schedulePauseEndsAt: household.schedulePauseEndsAt)
                             VStack(spacing: 16) {
                                 broadcastNavigation
                                 progressSummary(
@@ -1219,6 +1380,7 @@ struct DashboardView: View {
                 case .weather:
                     WeatherGlanceView(
                         setting: deviceSettings.first,
+                        hourlyForecast: weatherHourlyForecast,
                         forecast: weatherForecast,
                         isLoading: isLoadingWeather)
                 case .calendar:
@@ -1276,9 +1438,18 @@ struct DashboardView: View {
     }
 
     private func weatherSummary(_ setting: LocalDeviceSettings) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Outside", systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
+        let tint = weatherTint(for: setting.cachedWeatherSymbolName)
+        return VStack(alignment: .leading, spacing: 6) {
+            Label(setting.cachedWeatherCondition ?? "Local weather",
+                  systemImage: setting.cachedWeatherSymbolName ?? "cloud.sun")
                 .font(.headline)
+                .foregroundStyle(tint)
+            if let locationName = setting.cachedWeatherLocationName {
+                Text(locationName)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if let temperature = setting.cachedWeatherTemperature {
                 Text("\(Int(temperature.rounded()))°")
                     .font(.title.bold().monospacedDigit())
@@ -1286,8 +1457,6 @@ struct DashboardView: View {
                     Text("H \(Int(high.rounded()))°  L \(Int(low.rounded()))°")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Text(setting.cachedWeatherCondition ?? "Local weather")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 if let fetchedAt = setting.cachedWeatherAt {
                     Text(WeatherCachePolicy.isFresh(fetchedAt)
                          ? "Updated recently" : "Last updated \(fetchedAt.formatted(date: .omitted, time: .shortened))")
@@ -1299,7 +1468,7 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
-        .kyndynCard(tint: .blue)
+        .kyndynCard(tint: tint)
     }
 
     private var calendarSummary: some View {
@@ -1308,8 +1477,15 @@ struct DashboardView: View {
                 .font(.headline)
             if let event = calendarEvents.first {
                 Text(event.title).font(.subheadline.bold()).lineLimit(1)
-                Text(calendarTime(for: event))
-                    .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color(hex: event.calendarColorHex))
+                        .frame(width: 7, height: 7)
+                    Text(event.calendarTitle).lineLimit(1)
+                    Text("•")
+                    Text(calendarTime(for: event)).lineLimit(1)
+                }
+                .font(.caption).foregroundStyle(.secondary)
                 if calendarEvents.count > 1 {
                     Text("+\(calendarEvents.count - 1) more in the next 2 weeks")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -1320,7 +1496,9 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity, alignment: .topLeading)
-        .kyndynCard(tint: .orange)
+        .kyndynCard(tint: calendarEvents.first.map {
+            Color(hex: $0.calendarColorHex)
+        } ?? .orange)
     }
 
     private func calendarTime(for event: DeviceCalendarEvent) -> String {
@@ -1365,7 +1543,9 @@ struct DashboardView: View {
             setting.cachedWeatherLow = snapshot.low
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherHourlyForecast = snapshot.hourlyForecast
             weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
@@ -1388,7 +1568,9 @@ struct DashboardView: View {
             setting.cachedWeatherLow = snapshot.low
             setting.cachedWeatherCondition = snapshot.condition
             setting.cachedWeatherSymbolName = snapshot.symbolName
+            setting.cachedWeatherLocationName = snapshot.locationName
             setting.cachedWeatherAt = snapshot.fetchedAt
+            weatherHourlyForecast = snapshot.hourlyForecast
             weatherForecast = snapshot.dailyForecast
             try? context.save()
         } catch {
@@ -1416,9 +1598,9 @@ struct DashboardView: View {
     }
 
     private func unlockMessage(_ value: String?) -> String {
-        guard let value else { return "A new item is ready in My profile." }
+        guard let value else { return "A new item is ready in Settings." }
         let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { return "A new item is ready in My profile." }
+        guard parts.count == 2 else { return "A new item is ready in Settings." }
         if parts[0] == "badge",
            let badge = RecognitionEngine.badgeCatalog.first(where: {
                $0.id == parts[1]
@@ -1432,7 +1614,7 @@ struct DashboardView: View {
             }
             return badge.detail
         }
-        return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in My profile."
+        return "\(parts[1].capitalized) is now available as a \(parts[0]). You can choose it in Settings."
     }
 
     private func unlockTitle(_ value: String?) -> String {
@@ -1520,7 +1702,8 @@ struct DashboardView: View {
         let memberQuests = quests.compactMap { quest -> (Quest, QuestTemporalStatus)? in
             let status = ProgressionEngine.temporalStatus(
                 for: quest, personID: member.id, completions: completions,
-                now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                household: household)
             return status == .inactive ? nil : (quest, status)
         }
         let waiting = memberQuests.filter { $0.1 == .overdue || $0.1 == .today }
@@ -1528,7 +1711,9 @@ struct DashboardView: View {
         let progress = ProgressionEngine.progress(
             personID: member.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: member.startingXPAdjustment)
+            startingXPAdjustment: member.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
 
         return Button {
             app.selectedPersonID = member.id
@@ -1733,10 +1918,22 @@ private enum QuestBrowseFilter: String, CaseIterable, Identifiable {
 }
 
 private struct WeatherGlanceView: View {
+    private enum ForecastMode: String, CaseIterable, Identifiable {
+        case hourly = "Hourly"
+        case daily = "10-day"
+        var id: String { rawValue }
+    }
+
     @Environment(\.dismiss) private var dismiss
     let setting: LocalDeviceSettings?
+    let hourlyForecast: [DeviceWeatherHour]
     let forecast: [DeviceWeatherDay]
     let isLoading: Bool
+    @State private var mode: ForecastMode = .hourly
+
+    private var tint: Color {
+        weatherTint(for: setting?.cachedWeatherSymbolName)
+    }
 
     var body: some View {
         NavigationStack {
@@ -1745,8 +1942,13 @@ private struct WeatherGlanceView: View {
                     if let temperature = setting?.cachedWeatherTemperature {
                         HStack(spacing: 16) {
                             Image(systemName: setting?.cachedWeatherSymbolName ?? "cloud.sun")
-                                .font(.system(size: 42)).foregroundStyle(.blue)
+                                .font(.system(size: 42)).foregroundStyle(tint)
                             VStack(alignment: .leading, spacing: 3) {
+                                if let locationName = setting?.cachedWeatherLocationName {
+                                    Text(locationName)
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text("\(Int(temperature.rounded()))°")
                                     .font(.largeTitle.bold().monospacedDigit())
                                 Text(setting?.cachedWeatherCondition ?? "Local weather")
@@ -1754,33 +1956,26 @@ private struct WeatherGlanceView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .kyndynCard(tint: .blue, raised: true)
+                        .kyndynCard(tint: tint, raised: true)
                     }
 
-                    if isLoading && forecast.isEmpty {
+                    Picker("Forecast", selection: $mode) {
+                        ForEach(ForecastMode.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if isLoading && hourlyForecast.isEmpty && forecast.isEmpty {
                         HStack { Spacer(); ProgressView("Updating forecast…"); Spacer() }
                             .padding(.vertical, 24)
-                    } else if forecast.isEmpty {
-                        KyndynCallout(kind: .information,
-                                      message: "A forecast isn’t available right now. Your last weather update is still shown above.")
+                    } else if mode == .hourly, !hourlyForecast.isEmpty {
+                        hourlyRows
+                    } else if mode == .daily, !forecast.isEmpty {
+                        dailyRows
                     } else {
-                        VStack(spacing: 0) {
-                            ForEach(forecast) { day in
-                                HStack(spacing: 12) {
-                                    Text(day.date.formatted(.dateTime.weekday(.wide)))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    Image(systemName: day.symbolName)
-                                        .foregroundStyle(.blue).frame(width: 28)
-                                    Text("\(Int(day.high.rounded()))°")
-                                        .fontWeight(.semibold).monospacedDigit()
-                                    Text("\(Int(day.low.rounded()))°")
-                                        .foregroundStyle(.secondary).monospacedDigit()
-                                }
-                                .padding(.vertical, 12)
-                                if day.id != forecast.last?.id { Divider() }
-                            }
-                        }
-                        .kyndynCard(tint: .blue)
+                        KyndynCallout(kind: .information,
+                                      message: "This forecast isn’t available right now. Your last weather update is still shown above.")
                     }
                 }
                 .padding()
@@ -1796,6 +1991,64 @@ private struct WeatherGlanceView: View {
         }
         .presentationDetents(forecast.count > 4 ? [.medium, .large] : [.medium])
     }
+
+    private var hourlyRows: some View {
+        VStack(spacing: 0) {
+            ForEach(hourlyForecast) { hour in
+                HStack(spacing: 12) {
+                    Text(hour.date.formatted(.dateTime.hour()))
+                        .frame(width: 68, alignment: .leading)
+                    Image(systemName: hour.symbolName)
+                        .foregroundStyle(weatherTint(for: hour.symbolName))
+                        .frame(width: 30)
+                    if hour.precipitationChance >= 0.05 {
+                        Label("\(Int((hour.precipitationChance * 100).rounded()))%",
+                              systemImage: "drop.fill")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                    Spacer()
+                    Text("\(Int(hour.temperature.rounded()))°")
+                        .fontWeight(.semibold).monospacedDigit()
+                }
+                .padding(.vertical, 12)
+                if hour.id != hourlyForecast.last?.id { Divider() }
+            }
+        }
+        .kyndynCard(tint: tint)
+    }
+
+    private var dailyRows: some View {
+        VStack(spacing: 0) {
+            ForEach(forecast) { day in
+                HStack(spacing: 12) {
+                    Text(day.date.formatted(.dateTime.weekday(.wide)))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: day.symbolName)
+                        .foregroundStyle(weatherTint(for: day.symbolName))
+                        .frame(width: 28)
+                    Text("\(Int(day.high.rounded()))°")
+                        .fontWeight(.semibold).monospacedDigit()
+                    Text("\(Int(day.low.rounded()))°")
+                        .foregroundStyle(.secondary).monospacedDigit()
+                }
+                .padding(.vertical, 12)
+                if day.id != forecast.last?.id { Divider() }
+            }
+        }
+        .kyndynCard(tint: tint)
+    }
+}
+
+private func weatherTint(for symbolName: String?) -> Color {
+    let symbol = symbolName?.lowercased() ?? ""
+    if symbol.contains("thunder") || symbol.contains("bolt") { return .indigo }
+    if symbol.contains("snow") || symbol.contains("sleet") { return .cyan }
+    if symbol.contains("rain") || symbol.contains("drizzle") { return .blue }
+    if symbol.contains("sun") { return .orange }
+    if symbol.contains("moon") { return .indigo }
+    if symbol.contains("cloud") || symbol.contains("fog") { return .gray }
+    return .blue
 }
 
 private struct CalendarGlanceView: View {
@@ -1813,11 +2066,22 @@ private struct CalendarGlanceView: View {
                         ForEach(events) { event in
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(event.title).font(.headline)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color(hex: event.calendarColorHex))
+                                        .frame(width: 9, height: 9)
+                                    Text(event.calendarTitle)
+                                }
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color(hex: event.calendarColorHex))
                                 Label(eventTime(event), systemImage: "clock")
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .kyndynCard(tint: .orange)
+                            .kyndynCard(tint: Color(hex: event.calendarColorHex))
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(
+                                "\(event.title), \(event.calendarTitle), \(eventTime(event))")
                         }
                     }
                 }
@@ -1859,7 +2123,9 @@ struct ProgressDetailView: View {
         ProgressionEngine.progress(
             personID: person.id, completions: completions, now: .now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: person.startingXPAdjustment)
+            startingXPAdjustment: person.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
     }
     private var familyRewardReached: Bool {
         let goal = ProgressionEngine.currentRewardGoal(
@@ -2040,8 +2306,23 @@ private struct BadgeTile: View {
     }
 }
 
-struct MyProfileView: View {
+private enum ProfileCustomizationSection {
+    case color
+    case companion
+    case background
+
+    var title: String {
+        switch self {
+        case .color: "App color"
+        case .companion: "Companion"
+        case .background: "Background"
+        }
+    }
+}
+
+private struct ProfileCustomizationView: View {
     let person: Person
+    let section: ProfileCustomizationSection
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -2059,8 +2340,9 @@ struct MyProfileView: View {
         Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
     }
 
-    init(person: Person) {
+    init(person: Person, section: ProfileCustomizationSection) {
         self.person = person
+        self.section = section
         _colorHex = State(initialValue: person.colorHex)
         _companionID = State(initialValue: person.companionID)
         _backgroundID = State(initialValue: person.backgroundID)
@@ -2075,74 +2357,81 @@ struct MyProfileView: View {
                         accent: Color(hex: colorHex))
                         .frame(height: horizontalSizeClass == .compact ? 150 : 210)
                         .accessibilityLabel("Preview for \(person.name)")
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("App color").font(.headline)
-                        ProfileColorSelector(selection: $colorHex)
-                    }
-                    .kyndynCard(tint: Color(hex: colorHex))
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Companion").font(.headline)
-                        LazyVGrid(columns: companionColumns, spacing: 12) {
-                            ForEach(CollectionCatalog.companions) { choice in
-                                let earned = person.earnedCompanionIDs.contains(choice.id)
-                                Button {
-                                    if earned { companionID = choice.id }
-                                } label: {
-                                    VStack {
-                                        CompanionArt(id: choice.id)
-                                            .frame(width: 62, height: 62)
-                                            .saturation(earned ? 1 : 0)
-                                            .opacity(earned ? 1 : 0.35)
-                                        Text(choice.name).font(.caption.bold())
-                                        if companionID == choice.id {
-                                            Label("Active", systemImage: "checkmark.circle.fill")
+                    switch section {
+                    case .color:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("App color").font(.headline)
+                            Text("This color personalizes navigation, highlights, and your profile without changing anyone else’s view.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            ProfileColorSelector(selection: $colorHex)
+                        }
+                        .kyndynCard(tint: Color(hex: colorHex))
+                    case .companion:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Companion").font(.headline)
+                            LazyVGrid(columns: companionColumns, spacing: 12) {
+                                ForEach(CollectionCatalog.companions) { choice in
+                                    let earned = person.earnedCompanionIDs.contains(choice.id)
+                                    Button {
+                                        if earned { companionID = choice.id }
+                                    } label: {
+                                        VStack {
+                                            CompanionArt(id: choice.id)
+                                                .frame(width: 62, height: 62)
+                                                .saturation(earned ? 1 : 0)
+                                                .opacity(earned ? 1 : 0.35)
+                                            Text(choice.name).font(.caption.bold())
+                                            if companionID == choice.id {
+                                                Label("Active", systemImage: "checkmark.circle.fill")
+                                                    .font(.caption2)
+                                            } else if !earned {
+                                                VStack(spacing: 2) {
+                                                    Label("Locked", systemImage: "lock.fill")
+                                                    Text(choice.unlockHint).lineLimit(2)
+                                                }
                                                 .font(.caption2)
-                                        } else if !earned {
-                                            VStack(spacing: 2) {
-                                                Label("Locked", systemImage: "lock.fill")
-                                                Text(choice.unlockHint).lineLimit(2)
                                             }
-                                            .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 116)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(!earned)
+                                    .accessibilityIdentifier("collection-companion-\(choice.id)")
+                                    .kyndynCard(tint: companionID == choice.id
+                                                ? Color(hex: colorHex) : .secondary)
+                                }
+                            }
+                        }
+                    case .background:
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Background").font(.headline)
+                            LazyVGrid(columns: backgroundColumns, spacing: 16) {
+                                ForEach(CollectionCatalog.backgrounds) { background in
+                                    let earned = person.earnedBackgroundIDs.contains(background.id)
+                                    Button {
+                                        if earned { backgroundID = background.id }
+                                    } label: {
+                                        VStack(spacing: 6) {
+                                            ProfileScene(
+                                                backgroundID: background.id,
+                                                companionID: companionID,
+                                                accent: Color(hex: colorHex))
+                                                .frame(height: horizontalSizeClass == .compact ? 82 : 120)
+                                                .saturation(earned ? 1 : 0)
+                                                .opacity(earned ? 1 : 0.42)
+                                            Text(background.name).font(.caption.bold())
+                                            Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
+                                                .font(.caption2).foregroundStyle(.secondary)
+                                                .lineLimit(2)
                                         }
                                     }
-                                    .frame(maxWidth: .infinity, minHeight: 116)
+                                    .buttonStyle(.plain).disabled(!earned)
+                                    .accessibilityIdentifier("collection-background-\(background.id)")
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(!earned)
-                                .accessibilityIdentifier("collection-companion-\(choice.id)")
-                                .kyndynCard(tint: companionID == choice.id
-                                            ? Color(hex: colorHex) : .secondary)
                             }
                         }
+                        .kyndynCard(tint: Color(hex: colorHex))
                     }
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Background").font(.headline)
-                        LazyVGrid(columns: backgroundColumns, spacing: 16) {
-                            ForEach(CollectionCatalog.backgrounds) { background in
-                                let earned = person.earnedBackgroundIDs.contains(background.id)
-                                Button {
-                                    if earned { backgroundID = background.id }
-                                } label: {
-                                    VStack(spacing: 6) {
-                                        ProfileScene(
-                                            backgroundID: background.id,
-                                            companionID: companionID,
-                                            accent: Color(hex: colorHex))
-                                            .frame(height: horizontalSizeClass == .compact ? 82 : 120)
-                                            .saturation(earned ? 1 : 0)
-                                            .opacity(earned ? 1 : 0.42)
-                                        Text(background.name).font(.caption.bold())
-                                        Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
-                                            .font(.caption2).foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                    }
-                                }
-                                .buttonStyle(.plain).disabled(!earned)
-                                .accessibilityIdentifier("collection-background-\(background.id)")
-                            }
-                        }
-                    }
-                    .kyndynCard(tint: Color(hex: colorHex))
                     Text("Parents still manage names, roles, and family permissions.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -2152,12 +2441,9 @@ struct MyProfileView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(KyndynScreenBackground())
-            .navigationTitle("My profile")
+            .navigationTitle(section.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                 }
@@ -2238,6 +2524,17 @@ struct AppIconPickerView: View {
     @State private var isChanging = false
     @State private var errorMessage: String?
 
+    private var supportsIconChanges: Bool {
+        UIApplication.shared.supportsAlternateIcons
+    }
+
+    private var unavailableMessage: String {
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            return "This Mac is running the iPad version of kyndyn, and macOS does not currently allow that app to change its icon. Your icon choices remain available on iPhone and iPad."
+        }
+        return "This device does not currently allow kyndyn to change its app icon. You can still use every other personalization option."
+    }
+
     private let columns = [
         GridItem(.adaptive(minimum: 96, maximum: 112), spacing: 14)
     ]
@@ -2247,7 +2544,7 @@ struct AppIconPickerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "iphone")
+                        Image(systemName: "apps.iphone")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(KyndynTheme.purple)
                             .frame(width: 22)
@@ -2259,12 +2556,20 @@ struct AppIconPickerView: View {
                     }
                     .kyndynCard(tint: KyndynTheme.purple)
 
+                    if !supportsIconChanges {
+                        KyndynCallout(
+                            kind: .information,
+                            message: unavailableMessage,
+                            title: "Icon changes unavailable here")
+                            .accessibilityIdentifier("app-icon-unavailable")
+                    }
+
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(AppIconChoice.choices) { choice in
                             AppIconChoiceButton(
                                 choice: choice,
                                 isSelected: selectedName == choice.alternateName,
-                                isDisabled: isChanging
+                                isDisabled: isChanging || !supportsIconChanges
                             ) {
                                 change(to: choice.alternateName)
                             }
@@ -2295,8 +2600,11 @@ struct AppIconPickerView: View {
     }
 
     private func change(to alternateName: String?) {
-        guard UIApplication.shared.supportsAlternateIcons,
-              selectedName != alternateName else { return }
+        guard supportsIconChanges else {
+            errorMessage = unavailableMessage
+            return
+        }
+        guard selectedName != alternateName else { return }
         isChanging = true
         UIApplication.shared.setAlternateIconName(alternateName) { error in
             Task { @MainActor in
@@ -2394,13 +2702,15 @@ struct QuestListView: View {
                     ProgressionEngine.temporalStatus(
                         for: quest, personID: personID, completions: completions,
                         now: .now,
-                        timeZoneIdentifier: household.timeZoneIdentifier)
+                        timeZoneIdentifier: household.timeZoneIdentifier,
+                        household: household)
                 }
                 status = aggregateStatus(values)
             } else if let personID = selectedPersonID {
                 status = ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             } else {
                 status = .inactive
             }
@@ -3323,6 +3633,9 @@ struct ParentAreaView: View {
                         NavigationLink { FamilyBroadcastManagementView() } label: {
                             parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
+                        NavigationLink { SchedulePauseView() } label: {
+                            parentRow("Pause schedules", "Take a break without missed quests", "pause.circle.fill", KyndynTheme.green)
+                        }
                         NavigationLink { CloudSyncSettingsView() } label: {
                             parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
                         }
@@ -3359,7 +3672,7 @@ struct ParentAreaView: View {
                         parentRow("Reminders", "Timing, quiet hours, and lock-screen privacy", "bell.fill", .blue)
                     }
                     NavigationLink { HouseholdDataProtectionView() } label: {
-                        parentRow("Backup and migration", "Export, restore, and Rowan transfer", "externaldrive.fill", KyndynTheme.green)
+                        parentRow("Data and privacy", "Backups, recovery, and local data controls", "hand.raised.fill", KyndynTheme.green)
                     }
                     NavigationLink { ParentSecurityView() } label: {
                         parentRow("Parent security", "Face ID, device passcode, and fallback PIN", "lock.shield.fill", KyndynTheme.pink)
@@ -3428,7 +3741,8 @@ struct ParentAreaView: View {
             quest.participantIDs.compactMap { personID in
                 ProgressionEngine.temporalStatus(
                     for: quest, personID: personID, completions: completions,
-                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier)
+                    now: .now, timeZoneIdentifier: household.timeZoneIdentifier,
+                    household: household)
             }
         }
     }
@@ -3630,7 +3944,9 @@ struct FamilyInsightsView: View {
             }
             Text("These are factual summaries of family activity—not ratings or comparisons between people.")
                 .font(.footnote).foregroundStyle(.secondary)
-        }.kyndynCard(tint: KyndynTheme.amber)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .kyndynCard(tint: KyndynTheme.amber)
     }
 }
 
@@ -3826,6 +4142,90 @@ struct FamilyRewardSettingsView: View {
     }
 }
 
+struct SchedulePauseView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Query private var households: [Household]
+    @State private var isEnabled = false
+    @State private var startDate = Date()
+    @State private var endDate = Date()
+    @State private var statusMessage: String?
+
+    private var household: Household? { households.first }
+
+    var body: some View {
+        Form {
+            Section {
+                KyndynCallout(
+                    kind: .information,
+                    message: "Scheduled quests won’t become waiting or overdue, reminders stop, and paused days won’t count as missed. Existing XP and history stay exactly as they are.",
+                    title: "Take a break without losing progress")
+            }
+            Section("Schedule") {
+                Toggle("Pause family schedules", isOn: $isEnabled)
+                if isEnabled {
+                    DatePicker("Starts", selection: $startDate,
+                               displayedComponents: .date)
+                    DatePicker("Ends", selection: $endDate, in: startDate...,
+                               displayedComponents: .date)
+                }
+            }
+            .onChange(of: startDate) { _, value in
+                if endDate < value { endDate = value }
+            }
+            Section {
+                Button("Save schedule pause", systemImage: "pause.circle.fill") {
+                    save()
+                }
+                if household?.schedulePauseStartsAt != nil {
+                    Button("Resume schedules now", systemImage: "play.circle.fill",
+                           role: .destructive) { clear() }
+                }
+            }
+            if let statusMessage {
+                Section {
+                    Label(statusMessage, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .navigationTitle("Schedule pause")
+        .task { load() }
+        .errorAlert(app: app)
+    }
+
+    private func load() {
+        guard let household else { return }
+        isEnabled = household.schedulePauseStartsAt != nil
+        startDate = household.schedulePauseStartsAt ?? .now
+        endDate = household.schedulePauseEndsAt
+            ?? Calendar.current.date(byAdding: .day, value: 6, to: .now) ?? .now
+    }
+
+    private func save() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: isEnabled ? startDate : nil,
+                end: isEnabled ? endDate : nil, context: context)
+            statusMessage = isEnabled
+                ? "Schedules resume automatically after the selected end date."
+                : "Family schedules are active."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+
+    private func clear() {
+        guard let household else { return }
+        do {
+            try app.updateSchedulePause(
+                household: household, start: nil, end: nil, context: context)
+            statusMessage = "Family schedules resumed."
+            load()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+}
+
 struct HouseholdDataProtectionView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
@@ -3834,19 +4234,89 @@ struct HouseholdDataProtectionView: View {
     @Query private var quests: [Quest]
     @Query private var completions: [QuestCompletion]
     @Query private var goals: [RewardGoal]
+    @Query private var broadcasts: [FamilyBroadcast]
     @Query private var settings: [HouseholdSettings]
+    @Query private var cloudStates: [HouseholdCloudState]
     @State private var document: TransferDocument?
     @State private var exporting = false
     @State private var confirmSampleRemoval = false
+    @State private var showingRemoval = false
+    @State private var removalConfirmation = ""
+    @State private var verification: HouseholdBackupVerification?
+    @State private var safetyReport: HouseholdSafetyReport?
+    @AppStorage("kyndyn.lastSuccessfulBackupExport")
+    private var lastBackupExportTimestamp = 0.0
+    @State private var recoveryReceipt: CloudRecoveryReceipt?
 
     var body: some View {
         List {
+            Section("Release safety check") {
+                if let safetyReport {
+                    LabeledContent("Household", value: safetyReport.summary)
+                    LabeledContent("Active profiles",
+                                   value: "\(safetyReport.activeProfiles)")
+                    LabeledContent("Active quests",
+                                   value: "\(safetyReport.activeQuests)")
+                    LabeledContent("Waiting to sync",
+                                   value: "\(safetyReport.pendingChanges)")
+                    LabeledContent("Conflicts needing review",
+                                   value: "\(safetyReport.unresolvedConflicts)")
+                    ForEach(safetyReport.notes, id: \.self) { note in
+                        Label(note, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Checked \(safetyReport.checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Check local relationships, backup freshness, and family-sync recovery signals without showing names, quest text, or record identifiers.")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Run safety check", systemImage: "checkmark.shield") {
+                    runSafetyCheck()
+                }
+                .accessibilityIdentifier("run-household-safety-check")
+            }
+            Section("Protection status") {
+                if lastBackupExportTimestamp > 0 {
+                    LabeledContent("Last private backup") {
+                        Text(Date(timeIntervalSince1970: lastBackupExportTimestamp),
+                             format: .dateTime.month().day().year().hour().minute())
+                    }
+                } else {
+                    LabeledContent("Last private backup", value: "Not exported on this device")
+                }
+                if let receipt = recoveryReceipt {
+                    LabeledContent("Last iCloud recovery") {
+                        Text(receipt.recoveredAt,
+                             format: .dateTime.month().day().year().hour().minute())
+                    }
+                    Text("Verified \(receipt.people) profiles, \(receipt.quests) quests, and \(receipt.completions) completion records.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let verification {
+                    LabeledContent("Prepared backup", value: "Verified")
+                    Text("Includes \(verification.people) profiles, \(verification.quests) quests, \(verification.completions) completion records, and \(verification.broadcasts) announcements.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("backup-verification-summary")
+                }
+            }
             Section("Household backup") {
                 Button("Export household backup",
                        systemImage: "square.and.arrow.up") {
                     prepareExport()
                 }
+                .accessibilityIdentifier("export-household-backup")
                 KyndynCallout(kind: .privacy, message: "The backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
+            }
+            Section("What stays private") {
+                Label("Device-only protection", systemImage: "iphone.gen3.lock")
+                Text("Your kyndyn PIN, Face ID state, notification choices, calendar selection, weather cache, and device profile stay on this device and are not included in household sync or backups.")
+                Label("Privacy-safe diagnostics", systemImage: "waveform.path.ecg")
+                Text("Diagnostics may record an operation type and broad error category. They do not include names, quest titles, announcement text, invitation links, PINs, tokens, or household record contents.")
+                    .foregroundStyle(.secondary)
             }
             Section("Restore limitation") {
                 KyndynCallout(kind: .caution, message: "Restores and Rowan transfers require an empty installation. They do not merge with or replace this household. Export a fresh backup before changing devices or sync environments.")
@@ -3856,6 +4326,20 @@ struct HouseholdDataProtectionView: View {
                 Text("Family sync keeps supported household changes aligned across invited Apple devices. An exported backup is a separate file you control and can keep in a private location in Files.")
                 Text("Keep a recent backup even when family sync is up to date. Never share a backup publicly because it contains household names, quests, and completion history.")
                     .foregroundStyle(.secondary)
+            }
+            if let household = households.first, !household.isSample {
+                Section("Remove from this device") {
+                    Button("Remove household from this device",
+                           systemImage: "trash", role: .destructive) {
+                        removalConfirmation = ""
+                        showingRemoval = true
+                    }
+                    .disabled(!hasFreshBackup)
+                    .accessibilityIdentifier("remove-household-from-device")
+                    KyndynCallout(
+                        kind: hasFreshBackup ? .caution : .privacy,
+                        message: removalMessage(for: household))
+                }
             }
             if households.first?.isSample == true {
                 Section("Leave sample mode") {
@@ -3868,13 +4352,16 @@ struct HouseholdDataProtectionView: View {
                 }
             }
         }
-        .navigationTitle("Backup and migration")
+        .navigationTitle("Data and privacy")
+        .onAppear { recoveryReceipt = CloudRecoveryAudit.latestReceipt() }
         .fileExporter(
             isPresented: $exporting, document: document,
             contentType: .json,
             defaultFilename: "kyndyn-household-backup.json"
         ) { result in
-            if case .failure(let error) = result {
+            if case .success = result {
+                lastBackupExportTimestamp = Date().timeIntervalSince1970
+            } else if case .failure(let error) = result {
                 app.errorMessage = error.localizedDescription
             }
             document = nil
@@ -3894,6 +4381,48 @@ struct HouseholdDataProtectionView: View {
         } message: {
             Text("All fictional people, quests, completion history, and local sync metadata for this sample will be removed from this device. Personal or shared households are not affected.")
         }
+        .sheet(isPresented: $showingRemoval) {
+            NavigationStack {
+                Form {
+                    Section("Before you continue") {
+                        KyndynCallout(kind: .caution, message: "This permanently removes this household’s local profiles, quests, history, announcements, and sync metadata from this device. It does not delete the iCloud household or stop sharing.")
+                        Text("A private backup was exported on this device within the last 24 hours.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Section("Confirm household name") {
+                        TextField(households.first?.name ?? "Household name",
+                                  text: $removalConfirmation)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("household-removal-confirmation")
+                    }
+                }
+                .navigationTitle("Remove local data")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingRemoval = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Remove", role: .destructive) {
+                            guard let household = households.first else { return }
+                            do {
+                                try app.removeHouseholdFromDevice(
+                                    household,
+                                    confirmation: removalConfirmation,
+                                    context: context)
+                                showingRemoval = false
+                            } catch {
+                                app.errorMessage = error.localizedDescription
+                            }
+                        }
+                        .disabled(removalConfirmation != households.first?.name)
+                        .accessibilityIdentifier("confirm-household-removal")
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .errorAlert(app: app)
     }
 
@@ -3908,12 +4437,43 @@ struct HouseholdDataProtectionView: View {
                     $0.householdID == household.id
                 },
                 goals: goals.filter { $0.householdID == household.id },
-                settings: settings.first { $0.householdID == household.id })
+                settings: settings.first { $0.householdID == household.id },
+                broadcasts: broadcasts.filter {
+                    $0.householdID == household.id
+                })
+            verification = try HouseholdTransferCodec.verifyExport(data)
             document = TransferDocument(data: data)
             exporting = true
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+
+    private func runSafetyCheck() {
+        guard let household = households.first else { return }
+        do {
+            safetyReport = try HouseholdSafetyAudit.inspect(
+                household: household, context: context,
+                lastBackupExportTimestamp: lastBackupExportTimestamp)
+        } catch {
+            app.errorMessage = "The safety check couldn’t finish. Nothing was changed."
+        }
+    }
+
+    private var hasFreshBackup: Bool {
+        lastBackupExportTimestamp > 0 &&
+            Date().timeIntervalSince1970 - lastBackupExportTimestamp < 86_400
+    }
+
+    private func removalMessage(for household: Household) -> String {
+        if !hasFreshBackup {
+            return "Export a fresh private backup first. Removal stays unavailable until this device confirms a successful export within the last 24 hours."
+        }
+        let mode = cloudStates.first { $0.householdID == household.id }?.mode
+        if mode == .owner || mode == .participant {
+            return "The iCloud household and its share remain intact. You can recover it later, but removing it here does not remove participants or stop sharing."
+        }
+        return "This household appears to be local-only. Keep the exported file safe because iCloud recovery may not be available."
     }
 }
 
@@ -4694,6 +5254,18 @@ struct CloudSyncSettingsView: View {
                         .accessibilityIdentifier("cloud-configuration-readiness")
                 }
             }
+            Section("Recent sync health") {
+                let health = SyncHealthSummary.make(
+                    state: state, pendingCount: pending.count)
+                Label(health.title, systemImage: healthIcon(health.tone))
+                    .foregroundStyle(healthColor(health.tone))
+                Text(health.detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text("This summary never includes names, quest titles, cloud record IDs, or Apple’s raw error text.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             Section("What family sync does") {
                 Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
                 KyndynCallout(kind: .localOnly, message: "Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences never leave this device.")
@@ -4801,6 +5373,24 @@ struct CloudSyncSettingsView: View {
     private var configurationIsReady: Bool {
         if case .ready = configuration.readiness { return true }
         return false
+    }
+
+    private func healthIcon(_ tone: SyncHealthSummary.Tone) -> String {
+        switch tone {
+        case .healthy: "checkmark.circle.fill"
+        case .waiting: "clock.arrow.circlepath"
+        case .attention: "exclamationmark.triangle.fill"
+        case .localOnly: "iphone"
+        }
+    }
+
+    private func healthColor(_ tone: SyncHealthSummary.Tone) -> Color {
+        switch tone {
+        case .healthy: .green
+        case .waiting: .orange
+        case .attention: .red
+        case .localOnly: .secondary
+        }
     }
 
     private func ensureState() {

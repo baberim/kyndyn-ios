@@ -203,13 +203,131 @@ See `docs/calendar-weather.md` for the implemented privacy boundary.
 Build 18 received a focused reliability follow-up released as version `0.18.1 (19)`. Its cumulative release notes are
 recorded in `docs/build-18-changelog.md`.
 
-## Build 27 — Hosted family notifications
+## Build 20 — Household Data Safety
 
-The capability-authenticated Cloudflare Worker, encrypted APNs-token storage,
-Sandbox/Production APNs routing, owner enrollment, short-lived device pairing,
-revocation, and iOS owner/participant controls are implemented and documented
-in `docs/build-27-hosted-notifications.md`. Physical owner/participant delivery
-validation is the remaining release gate.
+- Fetch and reconcile the complete paginated CloudKit household before
+  recovery, including deterministic handling of repeated record revisions.
+- Present a protected recovery preview with profile, quest, completion, undone
+  history, and XP totals before any local data changes.
+- Reject incomplete or internally inconsistent recoveries and roll back any
+  failed insertion rather than accepting a partial household.
+- Verify starting XP, awarded completion XP, undone state, and recovered entity
+  identities before reporting success.
+- Persist a privacy-safe recovery receipt and show the latest successful private
+  backup export time in Parent tools.
+- Keep empty-install recovery, manual private backups, and normal incremental
+  synchronization as separate, understandable safety layers.
+
+See `docs/build-20-household-data-safety.md` for the implemented safety model and
+the Development-versus-Production validation boundary.
+
+## Build 21 — App Store Readiness and Data Controls
+
+- Rename the protected backup area to **Data and privacy** and explain which
+  family data can sync, which settings stay device-only, and what diagnostics
+  deliberately omit.
+- Verify every prepared private backup before presenting the Files export UI.
+- Include supported family announcements in backup validation and round-trip
+  restore while retaining compatibility with earlier backups.
+- Require a successful backup from the last 24 hours and exact household-name
+  confirmation before removing local household data.
+- Keep local removal separate from iCloud deletion: it creates no tombstones,
+  does not stop sharing, and never deletes the CloudKit household.
+- Add accessibility identifiers and readable status summaries for backup and
+  destructive controls.
+
+See `docs/build-21-app-store-readiness.md` for the implemented safeguards and
+remaining external App Store work.
+
+## Build 22 — Release Candidate Hardening
+
+- Add a protected, privacy-safe household safety check before broader release
+  testing.
+- Verify active parent coverage, quest assignments, completion relationships,
+  queued sync retries, unresolved conflicts, account state, and backup
+  freshness without exposing household content in diagnostics.
+- Add deterministic healthy and unsafe-household audit coverage plus a UI
+  journey for the protected check.
+- Add a synchronized household schedule pause with inclusive dates, automatic
+  resume, reminder suppression, and paused-day exclusion from weekly missed
+  summaries.
+- Revalidate simulator compilation while keeping Production CloudKit and
+  personal signing material outside the milestone.
+
+## Build 23 — Calendar Identity Polish
+
+- Preserve each EventKit calendar's device-local display name and color when
+  presenting upcoming events.
+- Use the source calendar color for event-card accents and borders on the Home
+  preview and expanded Coming up sheet.
+- Keep calendar titles, colors, identifiers, and event details out of CloudKit,
+  household backups, and shared records.
+
+See `docs/build-22-release-candidate.md` for the Build 22 implementation and
+remaining physical-device release checklist.
+
+## Build 24 — Focused Personalization Settings
+
+- Replace the combined My profile editor with separate App color, Companion,
+  Background, and App icon destinations in everyday Settings.
+- Preserve synchronized profile appearance and earned collection rules while
+  keeping app-icon choice local to each installation.
+- Restore explicit alternate-icon declarations for iPad.
+- Explain Apple platform restrictions when an iPad app running on Mac reports
+  that alternate icons are unavailable instead of silently ignoring taps.
+
+See `docs/build-24-personalization-settings.md` for the implemented boundary.
+
+## Next builds — recommended order
+
+### Build 25 — Multi-device release confidence — implemented with Build 24
+
+- Complete the physical owner/participant checklist for automatic sync,
+  offline recovery, invitations, revocation, relaunch, and empty-install
+  recovery.
+- Add a parent-readable recent sync-health summary without exposing CloudKit
+  identifiers or raw errors.
+- Verify schedule-pause fields in Development and promote only the reviewed
+  schema additions before relying on them in Production.
+
+Implemented in `0.24.0 (25)`: the parent-readable privacy-safe sync-health
+summary and deterministic state coverage. The physical-device checklist and
+Development-to-Production schema review remain release validation steps because
+they require the owner's Apple devices and CloudKit Console access.
+
+### Build 26 — Parent planning and reward expansion
+
+- Improve bulk quest planning and assignment without weakening the validated
+  schedule editor.
+- Support multiple prepared or rotating family rewards while keeping one clear
+  active goal.
+- Preserve reward and XP history when goals change.
+
+### Build 27 — Hosted family notifications
+
+- Add the minimal authenticated service needed for dependable APNs delivery of
+  family broadcasts and other explicitly approved alerts.
+- Keep CloudKit synchronization hints, local quest reminders, and visible
+  family announcements as separate notification categories.
+- Add token rotation, revocation, privacy controls, rate limits, and operating
+  cost monitoring before external release.
+
+Implemented and physically validated between an owner iPhone and participant
+iPad. The Git-deployed Cloudflare Worker uses capability-authenticated device
+enrollment, short-lived pairing codes, encrypted APNs tokens, per-device
+privacy controls, revocation, rate limits, and separate Sandbox/Production
+routing. Version `0.27.1 (28)` reconciles the complete Builds 20–25 feature line
+and prevents paired devices from receiving both hosted and CloudKit-fallback
+alerts for the same announcement.
+
+### Build 29 — Premium boundaries and StoreKit foundation
+
+- Finalize the free-versus-premium feature matrix without removing the core
+  family loop, security, backups, recovery, or earned items.
+- Define household entitlement ownership, Family Sharing, complimentary access,
+  expiration, refunds, restoration, and grandfathering.
+- Add StoreKit only after those behaviors are covered by deterministic and
+  sandbox tests.
 
 ## Later
 
@@ -218,10 +336,6 @@ validation is the remaining release gate.
   - locally generated, parent-previewed weekly or monthly report exports;
   - accessibility and multi-device validation for the expanded insights flow.
 
-- Later notification operations work may add protected device management,
-  capability rotation, delivery monitoring, and additional explicitly approved
-  categories. Apple delivery remains best-effort and is never described as
-  guaranteed.
 - Business Model and Entitlements must be designed and approved before adding
   StoreKit:
   - Keep the core family loop free: one household, parent and child profiles,

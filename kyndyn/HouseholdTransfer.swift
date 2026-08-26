@@ -36,6 +36,7 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
     var quests: [QuestValue]
     var completions: [CompletionValue]
     var rewardGoals: [RewardValue]
+    var broadcasts: [BroadcastValue]?
     var settings: SettingsValue
 
     struct HouseholdValue: Codable, Equatable, Sendable {
@@ -47,6 +48,8 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var deletedAt: Date?
         var rewardTitle: String
         var rewardGoalXP: Int
+        var schedulePauseStartsAt: Date? = nil
+        var schedulePauseEndsAt: Date? = nil
     }
     struct PersonValue: Codable, Equatable, Sendable {
         var id: UUID
@@ -93,6 +96,15 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var createdAt: Date
         var deletedAt: Date?
     }
+    struct BroadcastValue: Codable, Equatable, Sendable {
+        var id: UUID
+        var title: String
+        var message: String
+        var createdAt: Date
+        var updatedAt: Date
+        var expiresAt: Date?
+        var deletedAt: Date?
+    }
     struct SettingsValue: Codable, Equatable, Sendable {
         var parentProtectionEnabled: Bool
     }
@@ -128,6 +140,103 @@ struct TransferReport: Equatable, Sendable {
     }
 }
 
+struct HouseholdBackupVerification: Equatable, Sendable {
+    var fingerprint: String
+    var byteCount: Int
+    var people: Int
+    var quests: Int
+    var completions: Int
+    var broadcasts: Int
+}
+
+struct HouseholdSafetyReport: Equatable, Sendable {
+    enum Status: String, Sendable { case ready, review }
+
+    var status: Status
+    var checkedAt: Date
+    var activeProfiles: Int
+    var activeQuests: Int
+    var pendingChanges: Int
+    var unresolvedConflicts: Int
+    var notes: [String]
+
+    var summary: String {
+        status == .ready ? "Ready" : "Review needed"
+    }
+}
+
+@MainActor
+enum HouseholdSafetyAudit {
+    static func inspect(
+        household: Household, context: ModelContext,
+        lastBackupExportTimestamp: TimeInterval,
+        now: Date = .now
+    ) throws -> HouseholdSafetyReport {
+        let people = try context.fetch(FetchDescriptor<Person>()).filter {
+            $0.householdID == household.id
+        }
+        let quests = try context.fetch(FetchDescriptor<Quest>()).filter {
+            $0.householdID == household.id
+        }
+        let completions = try context.fetch(FetchDescriptor<QuestCompletion>()).filter {
+            $0.householdID == household.id
+        }
+        let pending = try context.fetch(FetchDescriptor<PendingSyncMutation>()).filter {
+            $0.householdID == household.id
+        }
+        let conflicts = try context.fetch(FetchDescriptor<SyncConflict>()).filter {
+            $0.householdID == household.id && $0.resolvedAt == nil
+        }
+        let cloudState = try context.fetch(FetchDescriptor<HouseholdCloudState>())
+            .first { $0.householdID == household.id }
+        let activePeople = people.filter { $0.deletedAt == nil }
+        let activeQuests = quests.filter { $0.deletedAt == nil }
+        let personIDs = Set(people.map(\.id))
+        let activePersonIDs = Set(activePeople.map(\.id))
+        let questIDs = Set(quests.map(\.id))
+        var notes: [String] = []
+
+        if !activePeople.contains(where: { $0.role == .parent }) {
+            notes.append("Add or restore an active parent profile.")
+        }
+        if activeQuests.contains(where: {
+            $0.participantIDs.isEmpty ||
+                !Set($0.participantIDs).isSubset(of: activePersonIDs)
+        }) {
+            notes.append("One or more active quests needs a valid profile assignment.")
+        }
+        if completions.contains(where: {
+            !personIDs.contains($0.personID) || !questIDs.contains($0.questID)
+        }) {
+            notes.append("Completion history contains an unresolved relationship.")
+        }
+        if !conflicts.isEmpty {
+            notes.append("Review unresolved family-sync conflicts.")
+        }
+        if pending.contains(where: { $0.retryCount >= 5 }) {
+            notes.append("Some family changes have repeatedly failed to synchronize.")
+        }
+        if let cloudState,
+           [.accountChanged, .needsAttention, .unavailable].contains(cloudState.mode) {
+            notes.append("Family sync needs attention before changing devices.")
+        }
+        let backupIsFresh = lastBackupExportTimestamp > 0 &&
+            now.timeIntervalSince1970 - lastBackupExportTimestamp < 7 * 86_400
+        if !backupIsFresh {
+            notes.append("Export a fresh private backup before release testing.")
+        }
+
+        return HouseholdSafetyReport(
+            status: notes.isEmpty ? .ready : .review,
+            checkedAt: now,
+            activeProfiles: activePeople.count,
+            activeQuests: activeQuests.count,
+            pendingChanges: pending.count,
+            unresolvedConflicts: conflicts.count,
+            notes: notes)
+    }
+}
+
 enum HouseholdTransferCodec {
     static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -145,7 +254,8 @@ enum HouseholdTransferCodec {
     @MainActor
     static func export(household: Household, people: [Person], quests: [Quest],
                        completions: [QuestCompletion], goals: [RewardGoal],
-                       settings: HouseholdSettings?) throws -> Data {
+                       settings: HouseholdSettings?,
+                       broadcasts: [FamilyBroadcast] = []) throws -> Data {
         let backup = HouseholdBackup(
             format: HouseholdBackup.format, version: HouseholdBackup.version,
             exportedAt: .now,
@@ -155,7 +265,9 @@ enum HouseholdTransferCodec {
                 timeZoneIdentifier: household.timeZoneIdentifier,
                 createdAt: household.createdAt, deletedAt: household.deletedAt,
                 rewardTitle: household.rewardTitle,
-                rewardGoalXP: household.rewardGoalXP),
+                rewardGoalXP: household.rewardGoalXP,
+                schedulePauseStartsAt: household.schedulePauseStartsAt,
+                schedulePauseEndsAt: household.schedulePauseEndsAt),
             people: people.map {
                 .init(id: $0.id, name: $0.name, role: $0.role,
                       colorHex: $0.colorHex, companionID: $0.companionID,
@@ -185,10 +297,24 @@ enum HouseholdTransferCodec {
                 .init(id: $0.id, title: $0.title, targetXP: $0.targetXP,
                       createdAt: $0.createdAt, deletedAt: $0.deletedAt)
             },
+            broadcasts: broadcasts.map {
+                .init(id: $0.id, title: $0.title, message: $0.message,
+                      createdAt: $0.createdAt, updatedAt: $0.updatedAt,
+                      expiresAt: $0.expiresAt, deletedAt: $0.deletedAt)
+            },
             settings: .init(
                 parentProtectionEnabled:
                     settings?.parentProtectionEnabled ?? true))
         return try encoder().encode(backup)
+    }
+
+    static func verifyExport(_ data: Data) throws -> HouseholdBackupVerification {
+        let (backup, _) = try validateBackup(data)
+        return HouseholdBackupVerification(
+            fingerprint: fingerprint(data), byteCount: data.count,
+            people: backup.people.count, quests: backup.quests.count,
+            completions: backup.completions.count,
+            broadcasts: backup.broadcasts?.count ?? 0)
     }
 
     static func validateBackup(_ data: Data) throws -> (HouseholdBackup, TransferReport) {
@@ -204,9 +330,12 @@ enum HouseholdTransferCodec {
         }
         try validate(
             household: backup.household, people: backup.people,
-            quests: backup.quests, completions: backup.completions)
+            quests: backup.quests, completions: backup.completions,
+            rewardGoals: backup.rewardGoals,
+            broadcasts: backup.broadcasts ?? [])
         let accepted = 1 + backup.people.count + backup.quests.count
-            + backup.completions.count + backup.rewardGoals.count + 1
+            + backup.completions.count + backup.rewardGoals.count
+            + (backup.broadcasts?.count ?? 0) + 1
         return (backup, TransferReport(
             source: .kyndynBackup, accepted: accepted, normalized: 0,
             skipped: 0, unsupported: 0, invalid: 0,
@@ -217,7 +346,9 @@ enum HouseholdTransferCodec {
         household: HouseholdBackup.HouseholdValue,
         people: [HouseholdBackup.PersonValue],
         quests: [HouseholdBackup.QuestValue],
-        completions: [HouseholdBackup.CompletionValue]
+        completions: [HouseholdBackup.CompletionValue],
+        rewardGoals: [HouseholdBackup.RewardValue],
+        broadcasts: [HouseholdBackup.BroadcastValue]
     ) throws {
         guard !household.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               household.name.count <= 80 else {
@@ -226,8 +357,22 @@ enum HouseholdTransferCodec {
         guard TimeZone(identifier: household.timeZoneIdentifier) != nil else {
             throw HouseholdTransferError.malformed("The household time zone is invalid.")
         }
+        guard !household.rewardTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              household.rewardTitle.count <= 80,
+              (1...1_000_000).contains(household.rewardGoalXP) else {
+            throw HouseholdTransferError.malformed("The family reward is invalid.")
+        }
+        if household.schedulePauseStartsAt != nil || household.schedulePauseEndsAt != nil {
+            guard let start = household.schedulePauseStartsAt,
+                  let end = household.schedulePauseEndsAt,
+                  start <= end,
+                  end.timeIntervalSince(start) <= 366 * 24 * 60 * 60 else {
+                throw HouseholdTransferError.malformed(
+                    "The schedule pause dates are invalid.")
+            }
+        }
         guard people.count <= 100, quests.count <= 10_000,
-              completions.count <= 250_000 else {
+              completions.count <= 250_000, rewardGoals.count <= 10_000 else {
             throw HouseholdTransferError.malformed("The document contains too many records.")
         }
         let personIDs = Set(people.map(\.id))
@@ -269,6 +414,22 @@ enum HouseholdTransferCodec {
         }) else {
             throw HouseholdTransferError.malformed("A completion event is invalid.")
         }
+        guard Set(rewardGoals.map(\.id)).count == rewardGoals.count,
+              rewardGoals.allSatisfy({
+                  !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      && $0.title.count <= 80
+                      && (1...1_000_000).contains($0.targetXP)
+              }) else {
+            throw HouseholdTransferError.malformed("A reward goal is invalid.")
+        }
+        guard broadcasts.count <= 10_000,
+              Set(broadcasts.map(\.id)).count == broadcasts.count,
+              broadcasts.allSatisfy({
+                  !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      && $0.title.count <= 80 && $0.message.count <= 500
+              }) else {
+            throw HouseholdTransferError.malformed("A family announcement is invalid.")
+        }
     }
 
     static func fingerprint(_ data: Data) -> String {
@@ -302,6 +463,8 @@ enum HouseholdRestoreService {
         household.schemaVersion = KyndynSchema.version
         household.createdAt = backup.household.createdAt
         household.deletedAt = backup.household.deletedAt
+        household.schedulePauseStartsAt = backup.household.schedulePauseStartsAt
+        household.schedulePauseEndsAt = backup.household.schedulePauseEndsAt
         context.insert(household)
         var insertedPeople: [Person] = []
         for value in backup.people {
@@ -357,6 +520,16 @@ enum HouseholdRestoreService {
             goal.deletedAt = value.deletedAt
             context.insert(goal); insertedGoals.append(goal)
         }
+        var insertedBroadcasts: [FamilyBroadcast] = []
+        for value in backup.broadcasts ?? [] {
+            let broadcast = FamilyBroadcast(
+                id: value.id, householdID: household.id, title: value.title,
+                message: value.message, createdAt: value.createdAt)
+            broadcast.updatedAt = value.updatedAt
+            broadcast.expiresAt = value.expiresAt
+            broadcast.deletedAt = value.deletedAt
+            context.insert(broadcast); insertedBroadcasts.append(broadcast)
+        }
         let settings = HouseholdSettings(householdID: household.id)
         settings.parentProtectionEnabled =
             backup.settings.parentProtectionEnabled
@@ -372,7 +545,8 @@ enum HouseholdRestoreService {
                 try enqueue(
                     household: household, people: insertedPeople,
                     quests: insertedQuests, completions: insertedCompletions,
-                    goals: insertedGoals, settings: settings, context: context)
+                    goals: insertedGoals, broadcasts: insertedBroadcasts,
+                    settings: settings, context: context)
             }
             return household
         } catch {
@@ -383,6 +557,7 @@ enum HouseholdRestoreService {
 
     static func enqueue(household: Household, people: [Person], quests: [Quest],
                         completions: [QuestCompletion], goals: [RewardGoal],
+                        broadcasts: [FamilyBroadcast] = [],
                         settings: HouseholdSettings, context: ModelContext) throws {
         try SyncQueue.enqueue(
             SyncSnapshot.household(household), operation: .createOrUpdate,
@@ -410,6 +585,12 @@ enum HouseholdRestoreService {
             try SyncQueue.enqueue(
                 SyncSnapshot.reward(goal),
                 operation: goal.deletedAt == nil ? .createOrUpdate : .archive,
+                context: context)
+        }
+        for broadcast in broadcasts {
+            try SyncQueue.enqueue(
+                SyncSnapshot.broadcast(broadcast),
+                operation: broadcast.deletedAt == nil ? .createOrUpdate : .archive,
                 context: context)
         }
         try SyncQueue.enqueue(

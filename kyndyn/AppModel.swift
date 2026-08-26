@@ -9,6 +9,7 @@ enum KyndynValidationError: LocalizedError, Equatable {
     case invalidRepeatInterval, deadlineBeforeStart, lastParent, archivedParticipant
     case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
     case emptyBroadcastMessage, broadcastMessageTooLong, broadcastExpired
+    case invalidSchedulePause
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ enum KyndynValidationError: LocalizedError, Equatable {
             return "Keep announcement messages to 500 characters or fewer."
         case .broadcastExpired:
             return "Choose an expiration time in the future."
+        case .invalidSchedulePause:
+            return "Choose an end date on or after the start date, within one year."
         }
     }
 }
@@ -223,18 +226,40 @@ enum LifecycleRules {
         return household
     }
 
+    func removeHouseholdFromDevice(_ household: Household,
+                                   confirmation: String,
+                                   context: ModelContext) throws {
+        guard confirmation == household.name else {
+            throw HouseholdTransferError.malformed(
+                "Type the household name exactly to confirm removal.")
+        }
+        do {
+            try context.transaction {
+                try deleteHouseholdRecords(household, context: context)
+                try context.save()
+            }
+        } catch {
+            context.rollback()
+            throw error
+        }
+        selectedPersonID = nil
+    }
+
     func deleteLocalSampleHousehold(_ household: Household,
                                     context: ModelContext) throws {
-        guard household.isSample else {
-            throw HouseholdTransferError.malformed(
-                "Only a sample household can be removed here.")
-        }
         let states = try context.fetch(FetchDescriptor<HouseholdCloudState>())
             .filter { $0.householdID == household.id }
-        guard states.allSatisfy({ $0.mode == .localOnly }) else {
+        guard household.isSample,
+              states.allSatisfy({ $0.mode == .localOnly }) else {
             throw HouseholdTransferError.malformed(
                 "Turn off or resolve family sharing before removing this sample. Cloud data is never silently deleted.")
         }
+        try removeHouseholdFromDevice(
+            household, confirmation: household.name, context: context)
+    }
+
+    private func deleteHouseholdRecords(_ household: Household,
+                                        context: ModelContext) throws {
         let questIDs = Set(try context.fetch(FetchDescriptor<Quest>())
             .filter { $0.householdID == household.id }.map(\.id))
         try context.fetch(FetchDescriptor<Person>())
@@ -244,6 +269,8 @@ enum LifecycleRules {
         try context.fetch(FetchDescriptor<QuestCompletion>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<RewardGoal>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<FamilyBroadcast>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<HouseholdSettings>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
@@ -257,11 +284,11 @@ enum LifecycleRules {
             .filter { $0.householdID == household.id }.forEach(context.delete)
         try context.fetch(FetchDescriptor<SyncConflict>())
             .filter { $0.householdID == household.id }.forEach(context.delete)
+        try context.fetch(FetchDescriptor<HouseholdImportReceipt>())
+            .filter { $0.householdID == household.id }.forEach(context.delete)
         context.delete(household)
         try context.fetch(FetchDescriptor<LocalDeviceSettings>())
             .forEach(context.delete)
-        try context.save()
-        selectedPersonID = nil
     }
 
     func createPerson(_ draft: PersonDraft, householdID: UUID, context: ModelContext) throws {
@@ -624,7 +651,9 @@ enum LifecycleRules {
         let progress = ProgressionEngine.progress(
             personID: personID, completions: completions, now: now,
             timeZoneIdentifier: household.timeZoneIdentifier,
-            startingXPAdjustment: person.startingXPAdjustment)
+            startingXPAdjustment: person.startingXPAdjustment,
+            schedulePauseStartsAt: household.schedulePauseStartsAt,
+            schedulePauseEndsAt: household.schedulePauseEndsAt)
         let goal = ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
         let rewardReached = goal.map {
             ProgressionEngine.rewardXP(completions, goal: $0) >= $0.targetXP
@@ -690,5 +719,38 @@ enum LifecycleRules {
                                                        now: .now)
             try? await notificationScheduler.replaceKyndynReminders(with: candidates)
         }
+    }
+
+    func updateSchedulePause(
+        household: Household, start: Date?, end: Date?, context: ModelContext
+    ) throws {
+        if start != nil || end != nil {
+            guard let start, let end else {
+                throw KyndynValidationError.invalidSchedulePause
+            }
+            let calendar = ProgressionEngine.calendar(
+                timeZoneIdentifier: household.timeZoneIdentifier)
+            let normalizedStart = calendar.startOfDay(for: start)
+            let normalizedEnd = calendar.startOfDay(for: end)
+            guard normalizedStart <= normalizedEnd,
+                  normalizedEnd.timeIntervalSince(normalizedStart)
+                    <= 366 * 24 * 60 * 60 else {
+                throw KyndynValidationError.invalidSchedulePause
+            }
+            household.schedulePauseStartsAt = normalizedStart
+            household.schedulePauseEndsAt = normalizedEnd
+        } else {
+            household.schedulePauseStartsAt = nil
+            household.schedulePauseEndsAt = nil
+        }
+        household.schemaVersion = KyndynSchema.version
+        try context.save()
+        try SyncQueue.enqueue(
+            SyncSnapshot.household(household), operation: .createOrUpdate,
+            context: context)
+        NotificationCenter.default.post(
+            name: .kyndynAutomaticSyncRequested, object: nil,
+            userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
+        refreshReminders(context: context)
     }
 }

@@ -12,6 +12,10 @@ kyndyn contains family and child data. The default posture is local-first, data-
 - Parent access re-locks after two minutes in the background and whenever profiles change.
 - Notification settings, permission state, device profile, and scheduled requests are device-local. Lock-screen quest titles are off by default.
 - Imports are explicit, previewed, size-limited, additive, and validated.
+- Prepared exports are decoded and validated before the Files sheet opens.
+- Removing a household from one device requires a recent successful private
+  backup and exact household-name confirmation. It removes local household and
+  sync metadata without enqueuing cloud deletions or stopping an Apple share.
 - Logs must not contain names, quest text, tokens, or import payloads.
 - Secrets and signing files are ignored and must be supplied through Xcode/Apple systems.
 
@@ -35,4 +39,6 @@ names, quest titles, record payloads, invitation URLs, tokens, and PIN data.
 
 If a parent forgets the kyndyn PIN, device-owner authentication can still open Parent security to replace it. If both methods are unavailable, kyndyn cannot honestly verify parental identity; there is no email or server reset.
 
-Before release: complete privacy labels, retention/deletion behavior, child-safety review, account/share removal flows, encrypted export policy, independent threat modeling, and an external accessibility audit.
+Before release: complete App Store privacy labels and policy/support URLs,
+child-safety review, owner/participant share-removal policy, encrypted-export
+policy, independent threat modeling, and an external accessibility audit.
