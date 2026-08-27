@@ -170,10 +170,25 @@ enum ScheduleKind: String, Codable, CaseIterable {
     var targetXP: Int
     var createdAt: Date
     var deletedAt: Date?
+    var stateRaw: String = RewardGoalState.active.rawValue
+    var queuePosition: Int = 0
+    var note: String = ""
+    var startingXP: Int = 0
+    var endedAt: Date?
+    var endingXP: Int?
+    var carriedProgress: Bool = false
+    var state: RewardGoalState {
+        get { RewardGoalState(rawValue: stateRaw) ?? .active }
+        set { stateRaw = newValue.rawValue }
+    }
     init(householdID: UUID, title: String, targetXP: Int) {
         self.id = UUID(); self.householdID = householdID; self.title = title
         self.targetXP = targetXP; self.createdAt = .now
     }
+}
+
+enum RewardGoalState: String, Codable, CaseIterable {
+    case active, prepared, concluded
 }
 
 @Model final class FamilyBroadcast {

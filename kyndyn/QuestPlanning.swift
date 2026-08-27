@@ -1,5 +1,25 @@
 import Foundation
 
+struct PlannedQuestDraft: Identifiable {
+    let id: UUID
+    var draft: QuestDraft
+
+    init(id: UUID = UUID(), draft: QuestDraft = QuestDraft()) {
+        self.id = id
+        self.draft = draft
+    }
+}
+
+enum WeeklyPlannerRules {
+    static func oneTimeCopy(of quest: Quest, on date: Date) -> QuestDraft {
+        QuestDraft(
+            title: quest.title, detail: quest.detail, xp: quest.xp,
+            participantIDs: Set(quest.participantIDs),
+            completionMode: quest.completionMode, scheduleKind: .oneTime,
+            startDate: date, hasDueDate: true, dueDate: date)
+    }
+}
+
 struct QuestTemplate: Identifiable, Equatable, Sendable {
     let id: String
     let symbol: String

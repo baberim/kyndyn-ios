@@ -140,7 +140,7 @@ final class KyndynUITests: XCTestCase {
         siriHelp.tap()
         XCTAssertTrue(app.navigationBars["Siri & Shortcuts"]
             .waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["“Show my quests in kyndyn”"].exists)
+        XCTAssertTrue(app.staticTexts["“Show today’s Kyndyn quests”"].exists)
         let privacyCopy = app.descendants(matching: .any)[
             "siri-shortcuts-privacy"]
         reveal(privacyCopy, in: app)

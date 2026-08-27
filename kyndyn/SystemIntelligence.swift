@@ -210,18 +210,17 @@ struct PrepareQuestIntent: AppIntent {
         .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Quest name") var questName: String
-    @Parameter(title: "Profile") var person: KyndynPersonEntity
+    @Parameter(title: "Profile name") var profileName: String?
     @Parameter(title: "XP", default: 10) var xp: Int
     @Parameter(title: "Due date") var dueDate: Date?
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Add \(\.$questName) for \(\.$person), worth \(\.$xp) XP, due \(\.$dueDate)")
+        Summary("Add \(\.$questName) for \(\.$profileName), worth \(\.$xp) XP, due \(\.$dueDate)")
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        try await KyndynIntentStore.shared.waitUntilReady()
         try await KyndynIntentStore.shared.prepareQuest(
-            title: questName, personID: person.id, xp: xp,
+            title: questName, profileName: profileName, xp: xp,
             dueDate: dueDate)
         return .result(dialog: "Review this quest in Kyndyn to create it.")
     }
@@ -273,24 +272,37 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
     }
 }
 
+private struct PendingSiriQuestPayload: Codable {
+    let title: String
+    let profileName: String?
+    let xp: Int
+    let dueDate: Date?
+}
+
 @MainActor
 final class KyndynIntentStore {
     static let shared = KyndynIntentStore()
+    private static let pendingQuestKey = "kyndyn.pending-siri-quest.v1"
     private var context: ModelContext?
     private var appModel: AppModel?
 
     func configure(container: ModelContainer, appModel: AppModel) {
         context = container.mainContext
         self.appModel = appModel
+        consumePendingQuestIfPossible()
     }
 
     func resetForTesting() {
         context = nil
         appModel = nil
+        UserDefaults.standard.removeObject(forKey: Self.pendingQuestKey)
     }
 
     func waitUntilReady() async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        // A protected intent may need to cold-launch the app after device
+        // authentication. Give SwiftData initialization enough time without
+        // waiting indefinitely if the app genuinely cannot become ready.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while context == nil && ContinuousClock.now < deadline {
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(100))
@@ -310,7 +322,15 @@ final class KyndynIntentStore {
     func people(matching string: String) throws -> [KyndynPersonEntity] {
         let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return try people() }
-        return try people().filter {
+        let candidates = try people()
+        // Returning one exact result prevents Siri from repeatedly asking the
+        // user to disambiguate a name it has already heard correctly.
+        let exact = candidates.filter {
+            $0.name.compare(normalized, options: [.caseInsensitive, .diacriticInsensitive])
+                == .orderedSame
+        }
+        if !exact.isEmpty { return exact }
+        return candidates.filter {
             $0.name.localizedCaseInsensitiveContains(normalized)
         }
     }
@@ -425,20 +445,43 @@ final class KyndynIntentStore {
         appModel?.selectedTab = 0
     }
 
-    func prepareQuest(title: String, personID: UUID, xp: Int,
+    func prepareQuest(title: String, profileName: String?, xp: Int,
                       dueDate: Date?) throws {
         let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.count <= 120,
               (1...500).contains(xp) else {
             throw KyndynIntentError.invalidQuestDraft
         }
-        guard try people(ids: [personID]).first != nil else {
-            throw KyndynIntentError.personUnavailable
+        let requestedName = profileName?.trimmingCharacters(in:
+            .whitespacesAndNewlines)
+        let payload = PendingSiriQuestPayload(
+            title: normalized,
+            profileName: requestedName?.isEmpty == false ? requestedName : nil,
+            xp: xp, dueDate: dueDate)
+        guard let data = try? JSONEncoder().encode(payload) else {
+            throw KyndynIntentError.invalidQuestDraft
         }
-        guard let appModel else { throw KyndynIntentError.storeUnavailable }
+        UserDefaults.standard.set(data, forKey: Self.pendingQuestKey)
+        consumePendingQuestIfPossible()
+    }
+
+    private func consumePendingQuestIfPossible() {
+        guard let appModel, context != nil,
+              let data = UserDefaults.standard.data(
+                forKey: Self.pendingQuestKey),
+              let payload = try? JSONDecoder().decode(
+                PendingSiriQuestPayload.self, from: data) else { return }
+        var resolvedPersonID: UUID?
+        if let requestedName = payload.profileName,
+           let matches = try? people(matching: requestedName),
+           matches.count == 1 {
+            resolvedPersonID = matches[0].id
+        }
         appModel.pendingSiriQuestDraft = SiriQuestDraft(
-            title: normalized, personID: personID, xp: xp,
-            dueDate: dueDate)
+            title: payload.title, personID: resolvedPersonID,
+            requestedPersonName: payload.profileName, xp: payload.xp,
+            dueDate: payload.dueDate)
+        UserDefaults.standard.removeObject(forKey: Self.pendingQuestKey)
     }
 
     func complete(occurrenceID: String) throws -> String {

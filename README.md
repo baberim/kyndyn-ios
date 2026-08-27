@@ -4,14 +4,14 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current release candidate — 0.27.2 (Build 29)
+## Current development build — 0.30.0 (Build 30)
 
-Build 29 is the consolidated TestFlight release candidate. It includes the
-complete household-safety, schedule-pause, focused personalization, weather,
-calendar-color, sync-health, and hosted-notification feature line; prevents
-duplicate hosted/fallback announcement delivery; and makes pull-to-refresh
-consistent across refreshable app surfaces, including current weather and
-calendar data.
+Build 30 adds parent-focused weekly planning and a synchronized prepared reward
+queue to the stable Build 29 foundation. Parents can review a week, create a
+validated batch of quests, copy a day, and prepare up to five future rewards
+without interrupting the active family goal. Activating a queued reward can
+carry the shared reward counter forward or restart it at zero without changing
+any profile XP, levels, streaks, or quest history.
 
 The app provides a locally usable vertical slice:
 
@@ -48,6 +48,10 @@ The app provides a locally usable vertical slice:
   today, completed today, and upcoming work;
 - parent-managed family rewards with editable XP targets and a history-safe
   start-new-reward reset;
+- a weekly parent planner with transactional bulk quest creation and safe day
+  copying through the same validated schedule and sync paths as single quests;
+- a synchronized queue of up to five prepared rewards with explicit ordering,
+  parent notes, and carry-or-reset activation that preserves profile progress;
 - a reusable native visual system with adaptive light/dark surfaces, consistent
   quest states, and balanced Home presentation;
 - full-card completion and exact undo with deterministic occurrence identity,

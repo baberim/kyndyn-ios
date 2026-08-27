@@ -619,6 +619,13 @@ enum SyncSnapshot {
             householdID: value.householdID, fields: [
                 "title": value.title, "targetXP": String(value.targetXP),
                 "createdAt": value.createdAt.ISO8601Format(),
+                "state": value.stateRaw,
+                "queuePosition": String(value.queuePosition),
+                "note": value.note,
+                "startingXP": String(value.startingXP),
+                "endedAt": value.endedAt?.ISO8601Format() ?? "",
+                "endingXP": value.endingXP.map(String.init) ?? "",
+                "carriedProgress": String(value.carriedProgress),
                 "deletedAt": value.deletedAt?.ISO8601Format() ?? ""
             ], mutationID: mutationID, tombstone: value.deletedAt != nil)
     }
@@ -1417,6 +1424,14 @@ enum SyncRemoteApplier {
                 reward.title = record.fields["title"] ?? reward.title
                 reward.targetXP = Int(record.fields["targetXP"] ?? "")
                     ?? reward.targetXP
+                reward.createdAt = date(record.fields["createdAt"]) ?? reward.createdAt
+                reward.stateRaw = record.fields["state"] ?? reward.stateRaw
+                reward.queuePosition = Int(record.fields["queuePosition"] ?? "") ?? 0
+                reward.note = record.fields["note"] ?? ""
+                reward.startingXP = Int(record.fields["startingXP"] ?? "") ?? 0
+                reward.endedAt = date(record.fields["endedAt"])
+                reward.endingXP = Int(record.fields["endingXP"] ?? "")
+                reward.carriedProgress = Bool(record.fields["carriedProgress"] ?? "") ?? false
                 reward.deletedAt = date(record.fields["deletedAt"])
             case .householdSettings:
                 let id = record.entityID

@@ -37,7 +37,7 @@ portable sync envelope.
 | Quest | `kyndynQuest` | Text, XP, assignees, completion mode, archive date |
 | Quest schedule | `kyndynQuestSchedule` | One-to-one with quest; recurrence, weekdays, start/deadline |
 | QuestCompletion | `kyndynQuestCompletion` | Append-friendly UUID event; reversal is an explicit update |
-| RewardGoal | `kyndynRewardGoal` | Goal text/target and archive date |
+| RewardGoal | `kyndynRewardGoal` | Goal text/target, active/prepared/concluded state, queue position, optional parent note, cycle start/end facts, carried progress, and archive date |
 | HouseholdSettings | `kyndynHouseholdSettings` | Shared household policy only |
 
 Companion and background selections and their earned/granted collection IDs

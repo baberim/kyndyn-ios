@@ -338,13 +338,17 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 
 ## Next builds — recommended order
 
-### Build 30 — Parent planning and reward expansion
+### Build 30 — Parent planning and reward expansion — implemented
 
-- Improve bulk quest planning and assignment without weakening the validated
-  schedule editor.
-- Support multiple prepared or rotating family rewards while keeping one clear
-  active goal.
-- Preserve reward and XP history when goals change.
+- Added a responsive seven-day parent planner, whole-batch validation, bulk
+  one-time quest creation, and safe day copying through the established quest
+  schedule and synchronization paths.
+- Added a synchronized, explicitly ordered queue of up to five prepared family
+  rewards while keeping exactly one clear active goal.
+- Added carry-or-reset activation. Reward-cycle facts are retained while
+  profile XP, levels, streaks, completion history, and earned collections are
+  never reset.
+- See `docs/build-30-parent-planning-rewards.md` for behavior and validation.
 
 ### Build 31 — Reward history and private reports
 

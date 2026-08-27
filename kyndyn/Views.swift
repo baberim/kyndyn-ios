@@ -4133,6 +4133,8 @@ struct FamilyRewardSettingsView: View {
     @State private var targetText = ""
     @State private var confirmNewReward = false
     @State private var statusMessage: String?
+    @State private var showPrepareReward = false
+    @State private var pendingActivation: RewardGoal?
 
     private var household: Household? { households.first }
     private var currentGoal: RewardGoal? {
@@ -4145,6 +4147,15 @@ struct FamilyRewardSettingsView: View {
     }
     private var savedTarget: Int {
         max(1, currentGoal?.targetXP ?? household?.rewardGoalXP ?? 1)
+    }
+    private var preparedGoals: [RewardGoal] {
+        guard let household else { return [] }
+        return goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil && $0.state == .prepared
+        }.sorted {
+            if $0.queuePosition != $1.queuePosition { return $0.queuePosition < $1.queuePosition }
+            return $0.createdAt < $1.createdAt
+        }
     }
 
     var body: some View {
@@ -4185,6 +4196,45 @@ struct FamilyRewardSettingsView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
 
+            Section("Up next") {
+                if preparedGoals.isEmpty {
+                    Text("Prepare up to five rewards so the family can see what comes next.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(preparedGoals) { reward in
+                        HStack {
+                        Button { pendingActivation = reward } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(reward.title).foregroundStyle(.primary)
+                                    Text("\(reward.targetXP) XP\(reward.note.isEmpty ? "" : " · \(reward.note)")")
+                                        .font(.footnote).foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                Image(systemName: "play.circle.fill")
+                            }
+                        }
+                        VStack(spacing: 6) {
+                            Button { move(reward, by: -1) } label: {
+                                Image(systemName: "chevron.up")
+                            }.disabled(reward.id == preparedGoals.first?.id)
+                            Button { move(reward, by: 1) } label: {
+                                Image(systemName: "chevron.down")
+                            }.disabled(reward.id == preparedGoals.last?.id)
+                        }.buttonStyle(.borderless)
+                        }
+                        .swipeActions {
+                            Button("Remove", role: .destructive) { remove(reward) }
+                        }
+                    }
+                }
+                Button("Prepare a reward", systemImage: "plus.circle") {
+                    showPrepareReward = true
+                }
+                .disabled(preparedGoals.count >= 5)
+            }
+
             if let statusMessage {
                 Section {
                     Label(statusMessage, systemImage: "checkmark.circle.fill")
@@ -4199,6 +4249,21 @@ struct FamilyRewardSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This resets only the shared reward counter. Profile XP and quest history stay intact.")
+        }
+        .confirmationDialog(
+            "Start \(pendingActivation?.title ?? "this reward")?",
+            isPresented: Binding(get: { pendingActivation != nil },
+                                 set: { if !$0 { pendingActivation = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Carry \(currentXP) XP forward") { activate(carry: true) }
+            Button("Start at 0 XP") { activate(carry: false) }
+            Button("Cancel", role: .cancel) { pendingActivation = nil }
+        } message: {
+            Text("Profile XP, levels, streaks, and quest history are never reset.")
+        }
+        .sheet(isPresented: $showPrepareReward) {
+            NavigationStack { PrepareFamilyRewardView() }
         }
         .errorAlert(app: app)
     }
@@ -4229,6 +4294,75 @@ struct FamilyRewardSettingsView: View {
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+
+    private func activate(carry: Bool) {
+        guard let household, let reward = pendingActivation else { return }
+        do {
+            try app.activatePreparedReward(
+                reward, carryProgress: carry, household: household,
+                goals: goals, completions: completions, context: context)
+            statusMessage = carry ? "Next reward started with progress carried forward."
+                                  : "Next reward started at 0 XP."
+            pendingActivation = nil
+            loadCurrentValues()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+
+    private func remove(_ reward: RewardGoal) {
+        do { try app.removePreparedReward(reward, context: context) }
+        catch { app.errorMessage = error.localizedDescription }
+    }
+    private func move(_ reward: RewardGoal, by offset: Int) {
+        do { try app.movePreparedReward(reward, by: offset, goals: goals, context: context) }
+        catch { app.errorMessage = error.localizedDescription }
+    }
+}
+
+private struct PrepareFamilyRewardView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var households: [Household]
+    @Query private var goals: [RewardGoal]
+    @State private var title = ""
+    @State private var target = "300"
+    @State private var note = ""
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Reward name", text: $title)
+                TextField("Goal XP", text: $target).keyboardType(.numberPad)
+                TextField("Optional parent note", text: $note, axis: .vertical)
+                    .lineLimit(2...4)
+            }
+            Section {
+                KyndynCallout(kind: .information,
+                    message: "Preparing a reward does not change the active goal. It will sync to family devices and wait in the queue.")
+            }
+        }
+        .navigationTitle("Prepare reward")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") { save() }.disabled(!canSave)
+            }
+        }
+        .errorAlert(app: app)
+    }
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        title.count <= 80 && note.count <= 200 &&
+        Int(target).map { (1...1_000_000).contains($0) } == true
+    }
+    private func save() {
+        guard let household = households.first, let value = Int(target) else { return }
+        do {
+            try app.prepareFamilyReward(title: title, targetXP: value, note: note,
+                                        household: household, goals: goals, context: context)
+            dismiss()
+        } catch { app.errorMessage = error.localizedDescription }
     }
 }
 
@@ -4849,6 +4983,9 @@ struct QuestPlanningView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("See what is coming") {
+                NavigationLink { WeeklyPlannerView() } label: {
+                    Label("Weekly planner", systemImage: "calendar.badge.plus")
+                }
                 NavigationLink { QuestScheduleOverviewView() } label: {
                     Label("Two-week schedule", systemImage: "calendar")
                 }
@@ -4875,6 +5012,237 @@ struct QuestPlanningView: View {
         .familyRefreshable()
         .navigationTitle("Quest planning")
         .accessibilityIdentifier("quest-planning")
+    }
+}
+
+struct WeeklyPlannerView: View {
+    @Query private var households: [Household]
+    @Query(sort: \Quest.createdAt) private var quests: [Quest]
+    @Query(sort: \Person.createdAt) private var people: [Person]
+    @State private var weekAnchor = Date()
+    @State private var showPlan = false
+    @State private var showCopy = false
+
+    private var household: Household? { households.first }
+    private var activePeople: [Person] { people.filter { $0.deletedAt == nil } }
+    private var days: [QuestScheduleDay] {
+        guard let household else { return [] }
+        let calendar = ProgressionEngine.calendar(
+            timeZoneIdentifier: household.timeZoneIdentifier)
+        let interval = calendar.dateInterval(of: .weekOfYear, for: weekAnchor)
+        return QuestScheduleProjection.days(
+            quests: quests, starting: interval?.start ?? weekAnchor, count: 7,
+            timeZoneIdentifier: household.timeZoneIdentifier)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                HStack {
+                    Button("Previous", systemImage: "chevron.left") { moveWeek(-1) }
+                        .labelStyle(.iconOnly)
+                    Spacer()
+                    VStack(spacing: 2) {
+                        Text("Week of \(days.first?.date.formatted(.dateTime.month().day()) ?? "")")
+                            .font(.headline)
+                        Button("Return to this week") { weekAnchor = .now }
+                            .font(.caption)
+                    }
+                    Spacer()
+                    Button("Next", systemImage: "chevron.right") { moveWeek(1) }
+                        .labelStyle(.iconOnly)
+                }
+                .kyndynCard(tint: .purple)
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)],
+                          spacing: 12) {
+                    ForEach(days) { day in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(day.date.formatted(.dateTime.weekday(.wide).month().day()))
+                                .font(.headline)
+                            let values = scheduledQuests(day)
+                            if values.isEmpty {
+                                Text("No quests planned").foregroundStyle(.secondary)
+                            } else {
+                                ForEach(values) { quest in
+                                    NavigationLink { QuestEditorView(quest: quest) } label: {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(quest.title).lineLimit(1)
+                                                Text(assigneeText(quest))
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Text("\(quest.xp) XP").font(.caption.bold())
+                                        }
+                                    }.buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                        .kyndynCard(tint: .blue)
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: AdaptiveLayout.managementContentMaximum)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle("Weekly planner")
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Copy day", systemImage: "doc.on.doc") { showCopy = true }
+                Button("Plan quests", systemImage: "plus") { showPlan = true }
+            }
+        }
+        .sheet(isPresented: $showPlan) {
+            NavigationStack {
+                BulkQuestPlanEditor(initialDate: days.first?.date ?? .now)
+            }
+        }
+        .sheet(isPresented: $showCopy) {
+            NavigationStack {
+                CopyQuestDayView(initialDate: days.first?.date ?? .now)
+            }
+        }
+    }
+
+    private func moveWeek(_ value: Int) {
+        weekAnchor = Calendar.current.date(byAdding: .weekOfYear, value: value,
+                                           to: weekAnchor) ?? weekAnchor
+    }
+    private func scheduledQuests(_ day: QuestScheduleDay) -> [Quest] {
+        let ids = Set(day.questIDs); return quests.filter { ids.contains($0.id) }
+    }
+    private func assigneeText(_ quest: Quest) -> String {
+        let ids = Set(quest.participantIDs)
+        return activePeople.filter { ids.contains($0.id) }.map(\.name).joined(separator: ", ")
+    }
+}
+
+private struct BulkQuestPlanEditor: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var households: [Household]
+    @Query(sort: \Person.createdAt) private var people: [Person]
+    @State private var rows: [PlannedQuestDraft]
+
+    init(initialDate: Date) {
+        let draft = QuestDraft(scheduleKind: .oneTime, startDate: initialDate,
+                               hasDueDate: true, dueDate: initialDate)
+        _rows = State(initialValue: [PlannedQuestDraft(draft: draft)])
+    }
+
+    private var activePeople: [Person] { people.filter { $0.deletedAt == nil } }
+
+    var body: some View {
+        Form {
+            Section {
+                KyndynCallout(kind: .information,
+                    message: "Review the whole plan before saving. If any row needs attention, nothing is created.")
+            }
+            ForEach($rows) { $row in
+                Section("Quest \((rows.firstIndex { $0.id == row.id } ?? 0) + 1)") {
+                    TextField("Quest name", text: $row.draft.title)
+                    Picker("Person", selection: Binding(
+                        get: { row.draft.participantIDs.first },
+                        set: { row.draft.participantIDs = Set([$0].compactMap { $0 }) })) {
+                        Text("Choose").tag(UUID?.none)
+                        ForEach(activePeople) { Text($0.name).tag(UUID?.some($0.id)) }
+                    }
+                    Stepper("\(row.draft.xp) XP", value: $row.draft.xp, in: 1...500)
+                    DatePicker("Day", selection: $row.draft.startDate,
+                               displayedComponents: .date)
+                        .onChange(of: row.draft.startDate) { _, value in
+                            row.draft.dueDate = value
+                        }
+                    if rows.count > 1 {
+                        Button("Remove row", role: .destructive) {
+                            rows.removeAll { $0.id == row.id }
+                        }
+                    }
+                }
+            }
+            Button("Add another quest", systemImage: "plus.circle") {
+                let draft = QuestDraft(scheduleKind: .oneTime, startDate: rows.last?.draft.startDate ?? .now,
+                                       hasDueDate: true, dueDate: rows.last?.draft.startDate ?? .now)
+                rows.append(PlannedQuestDraft(draft: draft))
+            }
+        }
+        .navigationTitle("Plan quests")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("Save plan") { save() } }
+        }
+        .errorAlert(app: app)
+    }
+
+    private func save() {
+        guard let household = households.first else { return }
+        do {
+            _ = try app.createPlannedQuests(rows, household: household,
+                                             people: people, context: context)
+            dismiss()
+        } catch { app.errorMessage = error.localizedDescription }
+    }
+}
+
+private struct CopyQuestDayView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var households: [Household]
+    @Query private var quests: [Quest]
+    @Query private var people: [Person]
+    @State private var source: Date
+    @State private var destination: Date
+
+    init(initialDate: Date) {
+        _source = State(initialValue: initialDate)
+        _destination = State(initialValue: Calendar.current.date(byAdding: .day, value: 1,
+                                                                 to: initialDate) ?? initialDate)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                DatePicker("Copy from", selection: $source, displayedComponents: .date)
+                DatePicker("Copy to", selection: $destination, displayedComponents: .date)
+            }
+            Section("Preview") {
+                LabeledContent("Quests to copy", value: "\(sourceQuests.count)")
+                Text("Copies are one-time quests on the destination day. Existing recurring schedules are not changed.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Copy a day")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Copy") { copy() }.disabled(sourceQuests.isEmpty)
+            }
+        }
+        .errorAlert(app: app)
+    }
+
+    private var sourceQuests: [Quest] {
+        guard let household = households.first else { return [] }
+        return quests.filter {
+            $0.deletedAt == nil && ProgressionEngine.isScheduled(
+                $0, on: source, timeZoneIdentifier: household.timeZoneIdentifier)
+        }
+    }
+    private func copy() {
+        guard let household = households.first else { return }
+        let rows = sourceQuests.map {
+            PlannedQuestDraft(draft: WeeklyPlannerRules.oneTimeCopy(of: $0, on: destination))
+        }
+        do {
+            _ = try app.createPlannedQuests(rows, household: household,
+                                             people: people, context: context)
+            dismiss()
+        } catch { app.errorMessage = error.localizedDescription }
     }
 }
 
@@ -5098,7 +5466,9 @@ struct QuestEditorView: View {
         if let siriDraft {
             value.title = siriDraft.title
             value.xp = siriDraft.xp
-            value.participantIDs = [siriDraft.personID]
+            if let personID = siriDraft.personID {
+                value.participantIDs = [personID]
+            }
             if let dueDate = siriDraft.dueDate {
                 value.hasDueDate = true
                 value.dueDate = dueDate

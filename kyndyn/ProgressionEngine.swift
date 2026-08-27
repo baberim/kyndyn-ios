@@ -237,7 +237,7 @@ enum ProgressionEngine {
         _ goals: [RewardGoal], householdID: UUID
     ) -> RewardGoal? {
         goals.filter {
-            $0.householdID == householdID && $0.deletedAt == nil
+            $0.householdID == householdID && $0.deletedAt == nil && $0.state == .active
         }.max {
             if $0.createdAt != $1.createdAt {
                 return $0.createdAt < $1.createdAt
@@ -249,7 +249,7 @@ enum ProgressionEngine {
     static func rewardXP(
         _ completions: [QuestCompletion], goal: RewardGoal?
     ) -> Int {
-        completions.filter { completion in
+        (goal?.startingXP ?? 0) + completions.filter { completion in
             guard completion.reversedAt == nil else { return false }
             return goal.map { completion.completedAt >= $0.createdAt } ?? true
         }.reduce(0) { $0 + $1.awardedXP }
