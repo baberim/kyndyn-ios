@@ -11,10 +11,27 @@ Kyndyn backend.
 - show the current family reward and deterministic XP progress;
 - open Kyndyn on a selected profile's Home dashboard;
 - complete an exact quest occurrence;
-- undo that exact occurrence.
+- undo that exact occurrence;
+- prepare a new quest draft for a selected person, XP amount, and optional due
+  date, then open Kyndyn for protected Parent review and saving.
 
-The five actions are registered as App Shortcuts with suggested Siri phrases
+The actions are registered as App Shortcuts with suggested Siri phrases
 and are explained under Settings → Siri & Shortcuts.
+
+The iOS 27 compatibility follow-up adds exact spoken variants for Today’s
+quests, parameterized profile phrases, text-based profile and quest resolution,
+and a direct Shortcuts link in Settings. The generated app bundle was inspected
+and contains all five actions, entities, queries, and shortcut phrase templates
+as discoverable metadata. Spoken profile names resolve against the profile name
+stored in Kyndyn; the app does not infer legal names, nicknames, or aliases.
+
+The quest-creation action never silently creates a quest. Siri can collect a
+title, profile, XP value, and due date, but Kyndyn opens a prefilled editor and
+requires local Parent authentication plus an explicit Save. Canceling the
+review leaves the household unchanged. Apple's shortcut metadata currently
+allows Kyndyn to advertise the general phrase “Create a quest in Kyndyn”;
+whether Siri extracts every value from one longer sentence depends on Apple's
+speech and App Intents routing, so Siri may ask follow-up questions.
 
 ## Data and mutation rules
 
@@ -26,10 +43,10 @@ queue. App Intents never write directly to CloudKit or independently calculate
 progression.
 
 All exposed actions require local device authentication before returning names,
-quest titles, or family reward details. Parent-only creation, editing,
-archiving, sharing, reward administration, security, backup, and household
-management remain unavailable to Siri and continue to require Kyndyn's local
-Parent authorization.
+quest titles, or family reward details. Siri may prepare a creation draft, but
+Parent-only creation, editing, archiving, sharing, reward administration,
+security, backup, and household management continue to require Kyndyn's local
+Parent authorization and app UI.
 
 Kyndyn intentionally does not place family profiles or quest titles into the
 general Spotlight content index in this milestone. The shortcuts themselves
@@ -41,9 +58,12 @@ payloads or lock-screen previews by this integration.
 
 App Intents provide the stable integration across supported releases. Siri
 recognition and background execution remain controlled by Apple and can vary by
-device, language, settings, and OS version. Newer App Schema, onscreen-awareness,
-and richer Apple Intelligence capabilities remain availability-gated follow-up
-work; they are not claimed on devices that do not support them.
+device, language, settings, and OS version. Apple's iOS 27 App Schemas improve
+natural-language understanding for supported domains, but the current SDK does
+not provide a task, chore, or family-quest schema. Kyndyn therefore keeps its
+honest custom App Intents rather than mapping private family data onto an
+unrelated schema. Onscreen awareness and richer Apple Intelligence capabilities
+remain availability-gated follow-up work.
 
 Physical-device validation should cover Siri and Shortcuts discovery, locked
 and unlocked execution, offline completion and undo, app relaunch, and later

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import AppIntents
 
 private let companionChoices = CollectionCatalog.companionIDs
 private let colorChoices = [
@@ -840,6 +841,35 @@ struct MainView: View {
                 parentAccess.lock()
             }
         }
+        .sheet(item: $app.pendingSiriQuestDraft) { siriDraft in
+            SiriQuestReviewView(draft: siriDraft)
+                .environmentObject(parentAccess)
+        }
+    }
+}
+
+private struct SiriQuestReviewView: View {
+    @EnvironmentObject private var parentAccess: ParentAccessController
+    let draft: SiriQuestDraft
+
+    var body: some View {
+        NavigationStack {
+            if parentAccess.isUnlocked {
+                QuestEditorView(quest: nil, siriDraft: draft)
+            } else {
+                ContentUnavailableView {
+                    Label("Parent approval needed",
+                          systemImage: "lock.shield.fill")
+                } description: {
+                    Text("Authenticate to review this quest. Nothing has been created yet.")
+                } actions: {
+                    Button("Authenticate") {
+                        Task { await parentAccess.authenticate() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
     }
 }
 
@@ -1019,8 +1049,16 @@ struct SettingsView: View {
 struct SiriShortcutsHelpView: View {
     var body: some View {
         List {
+            Section {
+                ShortcutsLink()
+                    .shortcutsLinkStyle(.automaticOutline)
+            } footer: {
+                Text("If Kyndyn’s actions appear here and run when tapped, the app has registered them correctly with Apple’s system.")
+            }
             Section("Try saying") {
-                Label("“Show my quests in kyndyn”", systemImage: "checklist")
+                Label("“Show today’s Kyndyn quests”", systemImage: "checklist")
+                Label("“Show Millie’s Kyndyn quests”",
+                      systemImage: "person.text.rectangle")
                 Label("“Show family reward progress in kyndyn”",
                       systemImage: "gift.fill")
                 Label("“Open a profile in kyndyn”",
@@ -1029,6 +1067,8 @@ struct SiriShortcutsHelpView: View {
                       systemImage: "checkmark.circle.fill")
                 Label("“Undo a quest in kyndyn”",
                       systemImage: "arrow.uturn.backward.circle.fill")
+                Label("“Create a quest in kyndyn”",
+                      systemImage: "plus.circle.fill")
             }
             Section("Privacy") {
                 KyndynCallout(kind: .privacy, message: "Device authentication protects profile names, quest details, and reward progress. Shortcut changes use the same offline history and family-sync queue as the app.")
@@ -5051,9 +5091,21 @@ struct QuestEditorView: View {
     @State private var loadedReminder = false
     @State private var confirmArchive = false
 
-    init(quest: Quest?, template: QuestTemplate? = nil) {
+    init(quest: Quest?, template: QuestTemplate? = nil,
+         siriDraft: SiriQuestDraft? = nil) {
         self.quest = quest
         var value = template?.draft() ?? QuestDraft()
+        if let siriDraft {
+            value.title = siriDraft.title
+            value.xp = siriDraft.xp
+            value.participantIDs = [siriDraft.personID]
+            if let dueDate = siriDraft.dueDate {
+                value.hasDueDate = true
+                value.dueDate = dueDate
+                value.hasDueTime = false
+                value.dueTime = dueDate
+            }
+        }
         if let quest {
             value.title = quest.title; value.detail = quest.detail; value.xp = quest.xp
             value.participantIDs = Set(quest.participantIDs); value.completionMode = quest.completionMode

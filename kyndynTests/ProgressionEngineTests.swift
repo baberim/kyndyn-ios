@@ -60,7 +60,7 @@ final class DeviceContextPolicyTests: XCTestCase {
 
 final class SystemIntelligenceTests: XCTestCase {
     @MainActor private func fixture() throws -> (
-        ModelContainer, Household, Person, Quest
+        ModelContainer, Household, Person, Quest, AppModel
     ) {
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -99,16 +99,22 @@ final class SystemIntelligenceTests: XCTestCase {
         context.insert(goal)
         context.insert(cloudState)
         try context.save()
-        KyndynIntentStore.shared.configure(
-            container: container, appModel: AppModel())
-        return (container, household, person, quest)
+        let app = AppModel()
+        KyndynIntentStore.shared.configure(container: container, appModel: app)
+        return (container, household, person, quest, app)
     }
 
     @MainActor func testIntentStoreReturnsPrivateHouseholdSummaries() throws {
-        let (container, _, person, _) = try fixture()
+        let (container, _, person, _, _) = try fixture()
         defer { KyndynIntentStore.shared.resetForTesting() }
         XCTAssertEqual(try KyndynIntentStore.shared.people().map(\.name),
                        ["Avery"])
+        XCTAssertEqual(try KyndynIntentStore.shared.people(
+            matching: "ave").map(\.name), ["Avery"])
+        XCTAssertTrue(try KyndynIntentStore.shared.people(
+            matching: "missing").isEmpty)
+        XCTAssertEqual(try KyndynIntentStore.shared.occurrences(
+            matching: "books", includeCompleted: true).count, 1)
         let today = try KyndynIntentStore.shared.todaySummary(
             personID: person.id)
         XCTAssertTrue(today.contains("Put books away"))
@@ -118,7 +124,7 @@ final class SystemIntelligenceTests: XCTestCase {
     }
 
     @MainActor func testIntentCompletionAndExactUndoAreIdempotent() throws {
-        let (container, _, _, _) = try fixture()
+        let (container, _, _, _, _) = try fixture()
         defer { KyndynIntentStore.shared.resetForTesting() }
         let occurrence = try XCTUnwrap(
             KyndynIntentStore.shared.occurrences(
@@ -139,6 +145,35 @@ final class SystemIntelligenceTests: XCTestCase {
         XCTAssertNotNil(completion.reversedAt)
         XCTAssertGreaterThan(try container.mainContext.fetch(
             FetchDescriptor<PendingSyncMutation>()).count, 0)
+    }
+
+    @MainActor func testSiriQuestDraftRequiresReviewWithoutCreatingQuest() throws {
+        let (container, _, person, _, app) = try fixture()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+        let dueDate = Date(timeIntervalSince1970: 2_000_000_000)
+        try KyndynIntentStore.shared.prepareQuest(
+            title: "  Clean your bedroom  ", personID: person.id,
+            xp: 10, dueDate: dueDate)
+        XCTAssertEqual(app.pendingSiriQuestDraft?.title,
+                       "Clean your bedroom")
+        XCTAssertEqual(app.pendingSiriQuestDraft?.personID, person.id)
+        XCTAssertEqual(app.pendingSiriQuestDraft?.xp, 10)
+        XCTAssertEqual(app.pendingSiriQuestDraft?.dueDate, dueDate)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<Quest>()).count, 1,
+            "Preparing a Siri draft must not create a quest.")
+    }
+
+    @MainActor func testSiriQuestDraftRejectsUnsafeValues() throws {
+        let (container, _, person, _, _) = try fixture()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+        XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
+            title: "   ", personID: person.id, xp: 10, dueDate: nil))
+        XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
+            title: "Quest", personID: person.id, xp: 501, dueDate: nil))
+        XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
+            title: "Quest", personID: UUID(), xp: 10, dueDate: nil))
+        withExtendedLifetime(container) {}
     }
 }
 

@@ -9,6 +9,7 @@ enum KyndynIntentError: LocalizedError, Equatable {
     case occurrenceUnavailable
     case alreadyComplete
     case notComplete
+    case invalidQuestDraft
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum KyndynIntentError: LocalizedError, Equatable {
             return "That quest is already complete."
         case .notComplete:
             return "That quest has not been completed."
+        case .invalidQuestDraft:
+            return "Check the quest name and XP, then try again."
         }
     }
 }
@@ -41,7 +44,7 @@ struct KyndynPersonEntity: AppEntity {
     }
 }
 
-struct KyndynPersonQuery: EntityQuery {
+struct KyndynPersonQuery: EntityStringQuery {
     func entities(for identifiers: [UUID]) async throws -> [KyndynPersonEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.people(ids: Set(identifiers))
@@ -50,6 +53,11 @@ struct KyndynPersonQuery: EntityQuery {
     func suggestedEntities() async throws -> [KyndynPersonEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.people()
+    }
+
+    func entities(matching string: String) async throws -> [KyndynPersonEntity] {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        return try await KyndynIntentStore.shared.people(matching: string)
     }
 }
 
@@ -71,7 +79,7 @@ struct KyndynQuestOccurrenceEntity: AppEntity {
     }
 }
 
-struct KyndynQuestOccurrenceQuery: EntityQuery {
+struct KyndynQuestOccurrenceQuery: EntityStringQuery {
     func entities(for identifiers: [String]) async throws
         -> [KyndynQuestOccurrenceEntity] {
         try await KyndynIntentStore.shared.waitUntilReady()
@@ -83,6 +91,13 @@ struct KyndynQuestOccurrenceQuery: EntityQuery {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.occurrences(
             includeCompleted: true)
+    }
+
+    func entities(matching string: String) async throws
+        -> [KyndynQuestOccurrenceEntity] {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        return try await KyndynIntentStore.shared.occurrences(
+            matching: string, includeCompleted: true)
     }
 }
 
@@ -186,13 +201,44 @@ struct UndoQuestOccurrenceIntent: AppIntent {
     }
 }
 
+struct PrepareQuestIntent: AppIntent {
+    static let title: LocalizedStringResource = "Add a Kyndyn Quest"
+    static let description = IntentDescription(
+        "Prepares a quest for a parent to review and create in Kyndyn.")
+    static let openAppWhenRun = true
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "Quest name") var questName: String
+    @Parameter(title: "Profile") var person: KyndynPersonEntity
+    @Parameter(title: "XP", default: 10) var xp: Int
+    @Parameter(title: "Due date") var dueDate: Date?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$questName) for \(\.$person), worth \(\.$xp) XP, due \(\.$dueDate)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        try await KyndynIntentStore.shared.prepareQuest(
+            title: questName, personID: person.id, xp: xp,
+            dueDate: dueDate)
+        return .result(dialog: "Review this quest in Kyndyn to create it.")
+    }
+}
+
 struct KyndynAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: ListTodayQuestsIntent(),
             phrases: [
                 "Show my quests in \(.applicationName)",
-                "What are today’s \(.applicationName) quests"
+                "Show my \(.applicationName) quests",
+                "Show today’s quests in \(.applicationName)",
+                "Show today’s \(.applicationName) quests",
+                "What are today’s \(.applicationName) quests",
+                "Show \(\.$person)’s quests in \(.applicationName)",
+                "Show \(\.$person)’s \(.applicationName) quests"
             ],
             shortTitle: "Today’s quests",
             systemImageName: "checklist")
@@ -216,6 +262,14 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
             phrases: ["Undo a quest in \(.applicationName)"],
             shortTitle: "Undo quest",
             systemImageName: "arrow.uturn.backward.circle.fill")
+        AppShortcut(
+            intent: PrepareQuestIntent(),
+            phrases: [
+                "Add a quest in \(.applicationName)",
+                "Create a quest in \(.applicationName)"
+            ],
+            shortTitle: "Add quest",
+            systemImageName: "plus.circle.fill")
     }
 }
 
@@ -251,6 +305,14 @@ final class KyndynIntentStore {
         }
         .sorted { $0.createdAt < $1.createdAt }
         .map { KyndynPersonEntity(id: $0.id, name: $0.name) }
+    }
+
+    func people(matching string: String) throws -> [KyndynPersonEntity] {
+        let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return try people() }
+        return try people().filter {
+            $0.name.localizedCaseInsensitiveContains(normalized)
+        }
     }
 
     func occurrences(ids: Set<String>? = nil, includeCompleted: Bool) throws
@@ -306,6 +368,18 @@ final class KyndynIntentStore {
         }
     }
 
+    func occurrences(matching string: String, includeCompleted: Bool) throws
+        -> [KyndynQuestOccurrenceEntity] {
+        let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return try occurrences(includeCompleted: includeCompleted)
+        }
+        return try occurrences(includeCompleted: includeCompleted).filter {
+            $0.title.localizedCaseInsensitiveContains(normalized) ||
+                $0.personName.localizedCaseInsensitiveContains(normalized)
+        }
+    }
+
     func todaySummary(personID: UUID?) throws -> String {
         let selected = try personID ?? selectedPersonID()
         let person = try people(ids: [selected]).first
@@ -349,6 +423,22 @@ final class KyndynIntentStore {
         try context.save()
         appModel?.selectedPersonID = personID
         appModel?.selectedTab = 0
+    }
+
+    func prepareQuest(title: String, personID: UUID, xp: Int,
+                      dueDate: Date?) throws {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.count <= 120,
+              (1...500).contains(xp) else {
+            throw KyndynIntentError.invalidQuestDraft
+        }
+        guard try people(ids: [personID]).first != nil else {
+            throw KyndynIntentError.personUnavailable
+        }
+        guard let appModel else { throw KyndynIntentError.storeUnavailable }
+        appModel.pendingSiriQuestDraft = SiriQuestDraft(
+            title: normalized, personID: personID, xp: xp,
+            dueDate: dueDate)
     }
 
     func complete(occurrenceID: String) throws -> String {
