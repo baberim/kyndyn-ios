@@ -111,6 +111,8 @@ final class SystemIntelligenceTests: XCTestCase {
                        ["Avery"])
         XCTAssertEqual(try KyndynIntentStore.shared.people(
             matching: "ave").map(\.name), ["Avery"])
+        XCTAssertEqual(try KyndynIntentStore.shared.people(
+            matching: "AVERY").map(\.name), ["Avery"])
         XCTAssertTrue(try KyndynIntentStore.shared.people(
             matching: "missing").isEmpty)
         XCTAssertEqual(try KyndynIntentStore.shared.occurrences(

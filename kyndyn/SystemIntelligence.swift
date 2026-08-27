@@ -290,7 +290,10 @@ final class KyndynIntentStore {
     }
 
     func waitUntilReady() async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        // A protected intent may need to cold-launch the app after device
+        // authentication. Give SwiftData initialization enough time without
+        // waiting indefinitely if the app genuinely cannot become ready.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while context == nil && ContinuousClock.now < deadline {
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(100))
@@ -310,7 +313,15 @@ final class KyndynIntentStore {
     func people(matching string: String) throws -> [KyndynPersonEntity] {
         let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return try people() }
-        return try people().filter {
+        let candidates = try people()
+        // Returning one exact result prevents Siri from repeatedly asking the
+        // user to disambiguate a name it has already heard correctly.
+        let exact = candidates.filter {
+            $0.name.compare(normalized, options: [.caseInsensitive, .diacriticInsensitive])
+                == .orderedSame
+        }
+        if !exact.isEmpty { return exact }
+        return candidates.filter {
             $0.name.localizedCaseInsensitiveContains(normalized)
         }
     }
