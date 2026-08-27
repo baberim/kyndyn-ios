@@ -1346,6 +1346,19 @@ final class ReminderRulesTests: XCTestCase {
             household: household, now: now).isEmpty)
     }
 
+    @MainActor func testParentEveningSummaryUsesClearFamilyFriendlyCopy() {
+        let (household, person, quest, settings, now) = fixture()
+        person.role = .parent
+        settings.parentSummaryEligible = true
+        let summary = ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, now: now
+        ).first { $0.identifier.hasPrefix("kyndyn.parent-summary.") }
+        XCTAssertEqual(summary?.title, "Evening family check-in")
+        XCTAssertEqual(summary?.body,
+                       "See what got done today and what’s still waiting.")
+    }
+
     @MainActor func testDisabledArchivedAndWrongProfileCancelCandidates() {
         let (household, person, quest, settings, now) = fixture()
         settings.notificationsEnabled = false
