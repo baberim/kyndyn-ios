@@ -405,6 +405,86 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(household.rewardGoalXP, 100)
     }
 
+    @MainActor func testWeeklyPlanValidatesWholeBatchBeforeCreatingAnything() throws {
+        let (container, household, person, _) = try models()
+        let context = container.mainContext
+        context.insert(household); context.insert(person)
+        let valid = QuestDraft(title: "Pack lunch", xp: 10,
+                               participantIDs: [person.id], scheduleKind: .oneTime,
+                               startDate: .now, hasDueDate: true, dueDate: .now)
+        let invalid = QuestDraft(title: "", xp: 10,
+                                 participantIDs: [person.id], scheduleKind: .oneTime,
+                                 startDate: .now, hasDueDate: true, dueDate: .now)
+
+        XCTAssertThrowsError(try AppModel().createPlannedQuests(
+            [PlannedQuestDraft(draft: valid), PlannedQuestDraft(draft: invalid)],
+            household: household, people: [person], context: context))
+        XCTAssertTrue(try context.fetch(FetchDescriptor<Quest>()).isEmpty)
+    }
+
+    @MainActor func testWeeklyPlanCreatesEveryValidatedQuest() throws {
+        let (container, household, person, _) = try models()
+        let context = container.mainContext
+        context.insert(household); context.insert(person)
+        let first = QuestDraft(title: "Pack lunch", xp: 10,
+                               participantIDs: [person.id], scheduleKind: .oneTime,
+                               startDate: .now, hasDueDate: true, dueDate: .now)
+        let second = QuestDraft(title: "Set out clothes", xp: 15,
+                                participantIDs: [person.id], scheduleKind: .oneTime,
+                                startDate: .now, hasDueDate: true, dueDate: .now)
+
+        let created = try AppModel().createPlannedQuests(
+            [PlannedQuestDraft(draft: first), PlannedQuestDraft(draft: second)],
+            household: household, people: [person], context: context)
+
+        XCTAssertEqual(created.count, 2)
+        XCTAssertEqual(Set(created.map(\.title)), ["Pack lunch", "Set out clothes"])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Quest>()).count, 2)
+    }
+
+    func testPlannerCopyPreservesIdentityFieldsAndUsesDestinationDay() {
+        let householdID = UUID(), personID = UUID()
+        let quest = Quest(householdID: householdID, title: "Water plants",
+                          detail: "Use the small cup", xp: 12,
+                          participantIDs: [personID], scheduleKind: .daily)
+        let destination = Date(timeIntervalSince1970: 2_000_000)
+        let copy = WeeklyPlannerRules.oneTimeCopy(of: quest, on: destination)
+        XCTAssertEqual(copy.title, quest.title)
+        XCTAssertEqual(copy.detail, quest.detail)
+        XCTAssertEqual(copy.participantIDs, Set([personID]))
+        XCTAssertEqual(copy.scheduleKind, .oneTime)
+        XCTAssertEqual(copy.startDate, destination)
+        XCTAssertEqual(copy.dueDate, destination)
+    }
+
+    @MainActor func testPreparedRewardActivationCarriesOnlyRewardProgress() throws {
+        let (container, household, person, quest) = try models()
+        let context = container.mainContext
+        context.insert(household); context.insert(person); context.insert(quest)
+        let active = RewardGoal(householdID: household.id, title: "Movie", targetXP: 100)
+        active.createdAt = .distantPast
+        context.insert(active)
+        let completion = QuestCompletion(
+            householdID: household.id, questID: quest.id, personID: person.id,
+            occurrenceDay: "2026-08-26", completedAt: .now, awardedXP: 30)
+        context.insert(completion)
+        let model = AppModel()
+        let prepared = try model.prepareFamilyReward(
+            title: "Picnic", targetXP: 200, note: "Saturday",
+            household: household, goals: [active], context: context)
+
+        try model.activatePreparedReward(
+            prepared, carryProgress: true, household: household,
+            goals: [active, prepared], completions: [completion], context: context)
+
+        XCTAssertEqual(active.state, .concluded)
+        XCTAssertEqual(active.endingXP, 30)
+        XCTAssertEqual(prepared.state, .active)
+        XCTAssertEqual(prepared.startingXP, 30)
+        XCTAssertEqual(ProgressionEngine.rewardXP([], goal: prepared), 30)
+        XCTAssertEqual(ProgressionEngine.familyXP([completion]), 30)
+    }
+
     @MainActor func testIndividualAndSharedParticipantsHaveSeparateEvents() throws {
         let (container, household, first, quest) = try models()
         let second = Person(householdID: household.id, name: "Jordan", role: .child, colorHex: "#123456", companionID: "orbit")

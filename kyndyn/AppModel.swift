@@ -10,6 +10,7 @@ enum KyndynValidationError: LocalizedError, Equatable {
     case emptyRewardTitle, rewardTitleTooLong, invalidRewardTarget
     case emptyBroadcastMessage, broadcastMessageTooLong, broadcastExpired
     case invalidSchedulePause
+    case tooManyPreparedRewards, rewardUnavailable, rewardNoteTooLong
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,9 @@ enum KyndynValidationError: LocalizedError, Equatable {
             return "Choose an expiration time in the future."
         case .invalidSchedulePause:
             return "Choose an end date on or after the start date, within one year."
+        case .tooManyPreparedRewards: return "Keep up to five rewards ready at a time."
+        case .rewardUnavailable: return "That prepared reward is no longer available."
+        case .rewardNoteTooLong: return "Keep reward notes to 200 characters or fewer."
         }
     }
 }
@@ -429,6 +433,49 @@ enum LifecycleRules {
         refreshReminders(context: context)
     }
 
+    @discardableResult
+    func createPlannedQuests(
+        _ planned: [PlannedQuestDraft], household: Household,
+        people: [Person], context: ModelContext
+    ) throws -> [Quest] {
+        guard !planned.isEmpty else { return [] }
+        let validated = try planned.map { item -> (QuestDraft, String, String) in
+            let (title, detail) = try LifecycleRules.validate(
+                quest: item.draft, people: people)
+            try LifecycleRules.validateSchedule(
+                item.draft, timeZoneIdentifier: household.timeZoneIdentifier)
+            return (item.draft, title, detail)
+        }
+        let quests = validated.map { draft, title, detail in
+            Quest(
+                householdID: household.id, title: title, detail: detail,
+                xp: draft.xp, participantIDs: Array(draft.participantIDs),
+                completionMode: draft.participantIDs.count == 1
+                    ? .individual : draft.completionMode,
+                scheduleKind: draft.scheduleKind,
+                weekdays: Array(draft.weekdays).sorted(),
+                repeatIntervalWeeks: draft.repeatIntervalWeeks,
+                startDate: draft.startDate,
+                dueAt: dueAt(draft, household: household))
+        }
+        quests.forEach(context.insert)
+        do {
+            try context.save()
+            for quest in quests {
+                for envelope in SyncSnapshot.quest(quest) {
+                    try SyncQueue.enqueue(envelope, operation: .createOrUpdate,
+                                          context: context)
+                }
+            }
+            refreshReminders(context: context)
+            return quests
+        } catch {
+            quests.forEach(context.delete)
+            try? context.save()
+            throw error
+        }
+    }
+
     func archiveQuest(_ quest: Quest, context: ModelContext) throws {
         quest.deletedAt = .now
         try context.save()
@@ -484,7 +531,7 @@ enum LifecycleRules {
         }
 
         let active = goals.filter {
-            $0.householdID == household.id && $0.deletedAt == nil
+            $0.householdID == household.id && $0.deletedAt == nil && $0.state == .active
         }
         var archived = [RewardGoal]()
         let goal: RewardGoal
@@ -525,6 +572,111 @@ enum LifecycleRules {
         try SyncQueue.enqueue(
             SyncSnapshot.household(household), operation: .createOrUpdate,
             context: context)
+    }
+
+    @discardableResult
+    func prepareFamilyReward(
+        title rawTitle: String, targetXP: Int, note rawNote: String,
+        household: Household, goals: [RewardGoal], context: ModelContext
+    ) throws -> RewardGoal {
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = rawNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw KyndynValidationError.emptyRewardTitle }
+        guard title.count <= 80 else { throw KyndynValidationError.rewardTitleTooLong }
+        guard note.count <= 200 else { throw KyndynValidationError.rewardNoteTooLong }
+        guard (1...1_000_000).contains(targetXP) else {
+            throw KyndynValidationError.invalidRewardTarget
+        }
+        let prepared = goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil && $0.state == .prepared
+        }
+        guard prepared.count < 5 else { throw KyndynValidationError.tooManyPreparedRewards }
+        let goal = RewardGoal(householdID: household.id, title: title, targetXP: targetXP)
+        goal.state = .prepared
+        goal.note = note
+        goal.queuePosition = (prepared.map(\.queuePosition).max() ?? -1) + 1
+        context.insert(goal)
+        try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.reward(goal), operation: .createOrUpdate,
+                              context: context)
+        return goal
+    }
+
+    func activatePreparedReward(
+        _ prepared: RewardGoal, carryProgress: Bool,
+        household: Household, goals: [RewardGoal], completions: [QuestCompletion],
+        context: ModelContext, now: Date = .now
+    ) throws {
+        guard prepared.householdID == household.id, prepared.deletedAt == nil,
+              prepared.state == .prepared else {
+            throw KyndynValidationError.rewardUnavailable
+        }
+        let active = ProgressionEngine.currentRewardGoal(goals, householdID: household.id)
+        let currentXP = ProgressionEngine.rewardXP(completions, goal: active)
+        if let active {
+            active.state = .concluded
+            active.endedAt = now
+            active.endingXP = currentXP
+        }
+        prepared.state = .active
+        prepared.createdAt = now
+        prepared.startingXP = carryProgress ? currentXP : 0
+        prepared.carriedProgress = carryProgress
+        prepared.queuePosition = 0
+        household.rewardTitle = prepared.title
+        household.rewardGoalXP = prepared.targetXP
+        let remaining = goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil &&
+            $0.state == .prepared && $0.id != prepared.id
+        }.sorted { $0.queuePosition < $1.queuePosition }
+        for (index, reward) in remaining.enumerated() { reward.queuePosition = index }
+        try context.save()
+        if let active {
+            try SyncQueue.enqueue(SyncSnapshot.reward(active), operation: .createOrUpdate,
+                                  context: context)
+        }
+        try SyncQueue.enqueue(SyncSnapshot.reward(prepared), operation: .createOrUpdate,
+                              context: context)
+        for reward in remaining {
+            try SyncQueue.enqueue(SyncSnapshot.reward(reward), operation: .createOrUpdate,
+                                  context: context)
+        }
+        try SyncQueue.enqueue(SyncSnapshot.household(household),
+                              operation: .createOrUpdate, context: context)
+    }
+
+    func removePreparedReward(_ reward: RewardGoal, context: ModelContext) throws {
+        guard reward.state == .prepared else { throw KyndynValidationError.rewardUnavailable }
+        reward.deletedAt = .now
+        try context.save()
+        try SyncQueue.enqueue(SyncSnapshot.reward(reward), operation: .archive,
+                              context: context)
+    }
+
+    func movePreparedReward(
+        _ reward: RewardGoal, by offset: Int, goals: [RewardGoal],
+        context: ModelContext
+    ) throws {
+        guard reward.state == .prepared, offset != 0 else {
+            throw KyndynValidationError.rewardUnavailable
+        }
+        var prepared = goals.filter {
+            $0.householdID == reward.householdID && $0.deletedAt == nil &&
+            $0.state == .prepared
+        }.sorted { $0.queuePosition < $1.queuePosition }
+        guard let source = prepared.firstIndex(where: { $0.id == reward.id }) else {
+            throw KyndynValidationError.rewardUnavailable
+        }
+        let destination = min(max(0, source + offset), prepared.count - 1)
+        guard destination != source else { return }
+        prepared.move(fromOffsets: IndexSet(integer: source),
+                      toOffset: destination > source ? destination + 1 : destination)
+        for (index, value) in prepared.enumerated() { value.queuePosition = index }
+        try context.save()
+        for value in prepared {
+            try SyncQueue.enqueue(SyncSnapshot.reward(value),
+                                  operation: .createOrUpdate, context: context)
+        }
     }
 
     @discardableResult

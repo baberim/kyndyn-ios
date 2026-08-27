@@ -95,6 +95,13 @@ struct HouseholdBackup: Codable, Equatable, Sendable {
         var targetXP: Int
         var createdAt: Date
         var deletedAt: Date?
+        var state: RewardGoalState?
+        var queuePosition: Int?
+        var note: String?
+        var startingXP: Int?
+        var endedAt: Date?
+        var endingXP: Int?
+        var carriedProgress: Bool?
     }
     struct BroadcastValue: Codable, Equatable, Sendable {
         var id: UUID
@@ -295,7 +302,11 @@ enum HouseholdTransferCodec {
             },
             rewardGoals: goals.map {
                 .init(id: $0.id, title: $0.title, targetXP: $0.targetXP,
-                      createdAt: $0.createdAt, deletedAt: $0.deletedAt)
+                      createdAt: $0.createdAt, deletedAt: $0.deletedAt,
+                      state: $0.state, queuePosition: $0.queuePosition,
+                      note: $0.note, startingXP: $0.startingXP,
+                      endedAt: $0.endedAt, endingXP: $0.endingXP,
+                      carriedProgress: $0.carriedProgress)
             },
             broadcasts: broadcasts.map {
                 .init(id: $0.id, title: $0.title, message: $0.message,
@@ -518,6 +529,13 @@ enum HouseholdRestoreService {
                 targetXP: value.targetXP)
             goal.id = value.id; goal.createdAt = value.createdAt
             goal.deletedAt = value.deletedAt
+            goal.state = value.state ?? (value.deletedAt == nil ? .active : .concluded)
+            goal.queuePosition = value.queuePosition ?? 0
+            goal.note = value.note ?? ""
+            goal.startingXP = value.startingXP ?? 0
+            goal.endedAt = value.endedAt
+            goal.endingXP = value.endingXP
+            goal.carriedProgress = value.carriedProgress ?? false
             context.insert(goal); insertedGoals.append(goal)
         }
         var insertedBroadcasts: [FamilyBroadcast] = []
