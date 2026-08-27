@@ -58,6 +58,30 @@ final class DeviceContextPolicyTests: XCTestCase {
     }
 }
 
+final class PremiumEntitlementPolicyTests: XCTestCase {
+    func testOnlyActiveAndGracePeriodGrantPremiumAccess() {
+        XCTAssertFalse(PremiumAccessState.free.grantsPremiumAccess)
+        XCTAssertTrue(PremiumAccessState.active.grantsPremiumAccess)
+        XCTAssertTrue(PremiumAccessState.gracePeriod.grantsPremiumAccess)
+        XCTAssertFalse(PremiumAccessState.expired.grantsPremiumAccess)
+        XCTAssertFalse(PremiumAccessState.revoked.grantsPremiumAccess)
+    }
+
+    func testExpirationNeverHidesExistingHouseholdData() {
+        let entitlement = PremiumEntitlement(
+            state: .expired,
+            source: .appStorePurchase,
+            expirationDate: Date(timeIntervalSince1970: 1))
+        XCTAssertFalse(entitlement.hasPremiumAccess)
+        XCTAssertTrue(entitlement.preservesExistingHouseholdData)
+    }
+
+    func testDevelopmentDefaultDoesNotPretendPurchaseExists() async {
+        let entitlement = await FreeEntitlements().currentEntitlement()
+        XCTAssertEqual(entitlement, .free)
+    }
+}
+
 final class SystemIntelligenceTests: XCTestCase {
     @MainActor private func fixture() throws -> (
         ModelContainer, Household, Person, Quest, AppModel

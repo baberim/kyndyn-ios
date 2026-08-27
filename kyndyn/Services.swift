@@ -229,11 +229,57 @@ struct LocalOnlyHouseholdSync: HouseholdSyncing {
     func synchronize() async throws {}
 }
 
-protocol EntitlementProviding: Sendable {
-    var hasFamilyEntitlement: Bool { get async }
+enum PremiumAccessState: String, Codable, Equatable, Sendable {
+    case free
+    case active
+    case gracePeriod
+    case expired
+    case revoked
+
+    var grantsPremiumAccess: Bool {
+        self == .active || self == .gracePeriod
+    }
 }
-struct DevelopmentEntitlements: EntitlementProviding {
-    var hasFamilyEntitlement: Bool { get async { true } }
+
+enum PremiumEntitlementSource: String, Codable, Equatable, Sendable {
+    case none
+    case appStorePurchase
+    case appleFamilySharing
+    case complimentary
+    case grandfathered
+}
+
+struct PremiumEntitlement: Codable, Equatable, Sendable {
+    var state: PremiumAccessState
+    var source: PremiumEntitlementSource
+    var expirationDate: Date?
+
+    static let free = PremiumEntitlement(
+        state: .free, source: .none, expirationDate: nil)
+
+    var hasPremiumAccess: Bool { state.grantsPremiumAccess }
+
+    /// Expiration never makes existing family information unreadable. It only
+    /// prevents starting a new premium-only action.
+    var preservesExistingHouseholdData: Bool { true }
+}
+
+enum PremiumFeature: String, CaseIterable, Codable, Sendable {
+    case appleWatch
+    case advancedPlanning
+    case richerInsights
+    case expandedCustomization
+    case enhancedDayContext
+    case widgetsAndLiveActivities
+    case advancedSiriAutomations
+}
+
+protocol EntitlementProviding: Sendable {
+    func currentEntitlement() async -> PremiumEntitlement
+}
+
+struct FreeEntitlements: EntitlementProviding {
+    func currentEntitlement() async -> PremiumEntitlement { .free }
 }
 
 struct ImportReport: Equatable {

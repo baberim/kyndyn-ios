@@ -359,26 +359,28 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 - Keep report exporting out of scope until real families demonstrate a need.
 - See `docs/build-31-parent-simplification.md` for behavior and validation.
 
-### Build 32 — Reward-history follow-through
+### Build 32 — Premium boundaries and entitlement design — implemented
 
-- Validate reward history and the simplified Parent navigation with real
-  households and assistive technologies.
-- Add only small reward-history refinements supported by testing; do not add
-  report exports without demonstrated demand.
-
-### Build 33 — Premium boundaries and entitlement design
-
-- Finalize the free-versus-premium feature matrix without removing the core
+- Finalized the free-versus-premium feature matrix without removing the core
   family loop, security, backups, recovery, or earned items.
-- Define household entitlement ownership, Family Sharing, complimentary access,
-  expiration, refunds, restoration, and grandfathering.
+- Set proposed launch pricing at $3.99 monthly or $29.99 annually, with a
+  14-day trial and Apple Family Sharing.
+- Defined entitlement sources, expiration/refund behavior, restoration,
+  complimentary access, and grandfathering boundaries.
+- See `docs/build-32-premium-foundation.md`.
 
-### Build 34 — StoreKit implementation
+### Build 33 — StoreKit implementation
 
-- Add StoreKit only after Build 33's product and family-purchase rules are
+- Add StoreKit only after Build 32's product and family-purchase rules are
   approved and covered by deterministic tests.
 - Validate purchases, restoration, expiration, refunds, Family Sharing, and
   complimentary access in Apple's sandbox before TestFlight.
+
+### Build 34 — Apple Watch premium companion
+
+- Build a deliberately small Watch experience for viewing today's quests,
+  completing an exact occurrence, and seeing current progress.
+- Keep the phone app useful without a Watch and treat Watch access as premium.
 
 ### Build 35 — Public-release hardening
 
