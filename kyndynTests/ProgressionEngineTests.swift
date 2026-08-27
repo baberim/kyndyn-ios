@@ -154,7 +154,7 @@ final class SystemIntelligenceTests: XCTestCase {
         defer { KyndynIntentStore.shared.resetForTesting() }
         let dueDate = Date(timeIntervalSince1970: 2_000_000_000)
         try KyndynIntentStore.shared.prepareQuest(
-            title: "  Clean your bedroom  ", personID: person.id,
+            title: "  Clean your bedroom  ", profileName: person.name,
             xp: 10, dueDate: dueDate)
         XCTAssertEqual(app.pendingSiriQuestDraft?.title,
                        "Clean your bedroom")
@@ -166,15 +166,37 @@ final class SystemIntelligenceTests: XCTestCase {
             "Preparing a Siri draft must not create a quest.")
     }
 
+    @MainActor func testSiriQuestDraftSurvivesColdAppStartup() throws {
+        let (container, _, person, _, app) = try fixture()
+        KyndynIntentStore.shared.resetForTesting()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+
+        try KyndynIntentStore.shared.prepareQuest(
+            title: "Clean your bedroom", profileName: person.name,
+            xp: 10, dueDate: nil)
+        XCTAssertNil(app.pendingSiriQuestDraft,
+                     "The app is not configured during a cold Siri launch.")
+
+        KyndynIntentStore.shared.configure(container: container, appModel: app)
+        XCTAssertEqual(app.pendingSiriQuestDraft?.title,
+                       "Clean your bedroom")
+        XCTAssertEqual(app.pendingSiriQuestDraft?.personID, person.id)
+        XCTAssertEqual(app.pendingSiriQuestDraft?.xp, 10)
+        XCTAssertEqual(try container.mainContext.fetch(
+            FetchDescriptor<Quest>()).count, 1,
+            "Restoring a pending Siri draft must not create a quest.")
+    }
+
     @MainActor func testSiriQuestDraftRejectsUnsafeValues() throws {
         let (container, _, person, _, _) = try fixture()
         defer { KyndynIntentStore.shared.resetForTesting() }
         XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
-            title: "   ", personID: person.id, xp: 10, dueDate: nil))
+            title: "   ", profileName: person.name, xp: 10, dueDate: nil))
         XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
-            title: "Quest", personID: person.id, xp: 501, dueDate: nil))
-        XCTAssertThrowsError(try KyndynIntentStore.shared.prepareQuest(
-            title: "Quest", personID: UUID(), xp: 10, dueDate: nil))
+            title: "Quest", profileName: person.name, xp: 501, dueDate: nil))
+        try KyndynIntentStore.shared.prepareQuest(
+            title: "Quest", profileName: "Unknown", xp: 10,
+            dueDate: nil)
         withExtendedLifetime(container) {}
     }
 }

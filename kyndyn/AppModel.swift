@@ -73,7 +73,8 @@ struct QuestDraft {
 struct SiriQuestDraft: Identifiable, Equatable, Sendable {
     let id = UUID()
     let title: String
-    let personID: UUID
+    let personID: UUID?
+    let requestedPersonName: String?
     let xp: Int
     let dueDate: Date?
 }

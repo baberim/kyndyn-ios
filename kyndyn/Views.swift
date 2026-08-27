@@ -5466,7 +5466,9 @@ struct QuestEditorView: View {
         if let siriDraft {
             value.title = siriDraft.title
             value.xp = siriDraft.xp
-            value.participantIDs = [siriDraft.personID]
+            if let personID = siriDraft.personID {
+                value.participantIDs = [personID]
+            }
             if let dueDate = siriDraft.dueDate {
                 value.hasDueDate = true
                 value.dueDate = dueDate
