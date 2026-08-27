@@ -280,7 +280,7 @@ struct OnboardingView: View {
             Button("Restore from iCloud", systemImage: "icloud.and.arrow.down") {
                 showCloudRecovery = true
             }
-            Button("Import a backup or Rowan export", systemImage: "square.and.arrow.down") {
+            Button("Import a backup or transfer file", systemImage: "square.and.arrow.down") {
                 Task {
                     await parentAccess.authenticate()
                     if parentAccess.isUnlocked { showImporter = true }
@@ -984,10 +984,10 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    KyndynCallout(
-                        kind: .information,
-                        message: "Household management, family sync, reminders, backups, and security remain protected in Parent.",
-                        title: "Looking for family controls?")
+                    Label("Family controls are in the protected Parent tab.",
+                          systemImage: "lock.shield.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .refreshable { await refreshFamilyData() }
@@ -1071,7 +1071,7 @@ struct SiriShortcutsHelpView: View {
                       systemImage: "plus.circle.fill")
             }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "Device authentication protects profile names, quest details, and reward progress. Shortcut changes use the same offline history and family-sync queue as the app.")
+                KyndynCallout(kind: .privacy, message: "Siri asks for device authentication before showing private family details or changing anything in kyndyn.")
                     .accessibilityIdentifier("siri-shortcuts-privacy")
             }
             Section {
@@ -1099,7 +1099,7 @@ struct CalendarSettingsView: View {
     var body: some View {
         List {
             Section {
-                KyndynCallout(kind: .information, message: "Choose calendars to show alongside your day. kyndyn reads upcoming events but never creates or changes them.")
+                KyndynCallout(kind: .information, message: "Choose which calendars appear on Home. kyndyn can read events, but it cannot change them.", title: "Choose what appears")
             }
             if permission == .allowed, let setting = settings.first {
                 Section("Calendars") {
@@ -1152,7 +1152,7 @@ struct CalendarSettingsView: View {
                 }
             }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "Calendar choices and event details stay on this device. kyndyn does not family-sync them or include them in backups.")
+                KyndynCallout(kind: .privacy, message: "Your calendar choices and event details stay on this device and are not included in family sync or backups.")
             }
         }
         .refreshable {
@@ -1190,7 +1190,7 @@ struct WeatherSettingsView: View {
     var body: some View {
         List {
             Section {
-                KyndynCallout(kind: .information, message: "Show local conditions alongside your day using Apple Weather. Location is requested only while kyndyn is open.")
+                KyndynCallout(kind: .information, message: "Show your local forecast on Home. Location is used only while kyndyn is open.", title: "Weather on Home")
             }
             Section {
                 if let setting = settings.first {
@@ -1214,7 +1214,7 @@ struct WeatherSettingsView: View {
                 }
             }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "kyndyn never saves precise coordinates. A short-lived weather summary and city or town name stay on this device and are excluded from family sync and backups.")
+                KyndynCallout(kind: .privacy, message: "Precise location is not saved. Weather and the nearby city or town stay on this device.")
             }
         }
         .refreshable {
@@ -3292,13 +3292,13 @@ struct FamilySetupGuideView: View {
                     guideRow(done: hasCloudSync,
                              title: hasCloudSync ? cloudTitle : "Enable family sync",
                              detail: "In Parent › Family sync, enable iCloud sharing, then use Invite or manage family to send the Apple invitation.")
-                    KyndynCallout(kind: .information, message: "On the invited device, open the invitation and confirm Family sync says “Shared with you” and “Up to date.” Apple may delay background delivery, so kyndyn also catches up when opened.")
+                    KyndynCallout(kind: .information, message: "Open the invitation on the other device. When it joins successfully, Family sync will say “Shared with you.”", title: "On the other device")
                 }
                 Section("3. Save a private backup") {
                     guideRow(done: false,
                              title: "Export after setup",
-                             detail: "Use Parent › Backup and migration, save the JSON file privately in Files, and export a fresh copy after major changes.")
-                    KyndynCallout(kind: .caution, message: "A backup is separate from iCloud recovery. Restore and import require an empty installation so existing family data is never replaced silently.")
+                             detail: "Use Parent › Device and privacy › Backup and family data, save the file privately in Files, and export a fresh copy after major changes.")
+                    KyndynCallout(kind: .caution, message: "A backup is separate from family sync. It can be restored only before a family is set up on that device.")
                 }
                 if isFirstRun {
                     Section {
@@ -3714,55 +3714,24 @@ struct ParentAreaView: View {
                         NavigationLink { PersonEditorView(person: nil) } label: {
                             parentRow("Add a person", "Create another family profile", "person.badge.plus", .green)
                         }
-                        NavigationLink { FamilyRewardSettingsView() } label: {
-                            parentRow("Update family reward", "Change the shared goal and XP target", "gift.fill", KyndynTheme.pink)
-                        }
                         NavigationLink { FamilyBroadcastManagementView() } label: {
                             parentRow("Share an announcement", "Post an update for everyone", "megaphone.fill", KyndynTheme.amber)
                         }
-                        NavigationLink { SchedulePauseView() } label: {
-                            parentRow("Pause schedules", "Take a break without missed quests", "pause.circle.fill", KyndynTheme.green)
-                        }
-                        NavigationLink { CloudSyncSettingsView() } label: {
-                            parentRow(syncSummary, "Review sharing and synchronization", "icloud.fill", KyndynTheme.purple)
-                        }
                     }
                 }
-                Section("Manage family") {
-                    NavigationLink { FamilySetupGuideView() } label: {
-                        parentRow("Family setup guide", "Profiles, sharing, and private backups", "questionmark.circle.fill", KyndynTheme.green)
+                Section("Parent tools") {
+                    NavigationLink { ParentFamilyToolsView() } label: {
+                        parentRow("Family and quests", "People, quests, planning, and schedule breaks", "person.2.fill", .blue)
                     }
-                    NavigationLink { PeopleManagementView() } label: {
-                        parentRow("People", "Names, roles, colors, and collections", "person.2.fill", .blue)
+                    NavigationLink { ParentRewardsProgressView() } label: {
+                        parentRow("Rewards and progress", "Family reward, history, and weekly insights", "gift.fill", KyndynTheme.pink)
                     }
-                    NavigationLink { QuestManagementView() } label: {
-                        parentRow("Quests", "Create, edit, archive, and restore", "checklist", KyndynTheme.purple)
-                    }
-                    NavigationLink { QuestPlanningView() } label: {
-                        parentRow("Quest planning", "Templates and two-week schedule overview", "calendar.badge.clock", KyndynTheme.amber)
-                    }
-                    NavigationLink { FamilyRewardSettingsView() } label: {
-                        parentRow("Family reward", "Shared progress, goals, and resets", "gift.fill", KyndynTheme.pink)
-                    }
-                    NavigationLink { FamilyBroadcastManagementView() } label: {
-                        parentRow("Announcements", "Current and archived family updates", "megaphone.fill", .orange)
-                    }
-                    NavigationLink { FamilyInsightsView() } label: {
-                        parentRow("Insights", "Weekly family and individual progress", "chart.xyaxis.line", KyndynTheme.green)
-                    }
-                }
-                Section("Device and privacy") {
                     NavigationLink { CloudSyncSettingsView() } label: {
-                        parentRow("Family sync", "iCloud sharing and sync status", "icloud.fill", KyndynTheme.purple)
+                        parentRow(syncSummary, "Share this family and check sync status", "icloud.fill", KyndynTheme.purple)
                     }
-                    NavigationLink { NotificationSettingsView() } label: {
-                        parentRow("Reminders", "Timing, quiet hours, and lock-screen privacy", "bell.fill", .blue)
-                    }
-                    NavigationLink { HouseholdDataProtectionView() } label: {
-                        parentRow("Data and privacy", "Backups, recovery, and local data controls", "hand.raised.fill", KyndynTheme.green)
-                    }
-                    NavigationLink { ParentSecurityView() } label: {
-                        parentRow("Parent security", "Face ID, device passcode, and fallback PIN", "lock.shield.fill", KyndynTheme.pink)
+                    .accessibilityIdentifier("parent-family-sync")
+                    NavigationLink { ParentDevicePrivacyView() } label: {
+                        parentRow("Device and privacy", "Reminders, backups, and parent security", "lock.shield.fill", KyndynTheme.green)
                     }
                 }
                 Section {
@@ -3893,6 +3862,109 @@ struct ParentAreaView: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         return "\(version) (\(build))"
+    }
+}
+
+private struct ParentMenuRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(tint.opacity(0.11), in: RoundedRectangle(
+                    cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(0.20), lineWidth: 1)
+                }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle)
+    }
+}
+
+private struct ParentFamilyToolsView: View {
+    var body: some View {
+        List {
+            Section("People") {
+                NavigationLink { PeopleManagementView() } label: {
+                    ParentMenuRow(title: "People", subtitle: "Add and manage family profiles", systemImage: "person.2.fill", tint: .blue)
+                }
+            }
+            Section("Quests") {
+                NavigationLink { QuestManagementView() } label: {
+                    ParentMenuRow(title: "All quests", subtitle: "Create, edit, archive, and restore", systemImage: "checklist", tint: KyndynTheme.purple)
+                }
+                NavigationLink { QuestPlanningView() } label: {
+                    ParentMenuRow(title: "Quest planning", subtitle: "Plan the week and reuse family routines", systemImage: "calendar.badge.clock", tint: KyndynTheme.amber)
+                }
+                NavigationLink { SchedulePauseView() } label: {
+                    ParentMenuRow(title: "Pause schedules", subtitle: "Take a break without counting missed quests", systemImage: "pause.circle.fill", tint: KyndynTheme.green)
+                }
+            }
+            Section("Help") {
+                NavigationLink { FamilySetupGuideView() } label: {
+                    ParentMenuRow(title: "Family setup guide", subtitle: "Profiles, sharing, and backups", systemImage: "questionmark.circle.fill", tint: KyndynTheme.green)
+                }
+            }
+        }
+        .familyRefreshable()
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Family and quests")
+    }
+}
+
+private struct ParentRewardsProgressView: View {
+    var body: some View {
+        List {
+            NavigationLink { FamilyRewardSettingsView() } label: {
+                ParentMenuRow(title: "Family reward", subtitle: "Current goal, upcoming rewards, and history", systemImage: "gift.fill", tint: KyndynTheme.pink)
+            }
+            NavigationLink { FamilyInsightsView() } label: {
+                ParentMenuRow(title: "Weekly insights", subtitle: "See family activity and individual progress", systemImage: "chart.xyaxis.line", tint: KyndynTheme.green)
+            }
+        }
+        .familyRefreshable()
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Rewards and progress")
+    }
+}
+
+private struct ParentDevicePrivacyView: View {
+    var body: some View {
+        List {
+            NavigationLink { NotificationSettingsView() } label: {
+                ParentMenuRow(title: "Reminders", subtitle: "Choose notification timing and privacy", systemImage: "bell.fill", tint: .blue)
+            }
+            NavigationLink { HouseholdDataProtectionView() } label: {
+                ParentMenuRow(title: "Backup and family data", subtitle: "Export a backup or recover this device", systemImage: "externaldrive.fill", tint: KyndynTheme.green)
+            }
+            NavigationLink { ParentSecurityView() } label: {
+                ParentMenuRow(title: "Parent security", subtitle: "Face ID, device passcode, and optional PIN", systemImage: "lock.shield.fill", tint: KyndynTheme.pink)
+            }
+        }
+        .familyRefreshable()
+        .scrollContentBackground(.hidden)
+        .background(KyndynScreenBackground())
+        .navigationTitle("Device and privacy")
     }
 }
 
@@ -4086,7 +4158,7 @@ struct PersonInsightsView: View {
                         InsightMetric(value: latest.level, label: "Current level", tint: Color(hex: person.colorHex))
                     }
                 }
-                KyndynCallout(kind: .information, message: "Progress compares this person only with their own activity. Starting XP affects total level but is never reported as XP earned during a week.")
+                KyndynCallout(kind: .information, message: "This view follows personal progress over time. It never ranks family members against each other.", title: "Personal progress")
             }.padding().frame(maxWidth: AdaptiveLayout.managementContentMaximum).frame(maxWidth: .infinity)
         }
         .familyRefreshable()
@@ -4155,6 +4227,15 @@ struct FamilyRewardSettingsView: View {
         }.sorted {
             if $0.queuePosition != $1.queuePosition { return $0.queuePosition < $1.queuePosition }
             return $0.createdAt < $1.createdAt
+        }
+    }
+    private var rewardHistory: [RewardGoal] {
+        guard let household else { return [] }
+        return goals.filter {
+            $0.householdID == household.id && $0.deletedAt == nil &&
+                $0.state == .concluded
+        }.sorted {
+            ($0.endedAt ?? $0.createdAt) > ($1.endedAt ?? $1.createdAt)
         }
     }
 
@@ -4235,6 +4316,38 @@ struct FamilyRewardSettingsView: View {
                 .disabled(preparedGoals.count >= 5)
             }
 
+            Section("Reward history") {
+                if rewardHistory.isEmpty {
+                    Text("Finished and replaced rewards will appear here.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(rewardHistory) { reward in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(reward.title).font(.headline)
+                                Spacer()
+                                Text(rewardHistoryStatus(reward))
+                                    .font(.caption.bold())
+                                    .foregroundStyle(
+                                        (reward.endingXP ?? 0) >= reward.targetXP
+                                            ? .green : .secondary)
+                            }
+                            Text("\(reward.endingXP ?? 0) of \(reward.targetXP) XP")
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            if let endedAt = reward.endedAt {
+                                Text(endedAt.formatted(date: .abbreviated,
+                                                       time: .omitted))
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("reward-history-row")
+                    }
+                }
+            }
+
             if let statusMessage {
                 Section {
                     Label(statusMessage, systemImage: "checkmark.circle.fill")
@@ -4278,6 +4391,10 @@ struct FamilyRewardSettingsView: View {
     private func loadCurrentValues() {
         rewardTitle = currentGoal?.title ?? household?.rewardTitle ?? ""
         targetText = String(currentGoal?.targetXP ?? household?.rewardGoalXP ?? 300)
+    }
+
+    private func rewardHistoryStatus(_ reward: RewardGoal) -> String {
+        (reward.endingXP ?? 0) >= reward.targetXP ? "Reached" : "Changed"
     }
 
     private func save(resetProgress: Bool) {
@@ -4339,7 +4456,8 @@ private struct PrepareFamilyRewardView: View {
             }
             Section {
                 KyndynCallout(kind: .information,
-                    message: "Preparing a reward does not change the active goal. It will sync to family devices and wait in the queue.")
+                    message: "This adds a future reward without changing the goal your family is working toward now.",
+                    title: "Save it for later")
             }
         }
         .navigationTitle("Prepare reward")
@@ -4382,8 +4500,8 @@ struct SchedulePauseView: View {
             Section {
                 KyndynCallout(
                     kind: .information,
-                    message: "Scheduled quests won’t become waiting or overdue, reminders stop, and paused days won’t count as missed. Existing XP and history stay exactly as they are.",
-                    title: "Take a break without losing progress")
+                    message: "During a break, scheduled quests and reminders pause. Everyone keeps their XP and history.",
+                    title: "Take a family break")
             }
             Section("Schedule") {
                 Toggle("Pause family schedules", isOn: $isEnabled)
@@ -4474,7 +4592,7 @@ struct HouseholdDataProtectionView: View {
 
     var body: some View {
         List {
-            Section("Release safety check") {
+            Section("Family data check") {
                 if let safetyReport {
                     LabeledContent("Household", value: safetyReport.summary)
                     LabeledContent("Active profiles",
@@ -4493,10 +4611,10 @@ struct HouseholdDataProtectionView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Check local relationships, backup freshness, and family-sync recovery signals without showing names, quest text, or record identifiers.")
+                    Text("Check that this device’s family data is complete and ready to back up.")
                         .foregroundStyle(.secondary)
                 }
-                Button("Run safety check", systemImage: "checkmark.shield") {
+                Button("Check family data", systemImage: "checkmark.shield") {
                     runSafetyCheck()
                 }
                 .accessibilityIdentifier("run-household-safety-check")
@@ -4515,13 +4633,13 @@ struct HouseholdDataProtectionView: View {
                         Text(receipt.recoveredAt,
                              format: .dateTime.month().day().year().hour().minute())
                     }
-                    Text("Verified \(receipt.people) profiles, \(receipt.quests) quests, and \(receipt.completions) completion records.")
+                    Text("Recovered \(receipt.people) profiles, \(receipt.quests) quests, and \(receipt.completions) completions.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 if let verification {
                     LabeledContent("Prepared backup", value: "Verified")
-                    Text("Includes \(verification.people) profiles, \(verification.quests) quests, \(verification.completions) completion records, and \(verification.broadcasts) announcements.")
+                    Text("Includes \(verification.people) profiles, \(verification.quests) quests, \(verification.completions) completions, and \(verification.broadcasts) announcements.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("backup-verification-summary")
@@ -4533,22 +4651,22 @@ struct HouseholdDataProtectionView: View {
                     prepareExport()
                 }
                 .accessibilityIdentifier("export-household-backup")
-                KyndynCallout(kind: .privacy, message: "The backup includes household records and completion history. It excludes PINs, authentication, Apple account details, notification settings, tokens, and device information.")
+                KyndynCallout(kind: .privacy, message: "Your backup contains family profiles, quests, rewards, and history. It never contains your PIN, Apple account, or notification settings.")
             }
             Section("What stays private") {
                 Label("Device-only protection", systemImage: "iphone.gen3.lock")
                 Text("Your kyndyn PIN, Face ID state, notification choices, calendar selection, weather cache, and device profile stay on this device and are not included in household sync or backups.")
-                Label("Privacy-safe diagnostics", systemImage: "waveform.path.ecg")
-                Text("Diagnostics may record an operation type and broad error category. They do not include names, quest titles, announcement text, invitation links, PINs, tokens, or household record contents.")
+                Label("Private troubleshooting", systemImage: "waveform.path.ecg")
+                Text("Troubleshooting details never include names, quest titles, announcements, PINs, or family data.")
                     .foregroundStyle(.secondary)
             }
-            Section("Restore limitation") {
-                KyndynCallout(kind: .caution, message: "Restores and Rowan transfers require an empty installation. They do not merge with or replace this household. Export a fresh backup before changing devices or sync environments.")
+            Section("Restoring a backup") {
+                KyndynCallout(kind: .caution, message: "A backup can only be restored when no family is set up on this device. Export a fresh backup before removing or reinstalling kyndyn.")
             }
             Section("Backup and family sync") {
-                Label("Two separate protections", systemImage: "lock.icloud.fill")
-                Text("Family sync keeps supported household changes aligned across invited Apple devices. An exported backup is a separate file you control and can keep in a private location in Files.")
-                Text("Keep a recent backup even when family sync is up to date. Never share a backup publicly because it contains household names, quests, and completion history.")
+                Label("Keep both protections", systemImage: "lock.icloud.fill")
+                Text("Family sync keeps invited devices updated. A backup is a separate private file you control.")
+                Text("Keep a recent backup even when sync is up to date, and do not share that file publicly.")
                     .foregroundStyle(.secondary)
             }
             if let household = households.first, !household.isSample {
@@ -4576,7 +4694,7 @@ struct HouseholdDataProtectionView: View {
                 }
             }
         }
-        .navigationTitle("Data and privacy")
+        .navigationTitle("Backup and family data")
         .onAppear { recoveryReceipt = CloudRecoveryAudit.latestReceipt() }
         .fileExporter(
             isPresented: $exporting, document: document,
@@ -4609,7 +4727,7 @@ struct HouseholdDataProtectionView: View {
             NavigationStack {
                 Form {
                     Section("Before you continue") {
-                        KyndynCallout(kind: .caution, message: "This permanently removes this household’s local profiles, quests, history, announcements, and sync metadata from this device. It does not delete the iCloud household or stop sharing.")
+                        KyndynCallout(kind: .caution, message: "This permanently removes the family, quests, progress, and announcements from this device. It does not delete the shared iCloud family or stop sharing.")
                         Text("A private backup was exported on this device within the last 24 hours.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
@@ -5720,6 +5838,7 @@ struct CloudSyncSettingsView: View {
                 if let date = state?.lastSuccessfulSyncAt {
                     LabeledContent("Last updated", value: date.formatted())
                 }
+                #if DEBUG
                 if case .ready = configuration.readiness {
                     EmptyView()
                 } else {
@@ -5729,8 +5848,9 @@ struct CloudSyncSettingsView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("cloud-configuration-readiness")
                 }
+                #endif
             }
-            Section("Recent sync health") {
+            Section("Sync details") {
                 let health = SyncHealthSummary.make(
                     state: state, pendingCount: pending.count)
                 Label(health.title, systemImage: healthIcon(health.tone))
@@ -5738,25 +5858,21 @@ struct CloudSyncSettingsView: View {
                 Text(health.detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Text("This summary never includes names, quest titles, cloud record IDs, or Apple’s raw error text.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
-            Section("What family sync does") {
-                Text("Keeps people, quests, schedules, completions, rewards, and shared household settings consistent across invited devices.")
-                KyndynCallout(kind: .localOnly, message: "Your kyndyn PIN, authentication, notification permission, quiet hours, and device preferences never leave this device.")
+            Section("About family sync") {
+                Text("Keeps profiles, quests, progress, rewards, and announcements updated across invited devices.")
+                KyndynCallout(kind: .localOnly, message: "Your PIN, Face ID settings, reminders, and device preferences stay on this device.")
             }
             if let household {
                 let preview = sync.preview(
                     household: household, people: people, quests: quests,
                     completions: completions, goals: goals,
                     broadcasts: broadcasts)
-                Section("Ready to synchronize") {
-                    LabeledContent("People", value: "\(preview.people)")
+                Section("Family data") {
+                    LabeledContent("Profiles", value: "\(preview.people)")
                     LabeledContent("Quests", value: "\(preview.quests)")
-                    LabeledContent("Completion events", value: "\(preview.completions)")
+                    LabeledContent("Completions", value: "\(preview.completions)")
                     LabeledContent("Announcements", value: "\(preview.broadcasts)")
-                    LabeledContent("Cloud records", value: "\(preview.totalRecords)")
                 }
                 Section {
                     if state?.mode == .owner || state?.mode == .participant ||
@@ -5787,8 +5903,6 @@ struct CloudSyncSettingsView: View {
                         }
                         .disabled(sync.isWorking || !configurationIsReady)
                     }
-                } footer: {
-                    Text("Live family sync requires the authorized Apple Developer team and iCloud container. Until configured, kyndyn stays safely local-only.")
                 }
             }
         }
@@ -5910,7 +6024,7 @@ struct ParentSecurityView: View {
     var body: some View {
         Form {
             Section {
-                KyndynCallout(kind: .localOnly, message: "Face ID, Touch ID, or the device passcode is the primary parent check. An optional kyndyn PIN is stored only in this device’s Keychain.")
+                KyndynCallout(kind: .localOnly, message: "Use Face ID, Touch ID, or your device passcode to open Parent. You can also add a kyndyn PIN for this device.")
             }
             Section(access.hasPIN ? "Change kyndyn PIN" : "Add kyndyn PIN") {
                 SecureField("New 6–12 digit PIN", text: $pin).keyboardType(.numberPad)
@@ -5928,8 +6042,8 @@ struct ParentSecurityView: View {
                 }
             }
             if let message { Section { Text(message).foregroundStyle(.secondary) } }
-            Section("Recovery limitation") {
-                KyndynCallout(kind: .caution, message: "kyndyn has no server account or email recovery. Use device-owner authentication to replace a forgotten PIN. Without either method, kyndyn cannot safely prove parental identity.")
+            Section("If you forget the PIN") {
+                KyndynCallout(kind: .caution, message: "Use Face ID, Touch ID, or the device passcode to replace it. kyndyn cannot recover a PIN by email.")
             }
         }
         .navigationTitle("Parent security")

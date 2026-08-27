@@ -677,8 +677,8 @@ enum ReminderRules {
                 candidates.append(ReminderCandidate(
                     identifier: "kyndyn.parent-summary.\(profileID.uuidString).\(day)",
                     fireDate: adjusted,
-                    title: "kyndyn family check-in",
-                    body: "Open kyndyn for a private look at today’s family progress.",
+                    title: "Evening family check-in",
+                    body: "See what got done today and what’s still waiting.",
                     questID: nil,
                     timeZoneIdentifier: household.timeZoneIdentifier
                 ))

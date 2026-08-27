@@ -206,6 +206,9 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
+        let familyTools = app.buttons["Family and quests"]
+        reveal(familyTools, in: app)
+        familyTools.tap()
         let people = app.buttons.matching(
             NSPredicate(format: "label == %@", "People")
         ).firstMatch
@@ -225,6 +228,9 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
+        let familyTools = app.buttons["Family and quests"]
+        reveal(familyTools, in: app)
+        familyTools.tap()
         let planning = app.staticTexts["Quest planning"]
         reveal(planning, in: app)
         planning.tap()
@@ -249,12 +255,15 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
+        let devicePrivacy = app.buttons["Device and privacy"]
+        reveal(devicePrivacy, in: app)
+        devicePrivacy.tap()
         let dataAndPrivacy = app.buttons.matching(
-            NSPredicate(format: "label == %@", "Data and privacy")
+            NSPredicate(format: "label == %@", "Backup and family data")
         ).firstMatch
         reveal(dataAndPrivacy, in: app)
         dataAndPrivacy.tap()
-        XCTAssertTrue(app.navigationBars["Data and privacy"]
+        XCTAssertTrue(app.navigationBars["Backup and family data"]
             .waitForExistence(timeout: 3))
         let check = app.buttons["run-household-safety-check"]
         XCTAssertTrue(check.waitForExistence(timeout: 3))
@@ -269,6 +278,9 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
+        let familyTools = app.buttons["Family and quests"]
+        reveal(familyTools, in: app)
+        familyTools.tap()
         let people = app.buttons.matching(
             NSPredicate(format: "label == %@", "People")
         ).firstMatch
@@ -289,7 +301,7 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
-        let familySync = app.staticTexts["Family sync"]
+        let familySync = app.buttons["parent-family-sync"]
         reveal(familySync, in: app)
         familySync.tap()
         XCTAssertTrue(app.descendants(matching: .any)["cloud-sync-settings"]
@@ -303,6 +315,9 @@ final class KyndynUITests: XCTestCase {
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
+        let rewards = app.buttons["Rewards and progress"]
+        reveal(rewards, in: app)
+        rewards.tap()
         let familyReward = app.staticTexts["Family reward"]
         reveal(familyReward, in: app)
         familyReward.tap()
@@ -320,15 +335,20 @@ final class KyndynUITests: XCTestCase {
                                count: 10))
         target.typeText("450")
         app.buttons["Save changes"].tap()
-        XCTAssertTrue(app.staticTexts["Family reward updated."]
-            .waitForExistence(timeout: 3))
+        let updated = app.staticTexts["Family reward updated."]
+        reveal(updated, in: app)
+        XCTAssertTrue(updated.waitForExistence(timeout: 3))
 
         app.buttons["Start as a new reward"].tap()
         XCTAssertTrue(app.alerts["Start a new family reward?"]
             .waitForExistence(timeout: 3))
         app.alerts.buttons["Start at 0 XP"].tap()
-        XCTAssertTrue(app.staticTexts["New reward started at 0 XP."]
-            .waitForExistence(timeout: 3))
+        let restarted = app.staticTexts["New reward started at 0 XP."]
+        reveal(restarted, in: app)
+        XCTAssertTrue(restarted.waitForExistence(timeout: 3))
+        let history = app.staticTexts["Reward history"]
+        reveal(history, in: app)
+        XCTAssertTrue(history.exists)
     }
 
     func testAdaptiveDashboardSupportsPortraitDarkModeAndLargeText() throws {
