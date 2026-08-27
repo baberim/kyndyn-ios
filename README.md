@@ -4,14 +4,14 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development build — 0.30.0 (Build 30)
+## Current development build — 0.32.0 (Build 32)
 
-Build 30 adds parent-focused weekly planning and a synchronized prepared reward
-queue to the stable Build 29 foundation. Parents can review a week, create a
-validated batch of quests, copy a day, and prepare up to five future rewards
-without interrupting the active family goal. Activating a queued reward can
-carry the shared reward counter forward or restart it at zero without changing
-any profile XP, levels, streaks, or quest history.
+Build 32 establishes Kyndyn's premium rules before StoreKit is connected. The
+complete core family loop remains free, while optional expansion such as an
+Apple Watch companion, advanced planning, richer insights, customization, and
+enhanced system integrations may be premium. Proposed launch pricing is $3.99
+monthly or $29.99 annually with a 14-day trial and Apple Family Sharing. Losing
+premium access never hides existing household data or earned items.
 
 The app provides a locally usable vertical slice:
 
@@ -116,6 +116,8 @@ for secure owner enrollment, one-time device pairing, APNs family-announcement
 delivery, opt-out behavior, and the service privacy boundary.
 See [`docs/build-29-release-candidate.md`](docs/build-29-release-candidate.md)
 for the consolidated validation results and TestFlight handoff.
+See [`docs/build-32-premium-foundation.md`](docs/build-32-premium-foundation.md)
+for pricing, free and premium boundaries, and entitlement lifecycle rules.
 See [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md)
 for the separated App color, Companion, Background, and App icon settings.
 See [`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md),

@@ -350,18 +350,24 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
   never reset.
 - See `docs/build-30-parent-planning-rewards.md` for behavior and validation.
 
-### Build 31 — Reward history and private reports
+### Build 31 — Parent simplification and reward history — implemented
 
-- Add durable reward-cycle history, including reached and replaced goals.
-- Add locally generated, parent-previewed weekly or monthly report exports.
-- Validate accessibility and multi-device behavior for expanded insights.
+- Group the protected Parent area into clear task-based destinations while
+  keeping common actions close at hand.
+- Rewrite technical and developer-oriented callouts in family-friendly terms.
+- Show durable reward-cycle history for reached and replaced goals.
+- Keep report exporting out of scope until real families demonstrate a need.
+- See `docs/build-31-parent-simplification.md` for behavior and validation.
 
-### Build 32 — Premium boundaries and entitlement design
+### Build 32 — Premium boundaries and entitlement design — implemented
 
-- Finalize the free-versus-premium feature matrix without removing the core
+- Finalized the free-versus-premium feature matrix without removing the core
   family loop, security, backups, recovery, or earned items.
-- Define household entitlement ownership, Family Sharing, complimentary access,
-  expiration, refunds, restoration, and grandfathering.
+- Set proposed launch pricing at $3.99 monthly or $29.99 annually, with a
+  14-day trial and Apple Family Sharing.
+- Defined entitlement sources, expiration/refund behavior, restoration,
+  complimentary access, and grandfathering boundaries.
+- See `docs/build-32-premium-foundation.md`.
 
 ### Build 33 — StoreKit implementation
 
@@ -370,17 +376,21 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 - Validate purchases, restoration, expiration, refunds, Family Sharing, and
   complimentary access in Apple's sandbox before TestFlight.
 
-### Build 34 — Public-release hardening
+### Build 34 — Apple Watch premium companion
+
+- Build a deliberately small Watch experience for viewing today's quests,
+  completing an exact occurrence, and seeing current progress.
+- Keep the phone app useful without a Watch and treat Watch access as premium.
+
+### Build 35 — Public-release hardening
 
 - Complete the remaining security, accessibility, localization, privacy,
   support, physical-device, and App Store release gates.
 
 ## Later
 
-- Reward History and Private Reports:
-  - durable reward-cycle history, including reached and replaced goals;
-  - locally generated, parent-previewed weekly or monthly report exports;
-  - accessibility and multi-device validation for the expanded insights flow.
+- Reward history refinements should be driven by household testing. Report
+  exporting is intentionally deferred unless real users request it.
 
 - Business Model and Entitlements must be designed and approved before adding
   StoreKit:

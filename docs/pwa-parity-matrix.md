@@ -14,7 +14,7 @@
 | Local notifications | Native v1 core | Device profile, quiet hours, privacy, permission, and local scheduling implemented |
 | Companion identity | Native v1 core | Starter artwork copied with provenance |
 | CloudKit household sharing | Native v1.1 | Protocol boundary now; production container later |
-| StoreKit family subscription | Native v1.1 | Entitlement boundary now |
+| StoreKit family subscription | Builds 32–33 | Pricing and entitlement rules defined; StoreKit implementation next |
 | Broadcasts | Native v1.1 | Model boundary included |
 | Full collections/backgrounds | Native v1.1 | Architecture supports them |
 | PWA JSON migration | Native v1.1 | Versioned dry-run design and fixtures |

@@ -58,6 +58,30 @@ final class DeviceContextPolicyTests: XCTestCase {
     }
 }
 
+final class PremiumEntitlementPolicyTests: XCTestCase {
+    func testOnlyActiveAndGracePeriodGrantPremiumAccess() {
+        XCTAssertFalse(PremiumAccessState.free.grantsPremiumAccess)
+        XCTAssertTrue(PremiumAccessState.active.grantsPremiumAccess)
+        XCTAssertTrue(PremiumAccessState.gracePeriod.grantsPremiumAccess)
+        XCTAssertFalse(PremiumAccessState.expired.grantsPremiumAccess)
+        XCTAssertFalse(PremiumAccessState.revoked.grantsPremiumAccess)
+    }
+
+    func testExpirationNeverHidesExistingHouseholdData() {
+        let entitlement = PremiumEntitlement(
+            state: .expired,
+            source: .appStorePurchase,
+            expirationDate: Date(timeIntervalSince1970: 1))
+        XCTAssertFalse(entitlement.hasPremiumAccess)
+        XCTAssertTrue(entitlement.preservesExistingHouseholdData)
+    }
+
+    func testDevelopmentDefaultDoesNotPretendPurchaseExists() async {
+        let entitlement = await FreeEntitlements().currentEntitlement()
+        XCTAssertEqual(entitlement, .free)
+    }
+}
+
 final class SystemIntelligenceTests: XCTestCase {
     @MainActor private func fixture() throws -> (
         ModelContainer, Household, Person, Quest, AppModel
@@ -1344,6 +1368,19 @@ final class ReminderRulesTests: XCTestCase {
         XCTAssertTrue(ReminderRules.candidates(
             quests: [quest], people: [person], settings: settings,
             household: household, now: now).isEmpty)
+    }
+
+    @MainActor func testParentEveningSummaryUsesClearFamilyFriendlyCopy() {
+        let (household, person, quest, settings, now) = fixture()
+        person.role = .parent
+        settings.parentSummaryEligible = true
+        let summary = ReminderRules.candidates(
+            quests: [quest], people: [person], settings: settings,
+            household: household, now: now
+        ).first { $0.identifier.hasPrefix("kyndyn.parent-summary.") }
+        XCTAssertEqual(summary?.title, "Evening family check-in")
+        XCTAssertEqual(summary?.body,
+                       "See what got done today and what’s still waiting.")
     }
 
     @MainActor func testDisabledArchivedAndWrongProfileCancelCandidates() {
