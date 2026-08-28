@@ -30,6 +30,10 @@ plain-language explanation and a route to the Premium plans. Active purchases,
 Apple Family Sharing, complimentary access, grandfathered access, and Apple's
 grace period use the same centralized entitlement decision.
 
+The purchase screen explains that Apple Family Sharing—not a Kyndyn household
+invitation—shares Premium access. Household invitations continue to share
+quests and progress independently of subscription ownership.
+
 Premium never bypasses badge, quest, streak, level, or family-reward
 requirements. If Premium ends, the currently equipped Premium companion or
 background stays equipped, but choosing another Premium item requires renewed

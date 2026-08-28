@@ -2534,7 +2534,9 @@ private struct ProfileCustomizationView: View {
                                         if selectable { companionID = choice.id }
                                     } label: {
                                         VStack {
-                                            CompanionArt(id: choice.id)
+                                            CompanionArt(
+                                                id: choice.id,
+                                                maximumPixelSize: 384)
                                                 .frame(width: 62, height: 62)
                                                 .saturation(selectable ? 1 : 0)
                                                 .opacity(selectable ? 1 : 0.35)
@@ -4413,7 +4415,7 @@ struct PremiumAccessView: View {
                 }
                 .disabled(storeKit.isLoading || storeKit.isPurchasing)
 
-                Text("Apple manages your subscription. Eligible family members can share Premium when Apple Family Sharing is available.")
+                Text("Share Premium with up to five people through Apple Family Sharing. Kyndyn household invitations share quests and progress, but do not share Premium.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -6857,14 +6859,12 @@ struct ProfileColorSelector: View {
 
 struct CompanionArt: View {
     let id: String
+    var maximumPixelSize = 384
     var body: some View {
-        Group {
-            if let image = UIImage(named: id) {
-                Image(uiImage: image).resizable().scaledToFit()
-            } else {
-                Image(systemName: "sparkles").resizable().scaledToFit().foregroundStyle(.purple)
-            }
-        }
+        LocalArtworkImage(
+            name: id,
+            maximumPixelSize: maximumPixelSize,
+            contentMode: .fit)
             .accessibilityLabel("\(CollectionCatalog.companion(named: id).name), kyndyn companion")
     }
 }

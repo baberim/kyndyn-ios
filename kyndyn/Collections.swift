@@ -1,5 +1,72 @@
 import Foundation
+import ImageIO
 import SwiftUI
+import UIKit
+
+private struct SendableArtworkImage: @unchecked Sendable {
+    let image: UIImage
+}
+
+private actor ArtworkImageCache {
+    static let shared = ArtworkImageCache()
+
+    private let images = NSCache<NSString, UIImage>()
+
+    init() {
+        images.countLimit = 48
+        images.totalCostLimit = 80 * 1_024 * 1_024
+    }
+
+    func image(named name: String, maximumPixelSize: Int)
+        -> SendableArtworkImage? {
+        let key = "\(name)-\(maximumPixelSize)" as NSString
+        if let cached = images.object(forKey: key) {
+            return SendableArtworkImage(image: cached)
+        }
+        guard let url = Bundle.main.url(
+            forResource: name, withExtension: "png"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+        else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumPixelSize
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source, 0, options as CFDictionary)
+        else { return nil }
+        let image = UIImage(cgImage: thumbnail)
+        images.setObject(
+            image, forKey: key,
+            cost: thumbnail.width * thumbnail.height * 4)
+        return SendableArtworkImage(image: image)
+    }
+}
+
+struct LocalArtworkImage: View {
+    let name: String
+    let maximumPixelSize: Int
+    let contentMode: ContentMode
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: "\(name)-\(maximumPixelSize)") {
+            image = await ArtworkImageCache.shared.image(
+                named: name,
+                maximumPixelSize: maximumPixelSize)?.image
+        }
+    }
+}
 
 struct BadgeDefinition: Identifiable, Equatable {
     enum Requirement: Equatable {
@@ -296,22 +363,20 @@ struct ProfileScene: View {
             ?? CollectionCatalog.backgrounds[0]
         GeometryReader { proxy in
             ZStack {
-                if let image = UIImage(named: definition.assetName) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .clipped()
-                } else {
-                    LinearGradient(
-                        colors: [accent.opacity(0.35), .purple.opacity(0.25)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
+                LinearGradient(
+                    colors: [accent.opacity(0.35), .purple.opacity(0.25)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing)
+                LocalArtworkImage(
+                    name: definition.assetName,
+                    maximumPixelSize: 640,
+                    contentMode: .fill)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
                 Circle()
                     .fill(.white.opacity(0.28))
                     .frame(width: min(proxy.size.height * 0.68, 156),
                            height: min(proxy.size.height * 0.68, 156))
-                CompanionArt(id: companionID)
+                CompanionArt(id: companionID, maximumPixelSize: 512)
                     .frame(width: min(proxy.size.height * 0.78, 180),
                            height: min(proxy.size.height * 0.78, 180))
             }
@@ -411,7 +476,7 @@ struct ImmersiveProfileHeader: View {
                     .position(x: companionCenterX, y: companionFeetY)
                     .accessibilityHidden(true)
 
-                CompanionArt(id: companionID)
+                CompanionArt(id: companionID, maximumPixelSize: 768)
                     .frame(width: companionSize, height: companionSize)
                     .position(
                         x: companionCenterX,
@@ -455,19 +520,17 @@ struct ImmersiveProfileHeader: View {
     @ViewBuilder
     private func background(_ definition: BackgroundDefinition,
                             size: CGSize) -> some View {
-        if let image = UIImage(named: definition.assetName) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: size.width, height: size.height)
-                .clipped()
-        } else {
-            LinearGradient(
-                colors: [accent.opacity(0.70), KyndynTheme.purple.opacity(0.75)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
+        LinearGradient(
+            colors: [accent.opacity(0.70), KyndynTheme.purple.opacity(0.75)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        LocalArtworkImage(
+            name: definition.assetName,
+            maximumPixelSize: 1_600,
+            contentMode: .fill)
+            .frame(width: size.width, height: size.height)
+            .clipped()
     }
 }
 
