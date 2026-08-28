@@ -397,6 +397,8 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
   recovery free.
 - Make advanced quest planning and detailed family insights the first
   parent-only Premium features, with clear locked states and plan routing.
+- Include five starter companions and two starter backgrounds for everyone;
+  require Premium for the expanded collection after normal earn requirements.
 - Preserve every household record and earned item when Premium expires.
 - See `docs/build-35-premium-access.md`.
 

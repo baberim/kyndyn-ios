@@ -267,6 +267,13 @@ struct PremiumEntitlement: Codable, Equatable, Sendable {
     func allows(_ feature: PremiumFeature) -> Bool {
         hasPremiumAccess
     }
+
+    func allowsCollectionSelection(
+        requiresPremium: Bool,
+        isCurrentlySelected: Bool
+    ) -> Bool {
+        !requiresPremium || hasPremiumAccess || isCurrentlySelected
+    }
 }
 
 enum PremiumFeature: String, CaseIterable, Codable, Sendable {

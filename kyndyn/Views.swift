@@ -2438,6 +2438,7 @@ private struct ProfileCustomizationView: View {
     let person: Person
     let section: ProfileCustomizationSection
     @Environment(AppModel.self) private var app
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var colorHex: String
@@ -2483,17 +2484,25 @@ private struct ProfileCustomizationView: View {
                     case .companion:
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Companion").font(.headline)
+                            premiumCollectionMessage(
+                                "Five companions are included. Premium adds the full collection as you earn them.")
                             LazyVGrid(columns: companionColumns, spacing: 12) {
                                 ForEach(CollectionCatalog.companions) { choice in
                                     let earned = person.earnedCompanionIDs.contains(choice.id)
+                                    let premiumAllowed = storeKit.entitlement
+                                        .allowsCollectionSelection(
+                                            requiresPremium: CollectionCatalog
+                                                .companionRequiresPremium(choice.id),
+                                            isCurrentlySelected: companionID == choice.id)
+                                    let selectable = earned && premiumAllowed
                                     Button {
-                                        if earned { companionID = choice.id }
+                                        if selectable { companionID = choice.id }
                                     } label: {
                                         VStack {
                                             CompanionArt(id: choice.id)
                                                 .frame(width: 62, height: 62)
-                                                .saturation(earned ? 1 : 0)
-                                                .opacity(earned ? 1 : 0.35)
+                                                .saturation(selectable ? 1 : 0)
+                                                .opacity(selectable ? 1 : 0.35)
                                             Text(choice.name).font(.caption.bold())
                                             if companionID == choice.id {
                                                 Label("Active", systemImage: "checkmark.circle.fill")
@@ -2504,12 +2513,15 @@ private struct ProfileCustomizationView: View {
                                                     Text(choice.unlockHint).lineLimit(2)
                                                 }
                                                 .font(.caption2)
+                                            } else if !premiumAllowed {
+                                                Label("Premium", systemImage: "sparkles")
+                                                    .font(.caption2)
                                             }
                                         }
                                         .frame(maxWidth: .infinity, minHeight: 116)
                                     }
                                     .buttonStyle(.plain)
-                                    .disabled(!earned)
+                                    .disabled(!selectable)
                                     .accessibilityIdentifier("collection-companion-\(choice.id)")
                                     .kyndynCard(tint: companionID == choice.id
                                                 ? Color(hex: colorHex) : .secondary)
@@ -2519,11 +2531,19 @@ private struct ProfileCustomizationView: View {
                     case .background:
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Background").font(.headline)
+                            premiumCollectionMessage(
+                                "Two backgrounds are included. Premium adds every scene as you earn it.")
                             LazyVGrid(columns: backgroundColumns, spacing: 16) {
                                 ForEach(CollectionCatalog.backgrounds) { background in
                                     let earned = person.earnedBackgroundIDs.contains(background.id)
+                                    let premiumAllowed = storeKit.entitlement
+                                        .allowsCollectionSelection(
+                                            requiresPremium: CollectionCatalog
+                                                .backgroundRequiresPremium(background.id),
+                                            isCurrentlySelected: backgroundID == background.id)
+                                    let selectable = earned && premiumAllowed
                                     Button {
-                                        if earned { backgroundID = background.id }
+                                        if selectable { backgroundID = background.id }
                                     } label: {
                                         VStack(spacing: 6) {
                                             ProfileScene(
@@ -2531,15 +2551,19 @@ private struct ProfileCustomizationView: View {
                                                 companionID: companionID,
                                                 accent: Color(hex: colorHex))
                                                 .frame(height: horizontalSizeClass == .compact ? 82 : 120)
-                                                .saturation(earned ? 1 : 0)
-                                                .opacity(earned ? 1 : 0.42)
+                                                .saturation(selectable ? 1 : 0)
+                                                .opacity(selectable ? 1 : 0.42)
                                             Text(background.name).font(.caption.bold())
-                                            Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
+                                            Text(collectionStatus(
+                                                earned: earned,
+                                                premiumAllowed: premiumAllowed,
+                                                active: backgroundID == background.id,
+                                                unlockHint: background.unlockHint))
                                                 .font(.caption2).foregroundStyle(.secondary)
                                                 .lineLimit(2)
                                         }
                                     }
-                                    .buttonStyle(.plain).disabled(!earned)
+                                    .buttonStyle(.plain).disabled(!selectable)
                                     .accessibilityIdentifier("collection-background-\(background.id)")
                                 }
                             }
@@ -2583,6 +2607,34 @@ private struct ProfileCustomizationView: View {
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+
+    @ViewBuilder private func premiumCollectionMessage(
+        _ message: String
+    ) -> some View {
+        if !storeKit.entitlement.allows(.expandedCustomization) {
+            NavigationLink {
+                PremiumAccessView()
+            } label: {
+                Label(message, systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(KyndynTheme.purple)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityIdentifier("collection-premium-callout")
+        }
+    }
+
+    private func collectionStatus(
+        earned: Bool,
+        premiumAllowed: Bool,
+        active: Bool,
+        unlockHint: String
+    ) -> String {
+        if active { return "Active" }
+        if !earned { return unlockHint }
+        if !premiumAllowed { return "Premium" }
+        return "Unlocked"
     }
 }
 

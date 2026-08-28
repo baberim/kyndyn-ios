@@ -17,11 +17,18 @@ testable product behavior.
 - **Advanced quest planning:** reusable routines, weekly schedule overview,
   and planning tools
 - **Detailed family insights:** daily activity and individual progress trends
+- **Expanded collections:** every earned companion and background beyond the
+  five included companions and two included backgrounds
 
 Free parents see a small Premium badge on these rows. Opening one presents a
 plain-language explanation and a route to the Premium plans. Active purchases,
 Apple Family Sharing, complimentary access, grandfathered access, and Apple's
 grace period use the same centralized entitlement decision.
+
+Premium never bypasses badge, quest, streak, level, or family-reward
+requirements. If Premium ends, the currently equipped Premium companion or
+background stays equipped, but choosing another Premium item requires renewed
+access.
 
 ## Expiration behavior
 
@@ -32,6 +39,6 @@ remains usable through free features.
 
 ## Next boundary
 
-Expanded customization, enhanced day context, advanced Siri automations,
-widgets, Live Activities, and the Apple Watch companion remain candidates for
-later Premium builds. They are not gated by Build 35.
+Enhanced day context, advanced Siri automations, widgets, Live Activities, and
+the Apple Watch companion remain candidates for later Premium builds. They are
+not gated by Build 35.

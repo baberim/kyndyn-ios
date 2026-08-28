@@ -100,6 +100,22 @@ final class PremiumEntitlementPolicyTests: XCTestCase {
         }
     }
 
+    func testCollectionSelectionKeepsEquippedPremiumItemAfterExpiration() {
+        XCTAssertTrue(PremiumEntitlement.free.allowsCollectionSelection(
+            requiresPremium: false, isCurrentlySelected: false))
+        XCTAssertFalse(PremiumEntitlement.free.allowsCollectionSelection(
+            requiresPremium: true, isCurrentlySelected: false))
+        XCTAssertTrue(PremiumEntitlement.free.allowsCollectionSelection(
+            requiresPremium: true, isCurrentlySelected: true))
+    }
+
+    func testCollectionCatalogSeparatesStarterAndPremiumItems() {
+        XCTAssertFalse(CollectionCatalog.companionRequiresPremium("spark"))
+        XCTAssertTrue(CollectionCatalog.companionRequiresPremium("penguin"))
+        XCTAssertFalse(CollectionCatalog.backgroundRequiresPremium("meadow"))
+        XCTAssertTrue(CollectionCatalog.backgroundRequiresPremium("aquarium"))
+    }
+
     func testDevelopmentDefaultDoesNotPretendPurchaseExists() async {
         let entitlement = await FreeEntitlements().currentEntitlement()
         XCTAssertEqual(entitlement, .free)
