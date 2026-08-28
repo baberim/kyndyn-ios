@@ -3742,6 +3742,11 @@ struct ParentAreaView: View {
                             NavigationLink { PremiumAccessView() } label: {
                                 PremiumDiscoveryCard()
                             }
+                            .listRowBackground(
+                                LinearGradient(
+                                    colors: [KyndynTheme.purple, KyndynTheme.pink],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing))
                             .accessibilityIdentifier("parent-premium-discovery")
                         }
                     }
@@ -3969,14 +3974,8 @@ private struct PremiumDiscoveryCard: View {
                 .foregroundStyle(.white.opacity(0.72))
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(
-            LinearGradient(
-                colors: [KyndynTheme.purple, KyndynTheme.pink],
-                startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Kyndyn Premium")
         .accessibilityHint("Try Kyndyn Premium free for two weeks")
