@@ -2438,6 +2438,7 @@ private struct ProfileCustomizationView: View {
     let person: Person
     let section: ProfileCustomizationSection
     @Environment(AppModel.self) private var app
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var colorHex: String
@@ -2483,17 +2484,25 @@ private struct ProfileCustomizationView: View {
                     case .companion:
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Companion").font(.headline)
+                            premiumCollectionMessage(
+                                "Five companions are included. Premium adds the full collection as you earn them.")
                             LazyVGrid(columns: companionColumns, spacing: 12) {
                                 ForEach(CollectionCatalog.companions) { choice in
                                     let earned = person.earnedCompanionIDs.contains(choice.id)
+                                    let premiumAllowed = storeKit.entitlement
+                                        .allowsCollectionSelection(
+                                            requiresPremium: CollectionCatalog
+                                                .companionRequiresPremium(choice.id),
+                                            isCurrentlySelected: companionID == choice.id)
+                                    let selectable = earned && premiumAllowed
                                     Button {
-                                        if earned { companionID = choice.id }
+                                        if selectable { companionID = choice.id }
                                     } label: {
                                         VStack {
                                             CompanionArt(id: choice.id)
                                                 .frame(width: 62, height: 62)
-                                                .saturation(earned ? 1 : 0)
-                                                .opacity(earned ? 1 : 0.35)
+                                                .saturation(selectable ? 1 : 0)
+                                                .opacity(selectable ? 1 : 0.35)
                                             Text(choice.name).font(.caption.bold())
                                             if companionID == choice.id {
                                                 Label("Active", systemImage: "checkmark.circle.fill")
@@ -2504,12 +2513,15 @@ private struct ProfileCustomizationView: View {
                                                     Text(choice.unlockHint).lineLimit(2)
                                                 }
                                                 .font(.caption2)
+                                            } else if !premiumAllowed {
+                                                Label("Premium", systemImage: "sparkles")
+                                                    .font(.caption2)
                                             }
                                         }
                                         .frame(maxWidth: .infinity, minHeight: 116)
                                     }
                                     .buttonStyle(.plain)
-                                    .disabled(!earned)
+                                    .disabled(!selectable)
                                     .accessibilityIdentifier("collection-companion-\(choice.id)")
                                     .kyndynCard(tint: companionID == choice.id
                                                 ? Color(hex: colorHex) : .secondary)
@@ -2519,11 +2531,19 @@ private struct ProfileCustomizationView: View {
                     case .background:
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Background").font(.headline)
+                            premiumCollectionMessage(
+                                "Two backgrounds are included. Premium adds every scene as you earn it.")
                             LazyVGrid(columns: backgroundColumns, spacing: 16) {
                                 ForEach(CollectionCatalog.backgrounds) { background in
                                     let earned = person.earnedBackgroundIDs.contains(background.id)
+                                    let premiumAllowed = storeKit.entitlement
+                                        .allowsCollectionSelection(
+                                            requiresPremium: CollectionCatalog
+                                                .backgroundRequiresPremium(background.id),
+                                            isCurrentlySelected: backgroundID == background.id)
+                                    let selectable = earned && premiumAllowed
                                     Button {
-                                        if earned { backgroundID = background.id }
+                                        if selectable { backgroundID = background.id }
                                     } label: {
                                         VStack(spacing: 6) {
                                             ProfileScene(
@@ -2531,15 +2551,19 @@ private struct ProfileCustomizationView: View {
                                                 companionID: companionID,
                                                 accent: Color(hex: colorHex))
                                                 .frame(height: horizontalSizeClass == .compact ? 82 : 120)
-                                                .saturation(earned ? 1 : 0)
-                                                .opacity(earned ? 1 : 0.42)
+                                                .saturation(selectable ? 1 : 0)
+                                                .opacity(selectable ? 1 : 0.42)
                                             Text(background.name).font(.caption.bold())
-                                            Text(earned ? (backgroundID == background.id ? "Active" : "Unlocked") : background.unlockHint)
+                                            Text(collectionStatus(
+                                                earned: earned,
+                                                premiumAllowed: premiumAllowed,
+                                                active: backgroundID == background.id,
+                                                unlockHint: background.unlockHint))
                                                 .font(.caption2).foregroundStyle(.secondary)
                                                 .lineLimit(2)
                                         }
                                     }
-                                    .buttonStyle(.plain).disabled(!earned)
+                                    .buttonStyle(.plain).disabled(!selectable)
                                     .accessibilityIdentifier("collection-background-\(background.id)")
                                 }
                             }
@@ -2583,6 +2607,34 @@ private struct ProfileCustomizationView: View {
         } catch {
             app.errorMessage = error.localizedDescription
         }
+    }
+
+    @ViewBuilder private func premiumCollectionMessage(
+        _ message: String
+    ) -> some View {
+        if !storeKit.entitlement.allows(.expandedCustomization) {
+            NavigationLink {
+                PremiumAccessView()
+            } label: {
+                Label(message, systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(KyndynTheme.purple)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityIdentifier("collection-premium-callout")
+        }
+    }
+
+    private func collectionStatus(
+        earned: Bool,
+        premiumAllowed: Bool,
+        active: Bool,
+        unlockHint: String
+    ) -> String {
+        if active { return "Active" }
+        if !earned { return unlockHint }
+        if !premiumAllowed { return "Premium" }
+        return "Unlocked"
     }
 }
 
@@ -3752,7 +3804,9 @@ struct ParentAreaView: View {
                     }
                     Section("This week") {
                         NavigationLink {
-                            FamilyInsightsView()
+                            PremiumFeatureDestination(feature: .richerInsights) {
+                                FamilyInsightsView()
+                            }
                         } label: {
                             weeklyPreview(household)
                         }
@@ -3885,6 +3939,9 @@ struct ParentAreaView: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Spacer()
+                if !storeKit.entitlement.allows(.richerInsights) {
+                    PremiumRowBadge()
+                }
                 Text("\(insight.xp) XP")
                     .font(.subheadline.bold().monospacedDigit())
                     .foregroundStyle(KyndynTheme.green)
@@ -3921,6 +3978,7 @@ private struct ParentMenuRow: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    var showsPremiumBadge = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -3943,10 +4001,114 @@ private struct ParentMenuRow: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 0)
+            if showsPremiumBadge {
+                PremiumRowBadge()
+            }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel(showsPremiumBadge ? "\(title), Premium" : title)
         .accessibilityHint(subtitle)
+    }
+}
+
+private struct PremiumRowBadge: View {
+    var body: some View {
+        Label("Premium", systemImage: "lock.fill")
+            .font(.caption2.bold())
+            .foregroundStyle(KyndynTheme.purple)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(KyndynTheme.purple.opacity(0.12), in: Capsule())
+            .accessibilityHidden(true)
+    }
+}
+
+private struct PremiumFeatureDestination<Content: View>: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+    let feature: PremiumFeature
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if storeKit.entitlement.allows(feature) {
+            content()
+        } else {
+            PremiumLockedFeatureView(feature: feature)
+        }
+    }
+}
+
+private struct PremiumLockedFeatureView: View {
+    let feature: PremiumFeature
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Image(systemName: feature.lockedIcon)
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(KyndynTheme.purple)
+                    .accessibilityHidden(true)
+                Text(feature.lockedTitle)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                Text(feature.lockedMessage)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                NavigationLink("See Premium plans") {
+                    PremiumAccessView()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(KyndynTheme.purple)
+                Text("Your quests, progress, and family data stay safe if Premium ends.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: 520)
+            .padding(32)
+            .frame(maxWidth: .infinity)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle(feature.navigationTitle)
+        .accessibilityIdentifier("premium-feature-locked-\(feature.rawValue)")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private extension PremiumFeature {
+    var navigationTitle: String {
+        switch self {
+        case .advancedPlanning: "Quest planning"
+        case .richerInsights: "Weekly insights"
+        default: "Kyndyn Premium"
+        }
+    }
+
+    var lockedIcon: String {
+        switch self {
+        case .advancedPlanning: "calendar.badge.plus"
+        case .richerInsights: "chart.xyaxis.line"
+        default: "sparkles"
+        }
+    }
+
+    var lockedTitle: String {
+        switch self {
+        case .advancedPlanning: "Plan ahead with Premium"
+        case .richerInsights: "See more with Premium"
+        default: "Included with Kyndyn Premium"
+        }
+    }
+
+    var lockedMessage: String {
+        switch self {
+        case .advancedPlanning:
+            "Build reusable routines, review the family schedule, and make planning the week faster."
+        case .richerInsights:
+            "Explore weekly activity and individual progress trends without scoring or comparing children."
+        default:
+            "Unlock more ways to plan, personalize, and use Kyndyn across your Apple devices."
+        }
     }
 }
 
@@ -4023,6 +4185,8 @@ private struct HomePremiumDiscoveryCard: View {
 }
 
 private struct ParentFamilyToolsView: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+
     var body: some View {
         List {
             Section("People") {
@@ -4034,8 +4198,17 @@ private struct ParentFamilyToolsView: View {
                 NavigationLink { QuestManagementView() } label: {
                     ParentMenuRow(title: "All quests", subtitle: "Create, edit, archive, and restore", systemImage: "checklist", tint: KyndynTheme.purple)
                 }
-                NavigationLink { QuestPlanningView() } label: {
-                    ParentMenuRow(title: "Quest planning", subtitle: "Plan the week and reuse family routines", systemImage: "calendar.badge.clock", tint: KyndynTheme.amber)
+                NavigationLink {
+                    PremiumFeatureDestination(feature: .advancedPlanning) {
+                        QuestPlanningView()
+                    }
+                } label: {
+                    ParentMenuRow(
+                        title: "Quest planning",
+                        subtitle: "Plan the week and reuse family routines",
+                        systemImage: "calendar.badge.clock",
+                        tint: KyndynTheme.amber,
+                        showsPremiumBadge: !storeKit.entitlement.allows(.advancedPlanning))
                 }
                 NavigationLink { SchedulePauseView() } label: {
                     ParentMenuRow(title: "Pause schedules", subtitle: "Take a break without counting missed quests", systemImage: "pause.circle.fill", tint: KyndynTheme.green)
@@ -4055,13 +4228,24 @@ private struct ParentFamilyToolsView: View {
 }
 
 private struct ParentRewardsProgressView: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+
     var body: some View {
         List {
             NavigationLink { FamilyRewardSettingsView() } label: {
                 ParentMenuRow(title: "Family reward", subtitle: "Current goal, upcoming rewards, and history", systemImage: "gift.fill", tint: KyndynTheme.pink)
             }
-            NavigationLink { FamilyInsightsView() } label: {
-                ParentMenuRow(title: "Weekly insights", subtitle: "See family activity and individual progress", systemImage: "chart.xyaxis.line", tint: KyndynTheme.green)
+            NavigationLink {
+                PremiumFeatureDestination(feature: .richerInsights) {
+                    FamilyInsightsView()
+                }
+            } label: {
+                ParentMenuRow(
+                    title: "Weekly insights",
+                    subtitle: "See family activity and individual progress",
+                    systemImage: "chart.xyaxis.line",
+                    tint: KyndynTheme.green,
+                    showsPremiumBadge: !storeKit.entitlement.allows(.richerInsights))
             }
         }
         .familyRefreshable()

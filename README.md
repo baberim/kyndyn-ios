@@ -4,14 +4,14 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development build — 0.34.0 (Build 34)
+## Current development build — 0.35.0 (Build 35)
 
-Build 34 makes Premium easy for parents to discover without advertising it to
-children or interrupting everyday use. Free households see a clear trial card
-in the protected Parent dashboard; subscribed households see a quieter
-membership-management row. The purchase screen now describes concrete family
-benefits in plain language. No currently shipped feature has been placed behind
-the premium boundary.
+Build 35 enforces the first Premium boundaries without weakening Kyndyn's free
+family essentials. Advanced quest planning, detailed family insights, and the
+expanded earned companion and background collections now show clear Premium
+states, while active and grace-period members can use them normally. Existing
+quests, progress, rewards, security, sync, recovery, and equipped collection
+items remain available regardless of subscription state.
 
 The app provides a locally usable vertical slice:
 
@@ -122,6 +122,8 @@ See [`docs/build-33-storekit.md`](docs/build-33-storekit.md) for StoreKit 2
 behavior and the local/App Store Connect configuration boundary.
 See [`docs/build-34-premium-discovery.md`](docs/build-34-premium-discovery.md)
 for Premium placement and customer-language rules.
+See [`docs/build-35-premium-access.md`](docs/build-35-premium-access.md) for
+the first enforced feature boundaries and expiration-safe access rules.
 See [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md)
 for the separated App color, Companion, Background, and App icon settings.
 See [`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md),

@@ -148,6 +148,14 @@ enum CollectionCatalog {
         $0.requirement == .starter ? $0.id : nil
     }
 
+    static func companionRequiresPremium(_ id: String) -> Bool {
+        !starterCompanionIDs.contains(id)
+    }
+
+    static func backgroundRequiresPremium(_ id: String) -> Bool {
+        !starterBackgroundIDs.contains(id)
+    }
+
     static func normalizedCompanions(_ ids: [String]) -> [String] {
         let valid = Set(companionIDs)
         return Array(Set(ids).intersection(valid).union(starterCompanionIDs)).sorted()

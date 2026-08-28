@@ -263,6 +263,17 @@ struct PremiumEntitlement: Codable, Equatable, Sendable {
     /// Expiration never makes existing family information unreadable. It only
     /// prevents starting a new premium-only action.
     var preservesExistingHouseholdData: Bool { true }
+
+    func allows(_ feature: PremiumFeature) -> Bool {
+        hasPremiumAccess
+    }
+
+    func allowsCollectionSelection(
+        requiresPremium: Bool,
+        isCurrentlySelected: Bool
+    ) -> Bool {
+        !requiresPremium || hasPremiumAccess || isCurrentlySelected
+    }
 }
 
 enum PremiumFeature: String, CaseIterable, Codable, Sendable {
@@ -312,12 +323,23 @@ enum StorePurchaseError: LocalizedError {
     var errorMessage: String?
 
     private let defaults: UserDefaults
+    private let testingPremium: Bool
     private let cacheKey = "kyndyn.premium.entitlement.v1"
     private var updatesTask: Task<Void, Never>?
     private var hasStarted = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        let arguments = ProcessInfo.processInfo.arguments
+        testingPremium = arguments.contains("-ui-testing-reset")
+            && arguments.contains("-ui-testing-premium-active")
+        if testingPremium {
+            entitlement = PremiumEntitlement(
+                state: .active,
+                source: .appStorePurchase,
+                expirationDate: Date(timeIntervalSinceNow: 86_400))
+            return
+        }
         if let data = defaults.data(forKey: cacheKey),
            let cached = try? JSONDecoder().decode(
                PremiumEntitlement.self, from: data),
@@ -329,6 +351,7 @@ enum StorePurchaseError: LocalizedError {
     }
 
     func start() async {
+        guard !testingPremium else { return }
         guard !hasStarted else { return }
         hasStarted = true
         updatesTask = Task { [weak self] in
