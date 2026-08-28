@@ -2686,6 +2686,7 @@ private struct AppIconChoice: Identifiable {
 
 struct AppIconPickerView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @State private var selectedName = UIApplication.shared.alternateIconName
     @State private var isChanging = false
     @State private var errorMessage: String?
@@ -2730,12 +2731,35 @@ struct AppIconPickerView: View {
                             .accessibilityIdentifier("app-icon-unavailable")
                     }
 
+                    if !storeKit.entitlement.allows(.expandedCustomization) {
+                        NavigationLink {
+                            PremiumAccessView()
+                        } label: {
+                            Label(
+                                "The original icon is included. Premium unlocks every alternate icon.",
+                                systemImage: "sparkles")
+                                .font(.subheadline)
+                                .foregroundStyle(KyndynTheme.purple)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .kyndynCard(tint: KyndynTheme.purple)
+                        .accessibilityIdentifier("app-icon-premium-callout")
+                    }
+
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(AppIconChoice.choices) { choice in
+                            let requiresPremium = choice.alternateName != nil
+                            let premiumAllowed = storeKit.entitlement
+                                .allowsCollectionSelection(
+                                    requiresPremium: requiresPremium,
+                                    isCurrentlySelected:
+                                        selectedName == choice.alternateName)
                             AppIconChoiceButton(
                                 choice: choice,
                                 isSelected: selectedName == choice.alternateName,
+                                isPremiumLocked: requiresPremium && !premiumAllowed,
                                 isDisabled: isChanging || !supportsIconChanges
+                                    || !premiumAllowed
                             ) {
                                 change(to: choice.alternateName)
                             }
@@ -2788,6 +2812,7 @@ struct AppIconPickerView: View {
 private struct AppIconChoiceButton: View {
     let choice: AppIconChoice
     let isSelected: Bool
+    let isPremiumLocked: Bool
     let isDisabled: Bool
     let action: () -> Void
 
@@ -2807,6 +2832,13 @@ private struct AppIconChoiceButton: View {
                                 .font(.body)
                                 .symbolRenderingMode(.palette)
                                 .foregroundStyle(.white, Color.accentColor)
+                                .padding(5)
+                        } else if isPremiumLocked {
+                            Image(systemName: "sparkles")
+                                .font(.caption.bold())
+                                .foregroundStyle(.white)
+                                .padding(7)
+                                .background(KyndynTheme.purple, in: Circle())
                                 .padding(5)
                         }
                     }
@@ -2833,6 +2865,7 @@ private struct AppIconChoiceButton: View {
         .disabled(isDisabled)
         .accessibilityIdentifier("app-icon-\(choice.id)")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint(isPremiumLocked ? "Requires Premium" : "")
     }
 }
 

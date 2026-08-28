@@ -7,9 +7,9 @@ This repository is a new native SwiftUI implementation. It is independent from t
 ## Current development build — 0.35.0 (Build 35)
 
 Build 35 enforces the first Premium boundaries without weakening Kyndyn's free
-family essentials. Advanced quest planning, detailed family insights, and the
-expanded earned companion and background collections now show clear Premium
-states, while active and grace-period members can use them normally. Existing
+family essentials. Advanced quest planning, detailed family insights, expanded
+earned companion and background collections, and alternate app icons now show
+clear Premium states, while active and grace-period members can use them normally. Existing
 quests, progress, rewards, security, sync, recovery, and equipped collection
 items remain available regardless of subscription state.
 

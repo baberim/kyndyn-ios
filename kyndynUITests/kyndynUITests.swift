@@ -109,6 +109,9 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["App icon"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["app-icon-original"].exists)
         XCTAssertTrue(app.buttons["app-icon-pastel"].exists)
+        XCTAssertTrue(app.buttons["app-icon-original"].isEnabled)
+        XCTAssertFalse(app.buttons["app-icon-pastel"].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)["app-icon-premium-callout"].exists)
         app.navigationBars["App icon"].buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["settings-app-color"].exists)
         XCTAssertTrue(app.buttons["settings-companion"].exists)
@@ -130,6 +133,18 @@ final class KyndynUITests: XCTestCase {
         app.buttons["Save"].tap()
         tapTab("Home", in: app)
         XCTAssertTrue(app.staticTexts["Hi, Leo"].waitForExistence(timeout: 3))
+    }
+
+    func testPremiumEnablesAlternateAppIcons() throws {
+        let app = launch(additionalArguments: ["-ui-testing-premium-active"])
+        tapTab("Settings", in: app)
+        app.buttons["settings-app-icon"].tap()
+        XCTAssertTrue(app.navigationBars["App icon"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["app-icon-original"].isEnabled)
+        XCTAssertTrue(app.buttons["app-icon-pastel"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)[
+            "app-icon-premium-callout"
+        ].exists)
     }
 
     func testSettingsExplainsSiriAndShortcutsPrivacy() throws {

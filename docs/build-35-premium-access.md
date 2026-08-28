@@ -19,6 +19,8 @@ testable product behavior.
 - **Detailed family insights:** daily activity and individual progress trends
 - **Expanded collections:** every earned companion and background beyond the
   five included companions and two included backgrounds
+- **Alternate app icons:** the original icon remains included; alternate icons
+  require Premium
 
 Free parents see a small Premium badge on these rows. Opening one presents a
 plain-language explanation and a route to the Premium plans. Active purchases,
@@ -29,6 +31,10 @@ Premium never bypasses badge, quest, streak, level, or family-reward
 requirements. If Premium ends, the currently equipped Premium companion or
 background stays equipped, but choosing another Premium item requires renewed
 access.
+
+An alternate app icon already active when Premium ends remains active. The
+default icon is always available; after switching back to it, choosing an
+alternate icon again requires Premium.
 
 ## Expiration behavior
 
