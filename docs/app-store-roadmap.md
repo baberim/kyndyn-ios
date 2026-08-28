@@ -400,6 +400,8 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 - Include five starter companions and two starter backgrounds for everyone;
   require Premium for the expanded collection after normal earn requirements.
 - Keep the original app icon free and require Premium for alternate icons.
+- Keep current weather and the next calendar event free; Premium unlocks
+  hourly and 10-day forecasts, expanded events, and multiple-calendar views.
 - Preserve every household record and earned item when Premium expires.
 - See `docs/build-35-premium-access.md`.
 

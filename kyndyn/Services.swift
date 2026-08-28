@@ -274,6 +274,15 @@ struct PremiumEntitlement: Codable, Equatable, Sendable {
     ) -> Bool {
         !requiresPremium || hasPremiumAccess || isCurrentlySelected
     }
+
+    /// Free households can show one device calendar. Premium can combine
+    /// several, while an expired subscription never silently removes choices.
+    func allowsCalendarSelection(
+        isCurrentlySelected: Bool,
+        selectedCount: Int
+    ) -> Bool {
+        hasPremiumAccess || isCurrentlySelected || selectedCount == 0
+    }
 }
 
 enum PremiumFeature: String, CaseIterable, Codable, Sendable {

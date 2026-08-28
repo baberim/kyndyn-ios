@@ -109,6 +109,20 @@ final class PremiumEntitlementPolicyTests: XCTestCase {
             requiresPremium: true, isCurrentlySelected: true))
     }
 
+    func testFreeCalendarSelectionAllowsOneCalendarAndPreservesExistingChoices() {
+        XCTAssertTrue(PremiumEntitlement.free.allowsCalendarSelection(
+            isCurrentlySelected: false, selectedCount: 0))
+        XCTAssertFalse(PremiumEntitlement.free.allowsCalendarSelection(
+            isCurrentlySelected: false, selectedCount: 1))
+        XCTAssertTrue(PremiumEntitlement.free.allowsCalendarSelection(
+            isCurrentlySelected: true, selectedCount: 2))
+
+        let premium = PremiumEntitlement(
+            state: .active, source: .appStorePurchase, expirationDate: nil)
+        XCTAssertTrue(premium.allowsCalendarSelection(
+            isCurrentlySelected: false, selectedCount: 3))
+    }
+
     func testCollectionCatalogSeparatesStarterAndPremiumItems() {
         XCTAssertFalse(CollectionCatalog.companionRequiresPremium("spark"))
         XCTAssertTrue(CollectionCatalog.companionRequiresPremium("penguin"))

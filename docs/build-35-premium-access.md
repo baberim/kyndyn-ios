@@ -21,6 +21,9 @@ testable product behavior.
   five included companions and two included backgrounds
 - **Alternate app icons:** the original icon remains included; alternate icons
   require Premium
+- **Expanded day details:** current weather, today’s high and low, and the next
+  calendar event remain free on Home. Hourly and 10-day forecasts, expanded
+  upcoming events, and combining multiple calendars require Premium
 
 Free parents see a small Premium badge on these rows. Opening one presents a
 plain-language explanation and a route to the Premium plans. Active purchases,
@@ -36,6 +39,10 @@ An alternate app icon already active when Premium ends remains active. The
 default icon is always available; after switching back to it, choosing an
 alternate icon again requires Premium.
 
+If Premium expires with several calendars selected, kyndyn keeps those choices
+intact. Free users can remove selections, but adding beyond one calendar
+requires Premium.
+
 ## Expiration behavior
 
 An expired, refunded, or revoked subscription prevents starting a new
@@ -45,6 +52,6 @@ remains usable through free features.
 
 ## Next boundary
 
-Enhanced day context, advanced Siri automations, widgets, Live Activities, and
-the Apple Watch companion remain candidates for later Premium builds. They are
-not gated by Build 35.
+Advanced Siri automations, widgets, Live Activities, and the Apple Watch
+companion remain candidates for later Premium builds. They are not gated by
+Build 35.

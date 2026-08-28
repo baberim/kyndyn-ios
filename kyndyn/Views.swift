@@ -1095,6 +1095,7 @@ struct SiriShortcutsHelpView: View {
 struct CalendarSettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Query private var settings: [LocalDeviceSettings]
     @State private var permission: DevicePermissionState = .notRequested
     @State private var calendars: [DeviceCalendar] = []
@@ -1107,10 +1108,29 @@ struct CalendarSettingsView: View {
                 KyndynCallout(kind: .information, message: "Choose which calendars appear on Home. kyndyn can read events, but it cannot change them.", title: "Choose what appears")
             }
             if permission == .allowed, let setting = settings.first {
+                if !storeKit.entitlement.allows(.enhancedDayContext) {
+                    Section {
+                        NavigationLink {
+                            PremiumAccessView()
+                        } label: {
+                            Label(
+                                "One calendar is included. Premium lets you combine several calendars.",
+                                systemImage: "sparkles")
+                                .font(.subheadline)
+                                .foregroundStyle(KyndynTheme.purple)
+                        }
+                        .accessibilityIdentifier("calendar-premium-callout")
+                    }
+                }
                 Section("Calendars") {
                     ForEach(calendars) { calendar in
+                        let isSelected = setting.selectedCalendarIdentifiers
+                            .contains(calendar.id)
+                        let canSelect = storeKit.entitlement.allowsCalendarSelection(
+                            isCurrentlySelected: isSelected,
+                            selectedCount: setting.selectedCalendarIdentifiers.count)
                         Button {
-                            if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                            if isSelected {
                                 setting.selectedCalendarIdentifiers.removeAll { $0 == calendar.id }
                             } else {
                                 setting.selectedCalendarIdentifiers.append(calendar.id)
@@ -1122,11 +1142,16 @@ struct CalendarSettingsView: View {
                                 Circle().fill(Color(hex: calendar.colorHex)).frame(width: 12, height: 12)
                                 Text(calendar.title).foregroundStyle(.primary)
                                 Spacer()
-                                if setting.selectedCalendarIdentifiers.contains(calendar.id) {
+                                if isSelected {
                                     Image(systemName: "checkmark").fontWeight(.semibold)
+                                } else if !canSelect {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundStyle(KyndynTheme.purple)
                                 }
                             }
                         }
+                        .disabled(!canSelect)
+                        .accessibilityHint(!canSelect ? "Requires Premium" : "")
                     }
                 }
                 Section {
@@ -1316,7 +1341,7 @@ struct ParentAuthenticationView: View {
 
 struct DashboardView: View {
     private enum DayDetail: String, Identifiable {
-        case weather, calendar
+        case weather, calendar, premiumDayContext
         var id: String { rawValue }
     }
     @Environment(AppModel.self) private var app
@@ -1465,6 +1490,10 @@ struct DashboardView: View {
                     CalendarGlanceView(
                         events: calendarEvents,
                         onRefresh: { refreshCalendarEvents() })
+                case .premiumDayContext:
+                    NavigationStack {
+                        PremiumLockedFeatureView(feature: .enhancedDayContext)
+                    }
                 }
             }
             .alert(unlockTitle(unlockToPresent), isPresented: Binding(
@@ -1507,8 +1536,12 @@ struct DashboardView: View {
                 GridRow(alignment: .top) {
                     if setting.weatherIntegrationEnabled {
                         Button {
-                            presentedDayDetail = .weather
-                            Task { await refreshWeatherDetails() }
+                            if storeKit.entitlement.allows(.enhancedDayContext) {
+                                presentedDayDetail = .weather
+                                Task { await refreshWeatherDetails() }
+                            } else {
+                                presentedDayDetail = .premiumDayContext
+                            }
                         } label: {
                             weatherSummary(setting)
                         }
@@ -1517,7 +1550,9 @@ struct DashboardView: View {
                     if setting.calendarIntegrationEnabled {
                         Button {
                             refreshCalendarEvents()
-                            presentedDayDetail = .calendar
+                            presentedDayDetail = storeKit.entitlement
+                                .allows(.enhancedDayContext)
+                                ? .calendar : .premiumDayContext
                         } label: {
                             calendarSummary
                         }
@@ -4113,6 +4148,7 @@ private extension PremiumFeature {
         switch self {
         case .advancedPlanning: "Quest planning"
         case .richerInsights: "Weekly insights"
+        case .enhancedDayContext: "Weather and calendar"
         default: "Kyndyn Premium"
         }
     }
@@ -4121,6 +4157,7 @@ private extension PremiumFeature {
         switch self {
         case .advancedPlanning: "calendar.badge.plus"
         case .richerInsights: "chart.xyaxis.line"
+        case .enhancedDayContext: "calendar.badge.clock"
         default: "sparkles"
         }
     }
@@ -4129,6 +4166,7 @@ private extension PremiumFeature {
         switch self {
         case .advancedPlanning: "Plan ahead with Premium"
         case .richerInsights: "See more with Premium"
+        case .enhancedDayContext: "See more of your day with Premium"
         default: "Included with Kyndyn Premium"
         }
     }
@@ -4139,6 +4177,8 @@ private extension PremiumFeature {
             "Build reusable routines, review the family schedule, and make planning the week faster."
         case .richerInsights:
             "Explore weekly activity and individual progress trends without scoring or comparing children."
+        case .enhancedDayContext:
+            "See hourly and 10-day weather, browse more upcoming events, and combine multiple calendars. Today’s weather and your next event remain free."
         default:
             "Unlock more ways to plan, personalize, and use Kyndyn across your Apple devices."
         }
@@ -4407,6 +4447,7 @@ struct PremiumAccessView: View {
             Label("Plan ahead with reusable family routines", systemImage: "calendar.badge.plus")
             Label("Unlock more ways to personalize Kyndyn", systemImage: "paintpalette.fill")
             Label("See more of your family’s progress", systemImage: "chart.xyaxis.line")
+            Label("See full forecasts and combine calendars", systemImage: "calendar.badge.clock")
             Label("Enjoy new Watch and widget features as they arrive", systemImage: "applewatch")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
