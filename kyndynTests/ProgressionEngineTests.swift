@@ -83,6 +83,23 @@ final class PremiumEntitlementPolicyTests: XCTestCase {
         XCTAssertTrue(entitlement.preservesExistingHouseholdData)
     }
 
+    func testFreeEntitlementBlocksOptionalPremiumActions() {
+        for feature in PremiumFeature.allCases {
+            XCTAssertFalse(PremiumEntitlement.free.allows(feature))
+        }
+    }
+
+    func testActiveAndGracePeriodAllowPremiumActions() {
+        for state in [PremiumAccessState.active, .gracePeriod] {
+            let entitlement = PremiumEntitlement(
+                state: state, source: .appStorePurchase,
+                expirationDate: Date(timeIntervalSince1970: 2_000_000_000))
+            for feature in PremiumFeature.allCases {
+                XCTAssertTrue(entitlement.allows(feature))
+            }
+        }
+    }
+
     func testDevelopmentDefaultDoesNotPretendPurchaseExists() async {
         let entitlement = await FreeEntitlements().currentEntitlement()
         XCTAssertEqual(entitlement, .free)

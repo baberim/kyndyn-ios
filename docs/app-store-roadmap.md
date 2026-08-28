@@ -389,13 +389,24 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
   is built and validated.
 - See `docs/build-34-premium-discovery.md`.
 
-### Build 35 — Apple Watch premium companion
+### Build 35 — Premium feature access — implemented
+
+- Centralize feature-access decisions around verified StoreKit entitlement
+  state rather than scattering purchase checks through individual screens.
+- Keep core quests, progress, sharing, reminders, security, backups, and
+  recovery free.
+- Make advanced quest planning and detailed family insights the first
+  parent-only Premium features, with clear locked states and plan routing.
+- Preserve every household record and earned item when Premium expires.
+- See `docs/build-35-premium-access.md`.
+
+### Build 36 — Apple Watch premium companion
 
 - Build a deliberately small Watch experience for viewing today's quests,
   completing an exact occurrence, and seeing current progress.
 - Keep the phone app useful without a Watch and treat Watch access as premium.
 
-### Build 36 — Public-release hardening
+### Build 37 — Public-release hardening
 
 - Complete the remaining security, accessibility, localization, privacy,
   support, physical-device, and App Store release gates.

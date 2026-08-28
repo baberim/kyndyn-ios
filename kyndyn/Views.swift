@@ -3752,7 +3752,9 @@ struct ParentAreaView: View {
                     }
                     Section("This week") {
                         NavigationLink {
-                            FamilyInsightsView()
+                            PremiumFeatureDestination(feature: .richerInsights) {
+                                FamilyInsightsView()
+                            }
                         } label: {
                             weeklyPreview(household)
                         }
@@ -3885,6 +3887,9 @@ struct ParentAreaView: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Spacer()
+                if !storeKit.entitlement.allows(.richerInsights) {
+                    PremiumRowBadge()
+                }
                 Text("\(insight.xp) XP")
                     .font(.subheadline.bold().monospacedDigit())
                     .foregroundStyle(KyndynTheme.green)
@@ -3921,6 +3926,7 @@ private struct ParentMenuRow: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    var showsPremiumBadge = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -3943,10 +3949,114 @@ private struct ParentMenuRow: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 0)
+            if showsPremiumBadge {
+                PremiumRowBadge()
+            }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel(showsPremiumBadge ? "\(title), Premium" : title)
         .accessibilityHint(subtitle)
+    }
+}
+
+private struct PremiumRowBadge: View {
+    var body: some View {
+        Label("Premium", systemImage: "lock.fill")
+            .font(.caption2.bold())
+            .foregroundStyle(KyndynTheme.purple)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(KyndynTheme.purple.opacity(0.12), in: Capsule())
+            .accessibilityHidden(true)
+    }
+}
+
+private struct PremiumFeatureDestination<Content: View>: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+    let feature: PremiumFeature
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if storeKit.entitlement.allows(feature) {
+            content()
+        } else {
+            PremiumLockedFeatureView(feature: feature)
+        }
+    }
+}
+
+private struct PremiumLockedFeatureView: View {
+    let feature: PremiumFeature
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Image(systemName: feature.lockedIcon)
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(KyndynTheme.purple)
+                    .accessibilityHidden(true)
+                Text(feature.lockedTitle)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                Text(feature.lockedMessage)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                NavigationLink("See Premium plans") {
+                    PremiumAccessView()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(KyndynTheme.purple)
+                Text("Your quests, progress, and family data stay safe if Premium ends.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: 520)
+            .padding(32)
+            .frame(maxWidth: .infinity)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle(feature.navigationTitle)
+        .accessibilityIdentifier("premium-feature-locked-\(feature.rawValue)")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private extension PremiumFeature {
+    var navigationTitle: String {
+        switch self {
+        case .advancedPlanning: "Quest planning"
+        case .richerInsights: "Weekly insights"
+        default: "Kyndyn Premium"
+        }
+    }
+
+    var lockedIcon: String {
+        switch self {
+        case .advancedPlanning: "calendar.badge.plus"
+        case .richerInsights: "chart.xyaxis.line"
+        default: "sparkles"
+        }
+    }
+
+    var lockedTitle: String {
+        switch self {
+        case .advancedPlanning: "Plan ahead with Premium"
+        case .richerInsights: "See more with Premium"
+        default: "Included with Kyndyn Premium"
+        }
+    }
+
+    var lockedMessage: String {
+        switch self {
+        case .advancedPlanning:
+            "Build reusable routines, review the family schedule, and make planning the week faster."
+        case .richerInsights:
+            "Explore weekly activity and individual progress trends without scoring or comparing children."
+        default:
+            "Unlock more ways to plan, personalize, and use Kyndyn across your Apple devices."
+        }
     }
 }
 
@@ -4023,6 +4133,8 @@ private struct HomePremiumDiscoveryCard: View {
 }
 
 private struct ParentFamilyToolsView: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+
     var body: some View {
         List {
             Section("People") {
@@ -4034,8 +4146,17 @@ private struct ParentFamilyToolsView: View {
                 NavigationLink { QuestManagementView() } label: {
                     ParentMenuRow(title: "All quests", subtitle: "Create, edit, archive, and restore", systemImage: "checklist", tint: KyndynTheme.purple)
                 }
-                NavigationLink { QuestPlanningView() } label: {
-                    ParentMenuRow(title: "Quest planning", subtitle: "Plan the week and reuse family routines", systemImage: "calendar.badge.clock", tint: KyndynTheme.amber)
+                NavigationLink {
+                    PremiumFeatureDestination(feature: .advancedPlanning) {
+                        QuestPlanningView()
+                    }
+                } label: {
+                    ParentMenuRow(
+                        title: "Quest planning",
+                        subtitle: "Plan the week and reuse family routines",
+                        systemImage: "calendar.badge.clock",
+                        tint: KyndynTheme.amber,
+                        showsPremiumBadge: !storeKit.entitlement.allows(.advancedPlanning))
                 }
                 NavigationLink { SchedulePauseView() } label: {
                     ParentMenuRow(title: "Pause schedules", subtitle: "Take a break without counting missed quests", systemImage: "pause.circle.fill", tint: KyndynTheme.green)
@@ -4055,13 +4176,24 @@ private struct ParentFamilyToolsView: View {
 }
 
 private struct ParentRewardsProgressView: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+
     var body: some View {
         List {
             NavigationLink { FamilyRewardSettingsView() } label: {
                 ParentMenuRow(title: "Family reward", subtitle: "Current goal, upcoming rewards, and history", systemImage: "gift.fill", tint: KyndynTheme.pink)
             }
-            NavigationLink { FamilyInsightsView() } label: {
-                ParentMenuRow(title: "Weekly insights", subtitle: "See family activity and individual progress", systemImage: "chart.xyaxis.line", tint: KyndynTheme.green)
+            NavigationLink {
+                PremiumFeatureDestination(feature: .richerInsights) {
+                    FamilyInsightsView()
+                }
+            } label: {
+                ParentMenuRow(
+                    title: "Weekly insights",
+                    subtitle: "See family activity and individual progress",
+                    systemImage: "chart.xyaxis.line",
+                    tint: KyndynTheme.green,
+                    showsPremiumBadge: !storeKit.entitlement.allows(.richerInsights))
             }
         }
         .familyRefreshable()

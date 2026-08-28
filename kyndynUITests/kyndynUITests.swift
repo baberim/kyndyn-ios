@@ -224,7 +224,9 @@ final class KyndynUITests: XCTestCase {
     }
 
     func testParentCanBrowseScheduleAndStartFromTemplate() throws {
-        let app = launch(parentUnlocked: true)
+        let app = launch(
+            parentUnlocked: true,
+            additionalArguments: ["-ui-testing-premium-active"])
         tapTab("Profiles", in: app)
         app.buttons["profile-Maya"].tap()
         tapTab("Parent", in: app)
@@ -248,6 +250,23 @@ final class KyndynUITests: XCTestCase {
         app.staticTexts["Two-week schedule"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["quest-schedule-overview"]
             .waitForExistence(timeout: 3))
+    }
+
+    func testFreeParentSeesPremiumGateForQuestPlanning() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Profiles", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        let familyTools = app.buttons["Family and quests"]
+        reveal(familyTools, in: app)
+        familyTools.tap()
+        let planning = app.staticTexts["Quest planning"]
+        reveal(planning, in: app)
+        planning.tap()
+        XCTAssertTrue(app.descendants(matching: .any)[
+            "premium-feature-locked-advancedPlanning"
+        ].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["See Premium plans"].exists)
     }
 
     func testParentCanRunPrivacySafeHouseholdSafetyCheck() throws {
