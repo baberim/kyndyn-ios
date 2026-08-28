@@ -59,6 +59,13 @@ final class DeviceContextPolicyTests: XCTestCase {
 }
 
 final class PremiumEntitlementPolicyTests: XCTestCase {
+    func testStoreProductIdentifiersAreStableAndUnique() {
+        XCTAssertEqual(KyndynStoreProducts.all.count, 2)
+        XCTAssertEqual(Set(KyndynStoreProducts.all).count, 2)
+        XCTAssertTrue(KyndynStoreProducts.monthly.hasSuffix(".monthly"))
+        XCTAssertTrue(KyndynStoreProducts.annual.hasSuffix(".annual"))
+    }
+
     func testOnlyActiveAndGracePeriodGrantPremiumAccess() {
         XCTAssertFalse(PremiumAccessState.free.grantsPremiumAccess)
         XCTAssertTrue(PremiumAccessState.active.grantsPremiumAccess)
@@ -79,6 +86,19 @@ final class PremiumEntitlementPolicyTests: XCTestCase {
     func testDevelopmentDefaultDoesNotPretendPurchaseExists() async {
         let entitlement = await FreeEntitlements().currentEntitlement()
         XCTAssertEqual(entitlement, .free)
+    }
+
+    func testEntitlementSourcesRoundTripForSupportDiagnostics() throws {
+        for source in [PremiumEntitlementSource.appStorePurchase,
+                       .appleFamilySharing, .complimentary, .grandfathered] {
+            let original = PremiumEntitlement(
+                state: .active, source: source,
+                expirationDate: Date(timeIntervalSince1970: 2_000_000_000))
+            let data = try JSONEncoder().encode(original)
+            XCTAssertEqual(
+                try JSONDecoder().decode(PremiumEntitlement.self, from: data),
+                original)
+        }
     }
 }
 

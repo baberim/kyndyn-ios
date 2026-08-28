@@ -6,6 +6,7 @@ import Foundation
 import LocalAuthentication
 import OSLog
 import Security
+import StoreKit
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -280,6 +281,204 @@ protocol EntitlementProviding: Sendable {
 
 struct FreeEntitlements: EntitlementProviding {
     func currentEntitlement() async -> PremiumEntitlement { .free }
+}
+
+enum KyndynStoreProducts {
+    static let monthly = "com.kyndynfamily.kyndyn.premium.monthly"
+    static let annual = "com.kyndynfamily.kyndyn.premium.annual"
+    static let all = [annual, monthly]
+}
+
+enum StorePurchaseError: LocalizedError {
+    case verificationFailed
+    case productUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .verificationFailed:
+            "Apple couldn’t verify this purchase. Nothing was charged by kyndyn."
+        case .productUnavailable:
+            "Premium plans aren’t available right now. Please try again later."
+        }
+    }
+}
+
+@MainActor
+@Observable final class StoreKitEntitlementController: EntitlementProviding {
+    private(set) var products: [Product] = []
+    private(set) var entitlement: PremiumEntitlement
+    private(set) var isLoading = false
+    private(set) var isPurchasing = false
+    var errorMessage: String?
+
+    private let defaults: UserDefaults
+    private let cacheKey = "kyndyn.premium.entitlement.v1"
+    private var updatesTask: Task<Void, Never>?
+    private var hasStarted = false
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if let data = defaults.data(forKey: cacheKey),
+           let cached = try? JSONDecoder().decode(
+               PremiumEntitlement.self, from: data),
+           cached.expirationDate.map({ $0 > .now }) ?? false {
+            entitlement = cached
+        } else {
+            entitlement = .free
+        }
+    }
+
+    func start() async {
+        guard !hasStarted else { return }
+        hasStarted = true
+        updatesTask = Task { [weak self] in
+            for await result in StoreKit.Transaction.updates {
+                guard !Task.isCancelled else { return }
+                do {
+                    let transaction = try Self.verified(result)
+                    await transaction.finish()
+                    await self?.refreshEntitlement()
+                } catch {
+                    await MainActor.run {
+                        self?.errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        }
+        await loadProducts()
+        await refreshEntitlement()
+    }
+
+    func currentEntitlement() async -> PremiumEntitlement {
+        entitlement
+    }
+
+    func loadProducts() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let loaded = try await Product.products(for: KyndynStoreProducts.all)
+            products = loaded.sorted {
+                if $0.id == KyndynStoreProducts.annual { return true }
+                if $1.id == KyndynStoreProducts.annual { return false }
+                return $0.price < $1.price
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = "Premium plans couldn’t be loaded. Your family data is unaffected."
+        }
+    }
+
+    func purchase(_ product: Product) async {
+        isPurchasing = true
+        defer { isPurchasing = false }
+        do {
+            switch try await product.purchase() {
+            case .success(let verification):
+                let transaction = try Self.verified(verification)
+                await transaction.finish()
+                await refreshEntitlement()
+            case .pending:
+                errorMessage = "This purchase is waiting for Apple’s approval."
+            case .userCancelled:
+                break
+            @unknown default:
+                errorMessage = "The purchase didn’t finish. Please try again."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func restorePurchases() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await AppStore.sync()
+            await refreshEntitlement()
+            if !entitlement.hasPremiumAccess {
+                errorMessage = "No active Kyndyn Premium purchase was found for this Apple Account."
+            }
+        } catch {
+            errorMessage = "Purchases couldn’t be restored. Please try again when you’re online."
+        }
+    }
+
+    func refreshEntitlement() async {
+        var newest: StoreKit.Transaction?
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard let transaction = try? Self.verified(result),
+                  KyndynStoreProducts.all.contains(transaction.productID)
+            else { continue }
+            if newest == nil || transaction.purchaseDate > newest!.purchaseDate {
+                newest = transaction
+            }
+        }
+
+        guard let transaction = newest else {
+            setEntitlement(.free)
+            return
+        }
+        if transaction.revocationDate != nil {
+            setEntitlement(PremiumEntitlement(
+                state: .revoked,
+                source: source(for: transaction),
+                expirationDate: transaction.expirationDate))
+            return
+        }
+        let state: PremiumAccessState
+        if let expiration = transaction.expirationDate, expiration <= .now {
+            state = .expired
+        } else {
+            state = await subscriptionState(for: transaction.productID)
+        }
+        setEntitlement(PremiumEntitlement(
+            state: state,
+            source: source(for: transaction),
+            expirationDate: transaction.expirationDate))
+    }
+
+    private func subscriptionState(for productID: String) async
+        -> PremiumAccessState {
+        guard let product = products.first(where: { $0.id == productID }),
+              let subscription = product.subscription,
+              let status = try? await subscription.status.first else {
+            return .active
+        }
+        switch status.state {
+        case .subscribed: return .active
+        case .inGracePeriod: return .gracePeriod
+        case .expired: return .expired
+        case .revoked: return .revoked
+        case .inBillingRetryPeriod: return .gracePeriod
+        default: return .free
+        }
+    }
+
+    private func source(for transaction: StoreKit.Transaction)
+        -> PremiumEntitlementSource {
+        transaction.ownershipType == .familyShared
+            ? .appleFamilySharing : .appStorePurchase
+    }
+
+    private func setEntitlement(_ value: PremiumEntitlement) {
+        entitlement = value
+        if value.hasPremiumAccess,
+           let data = try? JSONEncoder().encode(value) {
+            defaults.set(data, forKey: cacheKey)
+        } else {
+            defaults.removeObject(forKey: cacheKey)
+        }
+    }
+
+    nonisolated private static func verified<T>(
+        _ result: VerificationResult<T>
+    ) throws -> T {
+        switch result {
+        case .verified(let value): return value
+        case .unverified: throw StorePurchaseError.verificationFailed
+        }
+    }
 }
 
 struct ImportReport: Equatable {

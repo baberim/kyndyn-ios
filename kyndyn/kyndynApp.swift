@@ -222,6 +222,7 @@ final class ForegroundSyncPulse {
     @State private var invitationRouter = InvitationRouter(
         transport: CloudTransportFactory.make())
     @State private var automaticSync = AutomaticSyncCoordinator()
+    @State private var storeKit = StoreKitEntitlementController()
     @StateObject private var parentAccess = ParentAccessController()
     @Environment(\.scenePhase) private var scenePhase
     @State private var container: ModelContainer?
@@ -290,6 +291,7 @@ final class ForegroundSyncPulse {
                         .environment(cloudSync)
                         .environment(automaticSync)
                         .environment(invitationRouter)
+                        .environment(storeKit)
                         .environmentObject(parentAccess)
                         .modelContainer(container)
                 } else if let storeError {
@@ -331,6 +333,7 @@ final class ForegroundSyncPulse {
                 foregroundSyncPulse.start(coordinator: automaticSync)
                 parentAccess.unlockForUITesting()
                 automaticSync.request(.launch)
+                await storeKit.start()
             }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {

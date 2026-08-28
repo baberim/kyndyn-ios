@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UIKit
 import AppIntents
+import StoreKit
 
 private let companionChoices = CollectionCatalog.companionIDs
 private let colorChoices = [
@@ -3951,6 +3952,9 @@ private struct ParentRewardsProgressView: View {
 private struct ParentDevicePrivacyView: View {
     var body: some View {
         List {
+            NavigationLink { PremiumAccessView() } label: {
+                ParentMenuRow(title: "Kyndyn Premium", subtitle: "Plans, purchases, and restoration", systemImage: "sparkles", tint: KyndynTheme.purple)
+            }
             NavigationLink { NotificationSettingsView() } label: {
                 ParentMenuRow(title: "Reminders", subtitle: "Choose notification timing and privacy", systemImage: "bell.fill", tint: .blue)
             }
@@ -3965,6 +3969,167 @@ private struct ParentDevicePrivacyView: View {
         .scrollContentBackground(.hidden)
         .background(KyndynScreenBackground())
         .navigationTitle("Device and privacy")
+    }
+}
+
+struct PremiumAccessView: View {
+    @Environment(StoreKitEntitlementController.self) private var storeKit
+
+    private var annual: Product? {
+        storeKit.products.first { $0.id == KyndynStoreProducts.annual }
+    }
+
+    private var monthly: Product? {
+        storeKit.products.first { $0.id == KyndynStoreProducts.monthly }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                VStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 38, weight: .semibold))
+                        .foregroundStyle(KyndynTheme.purple)
+                    Text(storeKit.entitlement.hasPremiumAccess
+                         ? "Kyndyn Premium is active" : "More ways to make family life easier")
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                    Text(storeKit.entitlement.hasPremiumAccess
+                         ? entitlementDetail
+                         : "The complete family loop stays free. Premium adds optional planning, personalization, and Apple-device extras.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal)
+
+                if storeKit.entitlement.hasPremiumAccess {
+                    premiumFeatures
+                    Link("Manage subscription with Apple",
+                         destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+                        .buttonStyle(.borderedProminent)
+                        .tint(KyndynTheme.purple)
+                } else if storeKit.isLoading {
+                    ProgressView("Checking plans…")
+                        .frame(maxWidth: .infinity)
+                        .padding(30)
+                } else if annual == nil && monthly == nil {
+                    KyndynCallout(
+                        kind: .information,
+                        message: "Premium plans aren’t available in this build yet. Everything already in Kyndyn remains available.")
+                    Button("Try loading plans again") {
+                        Task { await storeKit.loadProducts() }
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    VStack(spacing: 12) {
+                        if let annual { planCard(annual, recommended: true) }
+                        if let monthly { planCard(monthly, recommended: false) }
+                    }
+                    premiumFeatures
+                }
+
+                if let error = storeKit.errorMessage {
+                    KyndynCallout(kind: .information, message: error)
+                }
+
+                Button("Restore purchases") {
+                    Task { await storeKit.restorePurchases() }
+                }
+                .disabled(storeKit.isLoading || storeKit.isPurchasing)
+
+                Text("Purchases are handled by Apple. Family Sharing availability follows the purchaser’s Apple family; joining a Kyndyn household does not prove Apple-family membership.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .frame(maxWidth: 680)
+            .padding()
+            .frame(maxWidth: .infinity)
+        }
+        .background(KyndynScreenBackground())
+        .navigationTitle("Kyndyn Premium")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if storeKit.products.isEmpty { await storeKit.start() }
+        }
+    }
+
+    private var entitlementDetail: String {
+        switch storeKit.entitlement.source {
+        case .appleFamilySharing: "Shared with you through Apple Family Sharing."
+        case .complimentary: "Complimentary access is active."
+        case .grandfathered: "Early-supporter access is active."
+        default: "Your subscription is active."
+        }
+    }
+
+    private var premiumFeatures: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Apple Watch companion", systemImage: "applewatch")
+            Label("Advanced planning and templates", systemImage: "calendar.badge.plus")
+            Label("Richer insights and customization", systemImage: "chart.xyaxis.line")
+            Label("Widgets and enhanced automations", systemImage: "square.grid.2x2.fill")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(
+            cornerRadius: 20, style: .continuous))
+    }
+
+    private func planCard(_ product: Product, recommended: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(recommended ? "Annual" : "Monthly")
+                        .font(.headline)
+                    Text(recommended ? "Best value" : "Flexible billing")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let trial = trialDescription(for: product) {
+                        Text(trial)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(KyndynTheme.purple)
+                    }
+                }
+                Spacer()
+                Text(product.displayPrice)
+                    .font(.title3.bold())
+                Text(recommended ? "/ year" : "/ month")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Button(recommended ? "Start annual plan" : "Choose monthly") {
+                Task { await storeKit.purchase(product) }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(recommended ? KyndynTheme.purple : .secondary)
+            .frame(maxWidth: .infinity)
+            .disabled(storeKit.isPurchasing)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(
+            cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(recommended ? KyndynTheme.purple.opacity(0.65)
+                        : Color.secondary.opacity(0.18), lineWidth: 1.5)
+        }
+    }
+
+    private func trialDescription(for product: Product) -> String? {
+        guard let offer = product.subscription?.introductoryOffer,
+              offer.paymentMode == .freeTrial else { return nil }
+        let period = offer.period
+        let unit: String
+        switch period.unit {
+        case .day: unit = period.value == 1 ? "day" : "days"
+        case .week: unit = period.value == 1 ? "week" : "weeks"
+        case .month: unit = period.value == 1 ? "month" : "months"
+        case .year: unit = period.value == 1 ? "year" : "years"
+        @unknown default: return "Free trial available"
+        }
+        return "Try free for \(period.value) \(unit)"
     }
 }
 

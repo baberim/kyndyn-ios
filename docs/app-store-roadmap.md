@@ -369,12 +369,14 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
   complimentary access, and grandfathering boundaries.
 - See `docs/build-32-premium-foundation.md`.
 
-### Build 33 — StoreKit implementation
+### Build 33 — StoreKit implementation — implemented
 
-- Add StoreKit only after Build 32's product and family-purchase rules are
-  approved and covered by deterministic tests.
-- Validate purchases, restoration, expiration, refunds, Family Sharing, and
-  complimentary access in Apple's sandbox before TestFlight.
+- Added verified StoreKit 2 purchases, restoration, transaction updates,
+  localized plans, entitlement caching, and family-safe expiration behavior.
+- Added the authenticated Parent-area Premium surface without gating any
+  currently shipped feature.
+- Local StoreKit and Apple sandbox transaction scenarios remain the next manual
+  validation boundary. See `docs/build-33-storekit.md`.
 
 ### Build 34 — Apple Watch premium companion
 
