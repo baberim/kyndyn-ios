@@ -378,13 +378,24 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 - Local StoreKit and Apple sandbox transaction scenarios remain the next manual
   validation boundary. See `docs/build-33-storekit.md`.
 
-### Build 34 — Apple Watch premium companion
+### Build 34 — Premium discovery — implemented
+
+- Surface the Premium trial in the protected Parent dashboard for free
+  households without advertising subscriptions to children.
+- Replace developer-oriented entitlement language with concise, concrete
+  customer benefits.
+- Keep membership management available but visually quiet after subscription.
+- Keep all currently shipped features available while the premium feature set
+  is built and validated.
+- See `docs/build-34-premium-discovery.md`.
+
+### Build 35 — Apple Watch premium companion
 
 - Build a deliberately small Watch experience for viewing today's quests,
   completing an exact occurrence, and seeing current progress.
 - Keep the phone app useful without a Watch and treat Watch access as premium.
 
-### Build 35 — Public-release hardening
+### Build 36 — Public-release hardening
 
 - Complete the remaining security, accessibility, localization, privacy,
   support, physical-device, and App Store release gates.

@@ -157,11 +157,12 @@ struct InvitationLandingView: View {
 }
 
 private enum OnboardingLesson: Int, CaseIterable {
-    case familyLoop, profiles, sync, backup
+    case familyLoop, premium, profiles, sync, backup
 
     var icon: String {
         switch self {
         case .familyLoop: "checkmark.circle"
+        case .premium: "sparkles"
         case .profiles: "person.3"
         case .sync: "icloud"
         case .backup: "externaldrive"
@@ -171,6 +172,7 @@ private enum OnboardingLesson: Int, CaseIterable {
     var title: String {
         switch self {
         case .familyLoop: "Small quests. Shared progress."
+        case .premium: "Start free. Add more when you want."
         case .profiles: "Profiles and invitations are different"
         case .sync: "Choose how your family stays connected"
         case .backup: "Keep a private backup too"
@@ -181,6 +183,8 @@ private enum OnboardingLesson: Int, CaseIterable {
         switch self {
         case .familyLoop:
             "Parents create quests. Family members complete them, earn XP, and move the family reward forward."
+        case .premium:
+            "Everything your family needs for quests, progress, and sharing is free. Premium adds extra planning, personalization, insights, and Apple-device features."
         case .profiles:
             "Add a profile for each person in your household. Invite another device only after family sync is enabled."
         case .sync:
@@ -1317,6 +1321,7 @@ struct DashboardView: View {
     }
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Environment(\.modelContext) private var context
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -1358,6 +1363,16 @@ struct DashboardView: View {
                         }
                         dashboardModePicker
                             .padding(.horizontal)
+                        if shouldShowPremiumDiscovery {
+                            NavigationLink { PremiumAccessView() } label: {
+                                HomePremiumDiscoveryCard()
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal)
+                            .frame(maxWidth: AdaptiveLayout.readableContentMaximum)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityIdentifier("home-premium-discovery")
+                        }
                         if ProgressionEngine.isSchedulePaused(
                             on: .now, household: household),
                            let end = household.schedulePauseEndsAt {
@@ -1471,6 +1486,18 @@ struct DashboardView: View {
                 await refreshWeatherIfNeeded()
             }
         }
+    }
+
+    private var shouldShowPremiumDiscovery: Bool {
+        guard !storeKit.entitlement.hasPremiumAccess else { return false }
+        if let person { return person.role == .parent }
+        guard deviceSettings.first?.showsHouseholdDashboard == true else {
+            return false
+        }
+        guard let devicePersonID = deviceSettings.first?.devicePersonID else {
+            return false
+        }
+        return people.first { $0.id == devicePersonID && $0.deletedAt == nil }?.role == .parent
     }
 
     @ViewBuilder private var dayContext: some View {
@@ -3663,6 +3690,7 @@ struct FamilyBroadcastEditorView: View {
 struct ParentAreaView: View {
     @EnvironmentObject private var access: ParentAccessController
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Query private var households: [Household]
     @Query private var people: [Person]
     @Query private var quests: [Quest]
@@ -3698,6 +3726,28 @@ struct ParentAreaView: View {
                             ProgressView(value: min(Double(rewardXP(household)),
                                                     Double(rewardTarget(household))),
                                          total: Double(rewardTarget(household)))
+                        }
+                    }
+                    if storeKit.entitlement.hasPremiumAccess {
+                        Section("Membership") {
+                            NavigationLink { PremiumAccessView() } label: {
+                                parentRow(
+                                    "Kyndyn Premium is active",
+                                    "Manage your plan or restore a purchase",
+                                    "sparkles", KyndynTheme.purple)
+                            }
+                        }
+                    } else {
+                        Section {
+                            NavigationLink { PremiumAccessView() } label: {
+                                PremiumDiscoveryCard()
+                            }
+                            .listRowBackground(
+                                LinearGradient(
+                                    colors: [KyndynTheme.purple, KyndynTheme.pink],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing))
+                            .accessibilityIdentifier("parent-premium-discovery")
                         }
                     }
                     Section("This week") {
@@ -3900,6 +3950,78 @@ private struct ParentMenuRow: View {
     }
 }
 
+private struct PremiumDiscoveryCard: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(.white.opacity(0.18), in: RoundedRectangle(
+                    cornerRadius: 15, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Make family life a little easier")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("Try Kyndyn Premium free for 2 weeks")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.86))
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.subheadline.bold())
+                .foregroundStyle(.white.opacity(0.72))
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Kyndyn Premium")
+        .accessibilityHint("Try Kyndyn Premium free for two weeks")
+    }
+}
+
+private struct HomePremiumDiscoveryCard: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(.white.opacity(0.18), in: RoundedRectangle(
+                    cornerRadius: 12, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Discover Kyndyn Premium")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("Try more planning and personalization free for 2 weeks")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Text("Upgrade")
+                .font(.subheadline.bold())
+                .foregroundStyle(KyndynTheme.purple)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.white, in: Capsule())
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [KyndynTheme.purple, KyndynTheme.pink],
+                startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Discover Kyndyn Premium")
+        .accessibilityHint("Try Premium free for two weeks")
+    }
+}
+
 private struct ParentFamilyToolsView: View {
     var body: some View {
         List {
@@ -3952,9 +4074,6 @@ private struct ParentRewardsProgressView: View {
 private struct ParentDevicePrivacyView: View {
     var body: some View {
         List {
-            NavigationLink { PremiumAccessView() } label: {
-                ParentMenuRow(title: "Kyndyn Premium", subtitle: "Plans, purchases, and restoration", systemImage: "sparkles", tint: KyndynTheme.purple)
-            }
             NavigationLink { NotificationSettingsView() } label: {
                 ParentMenuRow(title: "Reminders", subtitle: "Choose notification timing and privacy", systemImage: "bell.fill", tint: .blue)
             }
@@ -3991,12 +4110,12 @@ struct PremiumAccessView: View {
                         .font(.system(size: 38, weight: .semibold))
                         .foregroundStyle(KyndynTheme.purple)
                     Text(storeKit.entitlement.hasPremiumAccess
-                         ? "Kyndyn Premium is active" : "More ways to make family life easier")
+                         ? "Kyndyn Premium is active" : "Make every day a little easier")
                         .font(.title2.bold())
                         .multilineTextAlignment(.center)
                     Text(storeKit.entitlement.hasPremiumAccess
                          ? entitlementDetail
-                         : "The complete family loop stays free. Premium adds optional planning, personalization, and Apple-device extras.")
+                         : "Get extra planning tools, more ways to make Kyndyn your own, and new features across your Apple devices.")
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -4037,7 +4156,7 @@ struct PremiumAccessView: View {
                 }
                 .disabled(storeKit.isLoading || storeKit.isPurchasing)
 
-                Text("Purchases are handled by Apple. Family Sharing availability follows the purchaser’s Apple family; joining a Kyndyn household does not prove Apple-family membership.")
+                Text("Apple manages your subscription. Eligible family members can share Premium when Apple Family Sharing is available.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -4066,10 +4185,12 @@ struct PremiumAccessView: View {
 
     private var premiumFeatures: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Apple Watch companion", systemImage: "applewatch")
-            Label("Advanced planning and templates", systemImage: "calendar.badge.plus")
-            Label("Richer insights and customization", systemImage: "chart.xyaxis.line")
-            Label("Widgets and enhanced automations", systemImage: "square.grid.2x2.fill")
+            Text("More with Premium")
+                .font(.headline)
+            Label("Plan ahead with reusable family routines", systemImage: "calendar.badge.plus")
+            Label("Unlock more ways to personalize Kyndyn", systemImage: "paintpalette.fill")
+            Label("See more of your family’s progress", systemImage: "chart.xyaxis.line")
+            Label("Enjoy new Watch and widget features as they arrive", systemImage: "applewatch")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

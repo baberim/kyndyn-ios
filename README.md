@@ -4,14 +4,14 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development build — 0.33.0 (Build 33)
+## Current development build — 0.34.0 (Build 34)
 
-Build 33 connects Kyndyn's approved premium rules to StoreKit 2. Adults can see
-localized plans, purchase or restore through Apple, and receive verified
-transaction updates. Direct purchases and Apple Family Sharing are recognized
-separately, offline startup can use a bounded verified entitlement cache, and
-expiration never hides family data or earned items. No currently shipped
-feature has been placed behind the premium boundary.
+Build 34 makes Premium easy for parents to discover without advertising it to
+children or interrupting everyday use. Free households see a clear trial card
+in the protected Parent dashboard; subscribed households see a quieter
+membership-management row. The purchase screen now describes concrete family
+benefits in plain language. No currently shipped feature has been placed behind
+the premium boundary.
 
 The app provides a locally usable vertical slice:
 
@@ -120,6 +120,8 @@ See [`docs/build-32-premium-foundation.md`](docs/build-32-premium-foundation.md)
 for pricing, free and premium boundaries, and entitlement lifecycle rules.
 See [`docs/build-33-storekit.md`](docs/build-33-storekit.md) for StoreKit 2
 behavior and the local/App Store Connect configuration boundary.
+See [`docs/build-34-premium-discovery.md`](docs/build-34-premium-discovery.md)
+for Premium placement and customer-language rules.
 See [`docs/build-24-personalization-settings.md`](docs/build-24-personalization-settings.md)
 for the separated App color, Companion, Background, and App icon settings.
 See [`docs/build-20-household-data-safety.md`](docs/build-20-household-data-safety.md),
