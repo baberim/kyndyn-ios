@@ -3942,11 +3942,14 @@ private struct PremiumDiscoveryCard: View {
                 .foregroundStyle(.white.opacity(0.72))
                 .accessibilityHidden(true)
         }
-        .padding(.vertical, 10)
-        .listRowBackground(
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
             LinearGradient(
                 colors: [KyndynTheme.purple, KyndynTheme.pink],
-                startPoint: .topLeading, endPoint: .bottomTrailing))
+                startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Kyndyn Premium")
         .accessibilityHint("Try Kyndyn Premium free for two weeks")
