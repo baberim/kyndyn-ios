@@ -319,8 +319,6 @@ enum StorePurchaseError: LocalizedError {
     private(set) var products: [Product] = []
     private(set) var entitlement: PremiumEntitlement
     private(set) var isLoading = false
-    private(set) var isPurchasing = false
-    private(set) var purchasingProductID: String?
     private(set) var purchaseStatusMessage: String?
     var errorMessage: String?
 
@@ -399,59 +397,47 @@ enum StorePurchaseError: LocalizedError {
         }
     }
 
-    func purchase(_ product: Product, using purchase: PurchaseAction) async {
-        guard !isPurchasing else { return }
-        isPurchasing = true
-        purchasingProductID = product.id
+    func storePurchaseStarted(_ product: Product) {
         errorMessage = nil
         purchaseStatusMessage = "Contacting Apple…"
-        defer {
-            isPurchasing = false
-            purchasingProductID = nil
-        }
-        do {
-            // PurchaseAction is supplied by SwiftUI for the view's own scene.
-            // This matters on iPad, where more than one UIWindowScene can exist
-            // and StoreKit must present its confirmation UI in the active one.
-            switch try await purchase(product) {
-            case .success(let verification):
+    }
+
+    func storePurchaseCompleted(
+        _ product: Product,
+        result: Result<Product.PurchaseResult, Error>
+    ) async {
+        switch result {
+        case .success(.success(let verification)):
+            do {
                 let transaction = try Self.verified(verification)
                 await transaction.finish()
                 await refreshEntitlement()
+                errorMessage = nil
                 purchaseStatusMessage = entitlement.hasPremiumAccess
                     ? "Kyndyn Premium is now active."
                     : "Purchase completed. Checking Premium access…"
-            case .pending:
-                purchaseStatusMessage = "This purchase is waiting for Apple’s approval."
-            case .userCancelled:
-                purchaseStatusMessage = "Purchase canceled. You weren’t charged."
-            @unknown default:
+            } catch {
                 purchaseStatusMessage = nil
-                errorMessage = "The purchase didn’t finish. Please try again."
+                errorMessage = error.localizedDescription
             }
-        } catch {
+        case .success(.pending):
+            purchaseStatusMessage = "This purchase is waiting for Apple’s approval."
+        case .success(.userCancelled):
+            purchaseStatusMessage = "Purchase canceled. You weren’t charged."
+        case .success:
             purchaseStatusMessage = nil
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func restorePurchases() async {
-        isLoading = true
-        errorMessage = nil
-        purchaseStatusMessage = "Checking purchases with Apple…"
-        defer { isLoading = false }
-        do {
-            try await AppStore.sync()
+            errorMessage = "The purchase didn’t finish. Please try again."
+        case .failure(let error):
+            // A delayed transaction update remains the source of truth even if
+            // StoreKit's presentation callback itself reports a transient error.
             await refreshEntitlement()
             if entitlement.hasPremiumAccess {
-                purchaseStatusMessage = "Kyndyn Premium has been restored."
+                errorMessage = nil
+                purchaseStatusMessage = "Kyndyn Premium is now active."
             } else {
                 purchaseStatusMessage = nil
-                errorMessage = "No active Kyndyn Premium purchase was found for this Apple Account."
+                errorMessage = error.localizedDescription
             }
-        } catch {
-            purchaseStatusMessage = nil
-            errorMessage = "Purchases couldn’t be restored. Please try again when you’re online."
         }
     }
 
@@ -512,11 +498,14 @@ enum StorePurchaseError: LocalizedError {
             ? .appleFamilySharing : .appStorePurchase
     }
 
-    private func setEntitlement(_ value: PremiumEntitlement) {
+    func setEntitlement(_ value: PremiumEntitlement) {
         entitlement = value
         if value.hasPremiumAccess,
            let data = try? JSONEncoder().encode(value) {
             defaults.set(data, forKey: cacheKey)
+            // Entitlement state is authoritative. Never leave an older StoreKit
+            // presentation error visible after access has been granted.
+            errorMessage = nil
         } else {
             defaults.removeObject(forKey: cacheKey)
         }

@@ -4310,15 +4310,6 @@ private struct ParentDevicePrivacyView: View {
 
 struct PremiumAccessView: View {
     @Environment(StoreKitEntitlementController.self) private var storeKit
-    @Environment(\.purchase) private var purchase
-
-    private var annual: Product? {
-        storeKit.products.first { $0.id == KyndynStoreProducts.annual }
-    }
-
-    private var monthly: Product? {
-        storeKit.products.first { $0.id == KyndynStoreProducts.monthly }
-    }
 
     var body: some View {
         ScrollView {
@@ -4345,22 +4336,19 @@ struct PremiumAccessView: View {
                          destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
                         .buttonStyle(.borderedProminent)
                         .tint(KyndynTheme.purple)
-                } else if storeKit.isLoading {
-                    ProgressView("Checking plans…")
-                        .frame(maxWidth: .infinity)
-                        .padding(30)
-                } else if annual == nil && monthly == nil {
-                    KyndynCallout(
-                        kind: .information,
-                        message: "Premium plans aren’t available in this build yet. Everything already in Kyndyn remains available.")
-                    Button("Try loading plans again") {
-                        Task { await storeKit.loadProducts() }
-                    }
-                    .buttonStyle(.bordered)
                 } else {
-                    VStack(spacing: 12) {
-                        if let annual { planCard(annual, recommended: true) }
-                        if let monthly { planCard(monthly, recommended: false) }
+                    SubscriptionStoreView(productIDs: KyndynStoreProducts.all) {
+                        EmptyView()
+                    }
+                    .subscriptionStoreControlStyle(.buttons)
+                    .subscriptionStoreButtonLabel(.multiline)
+                    .storeButton(.visible, for: .restorePurchases)
+                    .onInAppPurchaseStart { product in
+                        storeKit.storePurchaseStarted(product)
+                    }
+                    .onInAppPurchaseCompletion { product, result in
+                        await storeKit.storePurchaseCompleted(
+                            product, result: result)
                     }
                     premiumFeatures
                 }
@@ -4372,11 +4360,6 @@ struct PremiumAccessView: View {
                     KyndynCallout(kind: .information, message: status)
                         .accessibilityIdentifier("premium-purchase-status")
                 }
-
-                Button("Restore purchases") {
-                    Task { await storeKit.restorePurchases() }
-                }
-                .disabled(storeKit.isLoading || storeKit.isPurchasing)
 
                 Text("Apple manages your subscription. Eligible family members can share Premium when Apple Family Sharing is available.")
                     .font(.footnote)
@@ -4420,72 +4403,6 @@ struct PremiumAccessView: View {
             cornerRadius: 20, style: .continuous))
     }
 
-    private func planCard(_ product: Product, recommended: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(recommended ? "Annual" : "Monthly")
-                        .font(.headline)
-                    Text(recommended ? "Best value" : "Flexible billing")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let trial = trialDescription(for: product) {
-                        Text(trial)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(KyndynTheme.purple)
-                    }
-                }
-                Spacer()
-                Text(product.displayPrice)
-                    .font(.title3.bold())
-                Text(recommended ? "/ year" : "/ month")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Button {
-                Task { await storeKit.purchase(product, using: purchase) }
-            } label: {
-                HStack(spacing: 8) {
-                    if storeKit.purchasingProductID == product.id {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Text(storeKit.purchasingProductID == product.id
-                         ? "Waiting for Apple…"
-                         : (recommended ? "Start annual plan" : "Choose monthly"))
-                }
-                .frame(maxWidth: .infinity, minHeight: 28)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(recommended ? KyndynTheme.purple : .secondary)
-            .disabled(storeKit.isPurchasing)
-            .accessibilityIdentifier(
-                recommended ? "premium-buy-annual" : "premium-buy-monthly")
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(
-            cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(recommended ? KyndynTheme.purple.opacity(0.65)
-                        : Color.secondary.opacity(0.18), lineWidth: 1.5)
-        }
-    }
-
-    private func trialDescription(for product: Product) -> String? {
-        guard let offer = product.subscription?.introductoryOffer,
-              offer.paymentMode == .freeTrial else { return nil }
-        let period = offer.period
-        let unit: String
-        switch period.unit {
-        case .day: unit = period.value == 1 ? "day" : "days"
-        case .week: unit = period.value == 1 ? "week" : "weeks"
-        case .month: unit = period.value == 1 ? "month" : "months"
-        case .year: unit = period.value == 1 ? "year" : "years"
-        @unknown default: return "Free trial available"
-        }
-        return "Try free for \(period.value) \(unit)"
-    }
 }
 
 struct FamilyInsightsView: View {

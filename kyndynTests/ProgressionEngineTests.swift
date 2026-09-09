@@ -59,6 +59,22 @@ final class DeviceContextPolicyTests: XCTestCase {
 }
 
 final class PremiumEntitlementPolicyTests: XCTestCase {
+    @MainActor func testVerifiedPremiumClearsOlderStoreKitError() {
+        let suiteName = "PremiumEntitlementPolicyTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = StoreKitEntitlementController(defaults: defaults)
+        controller.errorMessage = "Unable to Complete Request"
+
+        controller.setEntitlement(PremiumEntitlement(
+            state: .active,
+            source: .appStorePurchase,
+            expirationDate: Date(timeIntervalSinceNow: 86_400)))
+
+        XCTAssertTrue(controller.entitlement.hasPremiumAccess)
+        XCTAssertNil(controller.errorMessage)
+    }
+
     func testStoreProductIdentifiersAreStableAndUnique() {
         XCTAssertEqual(KyndynStoreProducts.all, [
             "com.kyndynfamily.kyndyn.premium.annual",
