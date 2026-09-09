@@ -4341,7 +4341,7 @@ struct PremiumAccessView: View {
                         EmptyView()
                     }
                     .subscriptionStoreControlStyle(.buttons)
-                    .subscriptionStoreButtonLabel(.multiline)
+                    .subscriptionStoreButtonLabel(.displayName.singleLine)
                     .storeButton(.visible, for: .restorePurchases)
                     .onInAppPurchaseStart { product in
                         storeKit.storePurchaseStarted(product)
@@ -4354,10 +4354,12 @@ struct PremiumAccessView: View {
                 }
 
                 if let error = storeKit.errorMessage {
-                    KyndynCallout(kind: .information, message: error)
+                    PremiumStoreStatus(message: error, style: .error)
                 }
                 if let status = storeKit.purchaseStatusMessage {
-                    KyndynCallout(kind: .information, message: status)
+                    PremiumStoreStatus(
+                        message: status,
+                        style: purchaseStatusStyle(for: status))
                         .accessibilityIdentifier("premium-purchase-status")
                 }
 
@@ -4388,6 +4390,15 @@ struct PremiumAccessView: View {
         }
     }
 
+    private func purchaseStatusStyle(for message: String) -> PremiumStoreStatus.Style {
+        if message == "Contacting Apple…"
+            || message.contains("Checking Premium access") {
+            return .progress
+        }
+        if message.contains("now active") { return .success }
+        return .neutral
+    }
+
     private var premiumFeatures: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("More with Premium")
@@ -4403,6 +4414,56 @@ struct PremiumAccessView: View {
             cornerRadius: 20, style: .continuous))
     }
 
+}
+
+private struct PremiumStoreStatus: View {
+    enum Style: Equatable {
+        case progress
+        case success
+        case neutral
+        case error
+
+        var color: Color {
+            switch self {
+            case .progress: KyndynTheme.purple
+            case .success: KyndynTheme.green
+            case .neutral: .secondary
+            case .error: .red
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .progress: ""
+            case .success: "checkmark.circle.fill"
+            case .neutral: "info.circle"
+            case .error: "exclamationmark.circle.fill"
+            }
+        }
+    }
+
+    let message: String
+    let style: Style
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if style == .progress {
+                ProgressView()
+                    .tint(style.color)
+            } else {
+                Image(systemName: style.systemImage)
+                    .foregroundStyle(style.color)
+            }
+
+            Text(message)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(style == .error ? style.color : .primary)
+                .multilineTextAlignment(.leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .combine)
+    }
 }
 
 struct FamilyInsightsView: View {
