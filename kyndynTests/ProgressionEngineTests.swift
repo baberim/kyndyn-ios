@@ -60,10 +60,17 @@ final class DeviceContextPolicyTests: XCTestCase {
 
 final class PremiumEntitlementPolicyTests: XCTestCase {
     func testStoreProductIdentifiersAreStableAndUnique() {
-        XCTAssertEqual(KyndynStoreProducts.all.count, 2)
+        XCTAssertEqual(KyndynStoreProducts.all, [
+            "com.kyndynfamily.kyndyn.premium.annual",
+            "com.kyndynfamily.kyndyn.premium.monthly"
+        ])
         XCTAssertEqual(Set(KyndynStoreProducts.all).count, 2)
-        XCTAssertTrue(KyndynStoreProducts.monthly.hasSuffix(".monthly"))
-        XCTAssertTrue(KyndynStoreProducts.annual.hasSuffix(".annual"))
+    }
+
+    func testUnavailableProductErrorIsActionable() {
+        XCTAssertEqual(
+            StorePurchaseError.productUnavailable.localizedDescription,
+            "Premium plans aren’t available right now. Please try again later.")
     }
 
     func testOnlyActiveAndGracePeriodGrantPremiumAccess() {

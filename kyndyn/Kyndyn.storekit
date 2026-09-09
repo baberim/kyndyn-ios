@@ -55,7 +55,7 @@
 
           ],
           "displayPrice" : "3.99",
-          "familyShareable" : false,
+          "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "AF728189",
           "introductoryOffer" : {
@@ -107,7 +107,7 @@
 
           ],
           "displayPrice" : "29.99",
-          "familyShareable" : false,
+          "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "0FACC3C6",
           "introductoryOffer" : {

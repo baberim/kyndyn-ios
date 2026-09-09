@@ -4310,6 +4310,7 @@ private struct ParentDevicePrivacyView: View {
 
 struct PremiumAccessView: View {
     @Environment(StoreKitEntitlementController.self) private var storeKit
+    @Environment(\.purchase) private var purchase
 
     private var annual: Product? {
         storeKit.products.first { $0.id == KyndynStoreProducts.annual }
@@ -4366,6 +4367,10 @@ struct PremiumAccessView: View {
 
                 if let error = storeKit.errorMessage {
                     KyndynCallout(kind: .information, message: error)
+                }
+                if let status = storeKit.purchaseStatusMessage {
+                    KyndynCallout(kind: .information, message: status)
+                        .accessibilityIdentifier("premium-purchase-status")
                 }
 
                 Button("Restore purchases") {
@@ -4437,13 +4442,25 @@ struct PremiumAccessView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Button(recommended ? "Start annual plan" : "Choose monthly") {
-                Task { await storeKit.purchase(product) }
+            Button {
+                Task { await storeKit.purchase(product, using: purchase) }
+            } label: {
+                HStack(spacing: 8) {
+                    if storeKit.purchasingProductID == product.id {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(storeKit.purchasingProductID == product.id
+                         ? "Waiting for Apple…"
+                         : (recommended ? "Start annual plan" : "Choose monthly"))
+                }
+                .frame(maxWidth: .infinity, minHeight: 28)
             }
             .buttonStyle(.borderedProminent)
             .tint(recommended ? KyndynTheme.purple : .secondary)
-            .frame(maxWidth: .infinity)
             .disabled(storeKit.isPurchasing)
+            .accessibilityIdentifier(
+                recommended ? "premium-buy-annual" : "premium-buy-monthly")
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(

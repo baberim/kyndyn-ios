@@ -320,6 +320,8 @@ enum StorePurchaseError: LocalizedError {
     private(set) var entitlement: PremiumEntitlement
     private(set) var isLoading = false
     private(set) var isPurchasing = false
+    private(set) var purchasingProductID: String?
+    private(set) var purchaseStatusMessage: String?
     var errorMessage: String?
 
     private let defaults: UserDefaults
@@ -386,43 +388,69 @@ enum StorePurchaseError: LocalizedError {
                 if $1.id == KyndynStoreProducts.annual { return false }
                 return $0.price < $1.price
             }
-            errorMessage = nil
+            if products.isEmpty {
+                errorMessage = StorePurchaseError.productUnavailable
+                    .localizedDescription
+            } else {
+                errorMessage = nil
+            }
         } catch {
             errorMessage = "Premium plans couldn’t be loaded. Your family data is unaffected."
         }
     }
 
-    func purchase(_ product: Product) async {
+    func purchase(_ product: Product, using purchase: PurchaseAction) async {
+        guard !isPurchasing else { return }
         isPurchasing = true
-        defer { isPurchasing = false }
+        purchasingProductID = product.id
+        errorMessage = nil
+        purchaseStatusMessage = "Contacting Apple…"
+        defer {
+            isPurchasing = false
+            purchasingProductID = nil
+        }
         do {
-            switch try await product.purchase() {
+            // PurchaseAction is supplied by SwiftUI for the view's own scene.
+            // This matters on iPad, where more than one UIWindowScene can exist
+            // and StoreKit must present its confirmation UI in the active one.
+            switch try await purchase(product) {
             case .success(let verification):
                 let transaction = try Self.verified(verification)
                 await transaction.finish()
                 await refreshEntitlement()
+                purchaseStatusMessage = entitlement.hasPremiumAccess
+                    ? "Kyndyn Premium is now active."
+                    : "Purchase completed. Checking Premium access…"
             case .pending:
-                errorMessage = "This purchase is waiting for Apple’s approval."
+                purchaseStatusMessage = "This purchase is waiting for Apple’s approval."
             case .userCancelled:
-                break
+                purchaseStatusMessage = "Purchase canceled. You weren’t charged."
             @unknown default:
+                purchaseStatusMessage = nil
                 errorMessage = "The purchase didn’t finish. Please try again."
             }
         } catch {
+            purchaseStatusMessage = nil
             errorMessage = error.localizedDescription
         }
     }
 
     func restorePurchases() async {
         isLoading = true
+        errorMessage = nil
+        purchaseStatusMessage = "Checking purchases with Apple…"
         defer { isLoading = false }
         do {
             try await AppStore.sync()
             await refreshEntitlement()
-            if !entitlement.hasPremiumAccess {
+            if entitlement.hasPremiumAccess {
+                purchaseStatusMessage = "Kyndyn Premium has been restored."
+            } else {
+                purchaseStatusMessage = nil
                 errorMessage = "No active Kyndyn Premium purchase was found for this Apple Account."
             }
         } catch {
+            purchaseStatusMessage = nil
             errorMessage = "Purchases couldn’t be restored. Please try again when you’re online."
         }
     }

@@ -4,9 +4,10 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development build — 0.35.0 (Build 35)
+## Current release candidate — 1.0 (Build 36)
 
-Build 35 enforces the first Premium boundaries without weakening Kyndyn's free
+Build 36 includes the App Review subscription-purchase correction and retains
+Build 35's first Premium boundaries without weakening Kyndyn's free
 family essentials. Advanced quest planning, detailed family insights, expanded
 earned companion and background collections, and alternate app icons now show
 clear Premium states, while active and grace-period members can use them normally. Existing
