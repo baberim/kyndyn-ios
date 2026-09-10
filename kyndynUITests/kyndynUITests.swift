@@ -284,6 +284,34 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.buttons["See Premium plans"].exists)
     }
 
+    func testPremiumPlansRenderCompleteLabelsOnPhone() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Profiles", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+
+        let premium = app.descendants(matching: .any)[
+            "parent-premium-discovery"]
+        reveal(premium, in: app)
+        premium.tap()
+
+        XCTAssertTrue(app.navigationBars["Kyndyn Premium"]
+            .waitForExistence(timeout: 5))
+        let annual = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Annual plan"))
+            .firstMatch
+        let monthly = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Monthly plan"))
+            .firstMatch
+        XCTAssertTrue(annual.waitForExistence(timeout: 8))
+        XCTAssertTrue(monthly.exists)
+        XCTAssertTrue(annual.label.contains("free, then"))
+        XCTAssertTrue(monthly.label.contains("free, then"))
+
+        app.navigationBars["Kyndyn Premium"].buttons.firstMatch.tap()
+        XCTAssertTrue(premium.waitForExistence(timeout: 3))
+    }
+
     func testParentCanRunPrivacySafeHouseholdSafetyCheck() throws {
         let app = launch(parentUnlocked: true)
         tapTab("Profiles", in: app)
