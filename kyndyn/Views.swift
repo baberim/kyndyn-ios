@@ -4337,19 +4337,37 @@ struct PremiumAccessView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(KyndynTheme.purple)
                 } else {
-                    SubscriptionStoreView(productIDs: KyndynStoreProducts.all) {
-                        EmptyView()
+                    Group {
+                        if storeKit.products.isEmpty && storeKit.isLoading {
+                            ProgressView("Loading Premium plans…")
+                                .foregroundStyle(.secondary)
+                        } else if !storeKit.products.isEmpty {
+                            SubscriptionStoreView(productIDs: KyndynStoreProducts.all) {
+                                EmptyView()
+                            }
+                            .subscriptionStoreControlStyle(
+                                KyndynSubscriptionButtonStyle())
+                            .storeButton(.visible, for: .restorePurchases)
+                            .onInAppPurchaseStart { product in
+                                storeKit.storePurchaseStarted(product)
+                            }
+                            .onInAppPurchaseCompletion { product, result in
+                                await storeKit.storePurchaseCompleted(
+                                    product, result: result)
+                            }
+                        } else {
+                            VStack(spacing: 12) {
+                                Text("Premium plans aren’t available right now.")
+                                    .foregroundStyle(.secondary)
+                                Button("Try loading plans again") {
+                                    Task { await storeKit.loadProducts() }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(KyndynTheme.purple)
+                            }
+                        }
                     }
-                    .subscriptionStoreControlStyle(.buttons)
-                    .subscriptionStoreButtonLabel(.displayName.singleLine)
-                    .storeButton(.visible, for: .restorePurchases)
-                    .onInAppPurchaseStart { product in
-                        storeKit.storePurchaseStarted(product)
-                    }
-                    .onInAppPurchaseCompletion { product, result in
-                        await storeKit.storePurchaseCompleted(
-                            product, result: result)
-                    }
+                    .frame(minHeight: 220)
                     premiumFeatures
                 }
 
@@ -4414,6 +4432,72 @@ struct PremiumAccessView: View {
             cornerRadius: 20, style: .continuous))
     }
 
+}
+
+private struct KyndynSubscriptionButtonStyle: SubscriptionStoreControlStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(spacing: 14) {
+            ForEach(configuration.options) { option in
+                Button {
+                    option.subscribe()
+                } label: {
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(planName(for: option.subscription))
+                                .font(.headline)
+                            Text(priceDetail(for: option))
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.88))
+                        }
+                        Spacer(minLength: 12)
+                        Image(systemName: "arrow.right")
+                            .font(.subheadline.bold())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, minHeight: 64)
+                    .background(KyndynTheme.purple,
+                                in: RoundedRectangle(
+                                    cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens Apple’s purchase confirmation")
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func planName(for product: Product) -> String {
+        switch product.id {
+        case KyndynStoreProducts.annual: "Annual plan"
+        case KyndynStoreProducts.monthly: "Monthly plan"
+        default: product.displayName
+        }
+    }
+
+    private func priceDetail(for option: Configuration.Option) -> String {
+        let product = option.subscription
+        let renewal = "\(product.displayPrice) / \(periodName(product.subscription?.subscriptionPeriod))"
+        guard let offer = option.activeOffer,
+              offer.paymentMode == .freeTrial else { return renewal }
+        return "\(periodText(offer.period)) free, then \(renewal)"
+    }
+
+    private func periodName(_ period: Product.SubscriptionPeriod?) -> String {
+        guard let period else { return "period" }
+        return switch period.unit {
+        case .day: period.value == 1 ? "day" : "\(period.value) days"
+        case .week: period.value == 1 ? "week" : "\(period.value) weeks"
+        case .month: period.value == 1 ? "month" : "\(period.value) months"
+        case .year: period.value == 1 ? "year" : "\(period.value) years"
+        @unknown default: "period"
+        }
+    }
+
+    private func periodText(_ period: Product.SubscriptionPeriod) -> String {
+        let name = periodName(period)
+        return name.prefix(1).uppercased() + name.dropFirst()
+    }
 }
 
 private struct PremiumStoreStatus: View {
