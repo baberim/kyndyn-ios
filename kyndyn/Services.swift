@@ -448,7 +448,7 @@ enum StorePurchaseError: LocalizedError {
         case .success(.pending):
             purchaseStatusMessage = "This purchase is waiting for Apple’s approval."
         case .success(.userCancelled):
-            purchaseStatusMessage = "Purchase canceled. You weren’t charged."
+            purchaseStatusMessage = "Purchase cancelled. You weren’t charged."
         case .success:
             purchaseStatusMessage = nil
             errorMessage = "The purchase didn’t finish. Please try again."
