@@ -402,6 +402,31 @@ enum StorePurchaseError: LocalizedError {
         purchaseStatusMessage = "Contacting Apple…"
     }
 
+    func purchase(_ product: Product) async {
+        storePurchaseStarted(product)
+        do {
+            let result = try await product.purchase()
+            await storePurchaseCompleted(product, result: .success(result))
+        } catch {
+            await storePurchaseCompleted(product, result: .failure(error))
+        }
+    }
+
+    func restorePurchases() async {
+        errorMessage = nil
+        purchaseStatusMessage = "Restoring purchases…"
+        do {
+            try await AppStore.sync()
+            await refreshEntitlement()
+            purchaseStatusMessage = entitlement.hasPremiumAccess
+                ? "Kyndyn Premium is now active."
+                : "No active subscription was found for this Apple Account."
+        } catch {
+            purchaseStatusMessage = nil
+            errorMessage = "Purchases couldn’t be restored. Please try again."
+        }
+    }
+
     func storePurchaseCompleted(
         _ product: Product,
         result: Result<Product.PurchaseResult, Error>

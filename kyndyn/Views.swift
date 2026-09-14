@@ -4342,18 +4342,18 @@ struct PremiumAccessView: View {
                             ProgressView("Loading Premium plans…")
                                 .foregroundStyle(.secondary)
                         } else if !storeKit.products.isEmpty {
-                            SubscriptionStoreView(productIDs: KyndynStoreProducts.all) {
-                                EmptyView()
-                            }
-                            .subscriptionStoreControlStyle(
-                                KyndynSubscriptionButtonStyle())
-                            .storeButton(.visible, for: .restorePurchases)
-                            .onInAppPurchaseStart { product in
-                                storeKit.storePurchaseStarted(product)
-                            }
-                            .onInAppPurchaseCompletion { product, result in
-                                await storeKit.storePurchaseCompleted(
-                                    product, result: result)
+                            VStack(spacing: 14) {
+                                KyndynSubscriptionButtons(
+                                    products: storeKit.products
+                                ) { product in
+                                    Task { await storeKit.purchase(product) }
+                                }
+                                Button("Restore Subscription") {
+                                    Task { await storeKit.restorePurchases() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.large)
+                                .frame(maxWidth: .infinity)
                             }
                         } else {
                             VStack(spacing: 12) {
@@ -4434,18 +4434,21 @@ struct PremiumAccessView: View {
 
 }
 
-private struct KyndynSubscriptionButtonStyle: SubscriptionStoreControlStyle {
-    func makeBody(configuration: Configuration) -> some View {
+private struct KyndynSubscriptionButtons: View {
+    let products: [Product]
+    let purchase: (Product) -> Void
+
+    var body: some View {
         VStack(spacing: 14) {
-            ForEach(configuration.options) { option in
+            ForEach(products, id: \.id) { product in
                 Button {
-                    option.subscribe()
+                    purchase(product)
                 } label: {
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(planName(for: option.subscription))
+                            Text(planName(for: product))
                                 .font(.headline)
-                            Text(priceDetail(for: option.subscription))
+                            Text(priceDetail(for: product))
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.88))
                         }

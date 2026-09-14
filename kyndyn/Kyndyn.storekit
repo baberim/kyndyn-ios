@@ -58,21 +58,7 @@
           "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "AF728189",
-          "introductoryOffer" : {
-            "billingPlanType" : "BILLED_UPFRONT",
-            "internalID" : "DFBB4C56",
-            "numberOfPeriods" : 1,
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P2W"
-          },
           "introductoryOffers" : [
-            {
-              "billingPlanType" : "BILLED_UPFRONT",
-              "internalID" : "DFBB4C56",
-              "numberOfPeriods" : 1,
-              "paymentMode" : "free",
-              "subscriptionPeriod" : "P2W"
-            }
           ],
           "localizations" : [
             {

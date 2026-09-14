@@ -306,7 +306,9 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(annual.waitForExistence(timeout: 8))
         XCTAssertTrue(monthly.exists)
         XCTAssertTrue(annual.label.contains("free, then"))
-        XCTAssertTrue(monthly.label.contains("free, then"))
+        XCTAssertFalse(monthly.label.contains("free, then"))
+        XCTAssertTrue(monthly.label.contains("$3.99"))
+        XCTAssertFalse(app.buttons["Close"].exists)
 
         app.navigationBars["Kyndyn Premium"].buttons.firstMatch.tap()
         XCTAssertTrue(premium.waitForExistence(timeout: 3))
