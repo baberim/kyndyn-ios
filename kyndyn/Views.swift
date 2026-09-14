@@ -4445,7 +4445,7 @@ private struct KyndynSubscriptionButtonStyle: SubscriptionStoreControlStyle {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(planName(for: option.subscription))
                                 .font(.headline)
-                            Text(priceDetail(for: option))
+                            Text(priceDetail(for: option.subscription))
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.88))
                         }
@@ -4475,10 +4475,9 @@ private struct KyndynSubscriptionButtonStyle: SubscriptionStoreControlStyle {
         }
     }
 
-    private func priceDetail(for option: Configuration.Option) -> String {
-        let product = option.subscription
+    private func priceDetail(for product: Product) -> String {
         let renewal = "\(product.displayPrice) / \(periodName(product.subscription?.subscriptionPeriod))"
-        guard let offer = option.activeOffer,
+        guard let offer = product.subscription?.introductoryOffer,
               offer.paymentMode == .freeTrial else { return renewal }
         return "\(periodText(offer.period)) free, then \(renewal)"
     }
