@@ -62,8 +62,8 @@
           ],
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "Flexible monthly access",
+              "displayName" : "Monthly plan",
               "locale" : "en_US"
             }
           ],
@@ -114,8 +114,8 @@
           ],
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "2 weeks free, then $29.99 per year",
+              "displayName" : "Annual plan",
               "locale" : "en_US"
             }
           ],

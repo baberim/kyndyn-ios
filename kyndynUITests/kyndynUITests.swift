@@ -297,17 +297,18 @@ final class KyndynUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["Kyndyn Premium"]
             .waitForExistence(timeout: 5))
-        let annual = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Annual plan"))
-            .firstMatch
-        let monthly = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Monthly plan"))
-            .firstMatch
-        XCTAssertTrue(annual.waitForExistence(timeout: 8))
-        XCTAssertTrue(monthly.exists)
-        XCTAssertTrue(annual.label.contains("free, then"))
-        XCTAssertFalse(monthly.label.contains("free, then"))
-        XCTAssertTrue(monthly.label.contains("$3.99"))
+        XCTAssertTrue(app.staticTexts["Annual plan"]
+            .waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["2 weeks free, then $29.99 per year"]
+            .exists)
+        XCTAssertTrue(app.staticTexts["Monthly plan"].exists)
+        XCTAssertTrue(app.staticTexts["Flexible monthly access"].exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "$29.99"))
+            .firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "$3.99"))
+            .firstMatch.exists)
         XCTAssertFalse(app.buttons["Close"].exists)
 
         app.navigationBars["Kyndyn Premium"].buttons.firstMatch.tap()

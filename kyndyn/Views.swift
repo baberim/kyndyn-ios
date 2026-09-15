@@ -4343,10 +4343,20 @@ struct PremiumAccessView: View {
                                 .foregroundStyle(.secondary)
                         } else if !storeKit.products.isEmpty {
                             VStack(spacing: 14) {
-                                KyndynSubscriptionButtons(
-                                    products: storeKit.products
-                                ) { product in
-                                    Task { await storeKit.purchase(product) }
+                                ForEach(storeKit.products, id: \.id) { product in
+                                    ProductView(product) {
+                                        Image(systemName: product.id == KyndynStoreProducts.annual
+                                              ? "calendar.badge.clock"
+                                              : "calendar")
+                                            .font(.title2)
+                                            .foregroundStyle(KyndynTheme.purple)
+                                    }
+                                        .productViewStyle(.compact)
+                                        .tint(KyndynTheme.purple)
+                                        .onInAppPurchaseCompletion { completedProduct, result in
+                                            await storeKit.storePurchaseCompleted(
+                                                completedProduct, result: result)
+                                        }
                                 }
                                 Button("Restore Subscription") {
                                     Task { await storeKit.restorePurchases() }
@@ -4432,74 +4442,6 @@ struct PremiumAccessView: View {
             cornerRadius: 20, style: .continuous))
     }
 
-}
-
-private struct KyndynSubscriptionButtons: View {
-    let products: [Product]
-    let purchase: (Product) -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            ForEach(products, id: \.id) { product in
-                Button {
-                    purchase(product)
-                } label: {
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(planName(for: product))
-                                .font(.headline)
-                            Text(priceDetail(for: product))
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.88))
-                        }
-                        Spacer(minLength: 12)
-                        Image(systemName: "arrow.right")
-                            .font(.subheadline.bold())
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .frame(maxWidth: .infinity, minHeight: 64)
-                    .background(KyndynTheme.purple,
-                                in: RoundedRectangle(
-                                    cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Opens Apple’s purchase confirmation")
-            }
-        }
-        .padding(.horizontal, 2)
-    }
-
-    private func planName(for product: Product) -> String {
-        switch product.id {
-        case KyndynStoreProducts.annual: "Annual plan"
-        case KyndynStoreProducts.monthly: "Monthly plan"
-        default: product.displayName
-        }
-    }
-
-    private func priceDetail(for product: Product) -> String {
-        let renewal = "\(product.displayPrice) / \(periodName(product.subscription?.subscriptionPeriod))"
-        guard let offer = product.subscription?.introductoryOffer,
-              offer.paymentMode == .freeTrial else { return renewal }
-        return "\(periodText(offer.period)) free, then \(renewal)"
-    }
-
-    private func periodName(_ period: Product.SubscriptionPeriod?) -> String {
-        guard let period else { return "period" }
-        return switch period.unit {
-        case .day: period.value == 1 ? "day" : "\(period.value) days"
-        case .week: period.value == 1 ? "week" : "\(period.value) weeks"
-        case .month: period.value == 1 ? "month" : "\(period.value) months"
-        case .year: period.value == 1 ? "year" : "\(period.value) years"
-        @unknown default: "period"
-        }
-    }
-
-    private func periodText(_ period: Product.SubscriptionPeriod) -> String {
-        let name = periodName(period)
-        return name.prefix(1).uppercased() + name.dropFirst()
-    }
 }
 
 private struct PremiumStoreStatus: View {

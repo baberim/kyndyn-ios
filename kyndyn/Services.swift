@@ -397,21 +397,6 @@ enum StorePurchaseError: LocalizedError {
         }
     }
 
-    func storePurchaseStarted(_ product: Product) {
-        errorMessage = nil
-        purchaseStatusMessage = "Contacting Apple…"
-    }
-
-    func purchase(_ product: Product) async {
-        storePurchaseStarted(product)
-        do {
-            let result = try await product.purchase()
-            await storePurchaseCompleted(product, result: .success(result))
-        } catch {
-            await storePurchaseCompleted(product, result: .failure(error))
-        }
-    }
-
     func restorePurchases() async {
         errorMessage = nil
         purchaseStatusMessage = "Restoring purchases…"
