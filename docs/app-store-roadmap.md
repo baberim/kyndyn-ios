@@ -1,5 +1,34 @@
 # App Store roadmap
 
+## V1 status — November 10, 2026
+
+Version **1.0 (39)** is available in internal TestFlight and selected in App
+Store Connect. The version is **Prepare for Submission** with manual release
+selected. It has not been sent to App Review.
+
+Build 39's store description and reviewer notes are saved. Automated coverage
+includes 117 unit passes on iOS 27.2, 22 iPhone and 22 iPad UI cases passing
+across separate runs, 23 notification-service tests and typechecking. The
+full-display iPad Premium landscape capture is readable; the earlier clipping
+was in the app-cropped screenshot.
+
+### Before submitting
+
+- [ ] On physical devices with TestFlight build 39, verify both plans' purchase
+  sheets, cancellation, sandbox purchase, entitlement after relaunch, and
+  restoration on an iPad using the same purchase account.
+- [ ] Verify Production CloudKit invitation and acceptance across two iCloud
+  accounts, completion/undo, reward updates, and offline convergence.
+- [ ] Verify spoken Siri routing and locked-device privacy against the app's
+  current household state.
+- [ ] Finish store screenshot and privacy-label verification; finalize reviewer
+  notes with the actual results and verify subscription items for review.
+- [ ] Submit the verified candidate to App Review. Manual release remains a
+  separate step after approval.
+
+This status reflects the TestFlight candidate. The public source branch is
+not yet synchronized to build 39.
+
 ## Completed through Build 11
 
 ### Build 4 — Daily Experience and Recovery 0.8.1
@@ -403,58 +432,33 @@ See `docs/build-29-release-candidate.md` for validation and handoff details.
 - Preserve every household record and earned item when Premium expires.
 - See `docs/build-35-premium-access.md`.
 
-### Build 36 — Apple Watch premium companion
+### Builds 36–39 — Purchase flow and V1 hardening
 
-- Build a deliberately small Watch experience for viewing today's quests,
-  completing an exact occurrence, and seeing current progress.
-- Keep the phone app useful without a Watch and treat Watch access as premium.
+- Iterated on StoreKit purchase presentation; build 39 uses native ProductView
+  controls, verified entitlement activation and clearer purchase/restore status.
+- Standardized personalization Save controls and enforced Premium access for
+  expanded weather and calendar views without removing household data.
+- Updated Siri profile/quest resolution and reward indexing; natural-language
+  routing and locked-device behavior still need physical verification.
+- Added legal links and a bundled privacy manifest, and hardened reminder
+  scheduling. Automated test corrections after upload did not change the binary.
 
-### Build 37 — Public-release hardening
+## After V1
 
-- Complete the remaining security, accessibility, localization, privacy,
-  support, physical-device, and App Store release gates.
+- **Apple Watch:** explore a small companion for today's quests, exact completion,
+  and progress. Not a V1 feature.
+- **iPhone Duo:** validate folded/unfolded layouts on the dedicated iOS 27.2
+  simulator and prepare accurate App Store assets. No device-specific validation
+  or screenshot upload is claimed here.
+- **Apple TV and widgets:** plan separately from V1; consider a household
+  dashboard for Apple TV after Watch. Evaluate future display sizes when
+  official hardware and tools are available.
+- **Reward history:** prioritize feedback from real households before expanding
+  reports or exports.
 
-## Later
-
-- Reward history refinements should be driven by household testing. Report
-  exporting is intentionally deferred unless real users request it.
-
-- Business Model and Entitlements must be designed and approved before adding
-  StoreKit:
-  - Keep the core family loop free: one household, parent and child profiles,
-    quest creation and assignment, completion and exact-occurrence undo, basic
-    recurrence, XP, levels, streaks, one family reward, local reminders,
-    local-only use, backup, restore, export, privacy, security, and
-    accessibility.
-  - Keep useful family synchronization available for a small household so the
-    free app remains a genuine multi-person family product.
-  - Reserve premium for expansion such as advanced planning and templates,
-    richer insights and reports, additional customization and collections,
-    multiple or rotating rewards, family communication, calendar and weather
-    integrations, and Siri/System Intelligence features.
-  - Never charge for Face ID or other security, accessibility, backup, export,
-    recovery, or access to existing household data.
-  - Never delete or hide household history when an entitlement expires, revoke
-    items a child already earned, or direct purchase pressure toward children.
-  - Define household-level entitlement ownership, Apple Family Sharing,
-    participants outside the purchaser's Apple family, subscription transfer,
-    billing failure, expiration, refunds, purchase restoration, and
-    grandfathering before implementation.
-  - Evaluate subscription versus one-time purchase based on actual ongoing
-    value and operating cost rather than assuming a subscription is required.
-- Add StoreKit only after those product rules, child-safety boundaries, and
-  expiration behaviors are covered by tests and user-facing documentation.
-
-## Remaining before public release
-
-- Complete independent security review of local parent authentication and recovery limitations.
-- Continue validating Production CloudKit private/shared zones, invitations,
-  participant permissions, revocation, and recovery through TestFlight.
-- Validate notification scheduling and privacy across supported physical
-  devices and account roles.
-- Complete the remaining roadmap and robust parent editors.
-- Continue expanding accessibility identifiers, UI coverage, and real-family
-  TestFlight validation.
+Keep core family workflows, security, accessibility, sync, backup/export and
+recovery free. Preserve household history and earned items after expiration.
+Do not direct purchase pressure toward children.
 
 ## Current Apple setup
 
@@ -465,8 +469,10 @@ CloudKit while local Debug builds use Development CloudKit. Continue reviewing
 schema changes before deployment and test them with fictional data before using
 personal household data.
 
-StoreKit remains intentionally unconfigured until monetization and family
-purchase behavior are approved as a separate milestone.
+StoreKit monthly and annual products are configured, with a two-week annual
+introductory trial for eligible subscribers and no monthly trial. Premium Apple
+Family Sharing is separate from free Kyndyn household sharing. Local StoreKit
+tests do not replace physical TestFlight verification.
 
 ## Release gates
 
