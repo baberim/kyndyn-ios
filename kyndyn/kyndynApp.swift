@@ -342,12 +342,20 @@ final class ForegroundSyncPulse {
                     foregroundSyncPulse.stop()
                     AutomaticSyncBackgroundBridge.shared.schedule()
                 case .active:
+                    KyndynIntentStore.shared.requestRewardIndexRefresh()
                     parentAccess.didBecomeActive()
                     automaticSync.request(.becameActive)
                     foregroundSyncPulse.start(
                         coordinator: automaticSync)
                 default: break
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: ModelContext.didSave)
+            ) { notification in
+                guard let savedContext = notification.object as? ModelContext,
+                      savedContext === container?.mainContext else { return }
+                KyndynIntentStore.shared.requestRewardIndexRefresh()
             }
             .onReceive(NotificationCenter.default.publisher(
                 for: .kyndynAutomaticSyncRequested)

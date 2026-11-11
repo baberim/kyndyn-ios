@@ -865,21 +865,24 @@ enum LifecycleRules {
     }
 
     func refreshReminders(context: ModelContext) {
+        // Snapshot while the caller still owns the model container. A detached
+        // refresh must not fetch from a context whose container has gone away.
+        guard let household = try? context.fetch(FetchDescriptor<Household>()).first,
+              let setting = try? context.fetch(FetchDescriptor<LocalDeviceSettings>()).first else { return }
+        let quests = (try? context.fetch(FetchDescriptor<Quest>())) ?? []
+        let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+        let completions = (try? context.fetch(
+            FetchDescriptor<QuestCompletion>())) ?? []
+        let reminders = (try? context.fetch(
+            FetchDescriptor<LocalQuestReminder>())) ?? []
+        let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting,
+                                                 household: household,
+                                                 completions: completions,
+                                                 reminderPreferences: reminders,
+                                                 now: .now)
+        let scheduler = notificationScheduler
         Task { @MainActor in
-            guard let household = try? context.fetch(FetchDescriptor<Household>()).first,
-                  let setting = try? context.fetch(FetchDescriptor<LocalDeviceSettings>()).first else { return }
-            let quests = (try? context.fetch(FetchDescriptor<Quest>())) ?? []
-            let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
-            let completions = (try? context.fetch(
-                FetchDescriptor<QuestCompletion>())) ?? []
-            let reminders = (try? context.fetch(
-                FetchDescriptor<LocalQuestReminder>())) ?? []
-            let candidates = ReminderRules.candidates(quests: quests, people: people, settings: setting,
-                                                       household: household,
-                                                       completions: completions,
-                                                       reminderPreferences: reminders,
-                                                       now: .now)
-            try? await notificationScheduler.replaceKyndynReminders(with: candidates)
+            try? await scheduler.replaceKyndynReminders(with: candidates)
         }
     }
 

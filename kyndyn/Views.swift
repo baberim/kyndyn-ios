@@ -23,6 +23,17 @@ enum AdaptiveLayout {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func kyndynSiriContext<Entity: AppEntity>(_ entity: Entity) -> some View {
+        if #available(iOS 18.4, *) {
+            appEntityIdentifier(EntityIdentifier(for: entity))
+        } else {
+            self
+        }
+    }
+}
+
 enum ProfilePalette {
     static func name(for hex: String) -> String {
         switch hex.uppercased() {
@@ -756,6 +767,8 @@ struct ProfilePickerView: View {
                                 .accessibilityValue("Level \(level(for: person)), \(badgeCount(for: person)) badges, \(ProfilePalette.name(for: person.colorHex)) profile color")
                                 .accessibilityHint("Opens this person’s home")
                                 .accessibilityIdentifier("profile-\(person.name)")
+                                .kyndynSiriContext(KyndynPersonEntity(
+                                    id: person.id, name: person.name))
                             }
                         }
                         .frame(width: profileGridWidth(for: proxy.size.width))
@@ -881,6 +894,7 @@ private struct SiriQuestReviewView: View {
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(AutomaticSyncCoordinator.self) private var automaticSync
+    @Environment(StoreKitEntitlementController.self) private var storeKit
     @Query private var people: [Person]
     @Query private var deviceSettings: [LocalDeviceSettings]
     @State private var isPullRefreshing = false
@@ -947,23 +961,29 @@ struct SettingsView: View {
                 }
                 Section("Your day") {
                     NavigationLink {
-                        CalendarSettingsView()
+                        PremiumFeatureDestination(feature: .enhancedDayContext) {
+                            CalendarSettingsView()
+                        }
                     } label: {
-                        settingsRow(
+                        ParentMenuRow(
                             title: "Calendar",
                             subtitle: "Show events from calendars you choose",
                             systemImage: "calendar",
-                            tint: KyndynTheme.blue)
+                            tint: KyndynTheme.blue,
+                            showsPremiumBadge: !storeKit.entitlement.allows(.enhancedDayContext))
                     }
                     .accessibilityIdentifier("settings-calendar")
                     NavigationLink {
-                        WeatherSettingsView()
+                        PremiumFeatureDestination(feature: .enhancedDayContext) {
+                            WeatherSettingsView()
+                        }
                     } label: {
-                        settingsRow(
+                        ParentMenuRow(
                             title: "Weather",
                             subtitle: "Add local conditions to your day",
                             systemImage: "cloud.sun.fill",
-                            tint: KyndynTheme.amber)
+                            tint: KyndynTheme.amber,
+                            showsPremiumBadge: !storeKit.entitlement.allows(.enhancedDayContext))
                     }
                     .accessibilityIdentifier("settings-weather")
                 }
@@ -972,8 +992,8 @@ struct SettingsView: View {
                         SiriShortcutsHelpView()
                     } label: {
                         settingsRow(
-                            title: "Siri & Shortcuts",
-                            subtitle: "See available voice and shortcut actions",
+                            title: "Siri & Apple Intelligence",
+                            subtitle: "Voice, onscreen context, and shortcuts",
                             systemImage: "waveform",
                             tint: KyndynTheme.pink)
                     }
@@ -1075,19 +1095,24 @@ struct SiriShortcutsHelpView: View {
                 Label("“Create a quest in kyndyn”",
                       systemImage: "plus.circle.fill")
             }
+            if #available(iOS 27.0, *) {
+                Section("Onscreen context") {
+                    Text("When a profile or quest is visible, Siri can use that onscreen context for requests such as “Open this profile” or “Complete this quest.”")
+                }
+            }
             Section("Privacy") {
-                KyndynCallout(kind: .privacy, message: "Siri asks for device authentication before showing private family details or changing anything in kyndyn.")
+                KyndynCallout(kind: .privacy, message: "Kyndyn’s Siri actions require device authentication. Your current family reward and XP progress are also shared with Apple’s on-device search index so Siri can find them naturally. Visibility in Siri and Search follows your device settings.")
                     .accessibilityIdentifier("siri-shortcuts-privacy")
             }
             Section {
-                Text("Apple controls which phrases are recognized and when Siri or Shortcuts can run. Newer Apple Intelligence features vary by device, language, and OS version.")
+                Text("Apple controls which requests are recognized and when Siri, Apple Intelligence, or Shortcuts can run. Contextual features vary by device, language, and OS version.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
         .scrollContentBackground(.hidden)
         .background(KyndynScreenBackground())
-        .navigationTitle("Siri & Shortcuts")
+        .navigationTitle("Siri & Apple Intelligence")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -1365,7 +1390,8 @@ struct DashboardView: View {
                             .padding(.horizontal)
                         if shouldShowPremiumDiscovery {
                             NavigationLink { PremiumAccessView() } label: {
-                                HomePremiumDiscoveryCard()
+                                HomePremiumDiscoveryCard(
+                                    hasPausedDayContext: hasConfiguredDayContext)
                             }
                             .buttonStyle(.plain)
                             .padding(.horizontal)
@@ -1453,18 +1479,20 @@ struct DashboardView: View {
                 }
             }
             .sheet(item: $presentedDayDetail) { detail in
-                switch detail {
-                case .weather:
-                    WeatherGlanceView(
-                        setting: deviceSettings.first,
-                        hourlyForecast: weatherHourlyForecast,
-                        forecast: weatherForecast,
-                        isLoading: isLoadingWeather,
-                        onRefresh: { await refreshWeatherDetails() })
-                case .calendar:
-                    CalendarGlanceView(
-                        events: calendarEvents,
-                        onRefresh: { refreshCalendarEvents() })
+                if canUseDayContext {
+                    switch detail {
+                    case .weather:
+                        WeatherGlanceView(
+                            setting: deviceSettings.first,
+                            hourlyForecast: weatherHourlyForecast,
+                            forecast: weatherForecast,
+                            isLoading: isLoadingWeather,
+                            onRefresh: { await refreshWeatherDetails() })
+                    case .calendar:
+                        CalendarGlanceView(
+                            events: calendarEvents,
+                            onRefresh: { refreshCalendarEvents() })
+                    }
                 }
             }
             .alert(unlockTitle(unlockToPresent), isPresented: Binding(
@@ -1479,10 +1507,8 @@ struct DashboardView: View {
                 unlockToPresent = person?.pendingUnlockIDs.first
             }
             .onAppear { rotateGreeting() }
-            .task(id: deviceSettings.first?.calendarIntegrationEnabled) {
+            .task(id: dayContextRefreshID) {
                 refreshCalendarEvents()
-            }
-            .task(id: deviceSettings.first?.weatherIntegrationEnabled) {
                 await refreshWeatherIfNeeded()
             }
         }
@@ -1500,8 +1526,23 @@ struct DashboardView: View {
         return people.first { $0.id == devicePersonID && $0.deletedAt == nil }?.role == .parent
     }
 
+    private var canUseDayContext: Bool {
+        storeKit.entitlement.allows(.enhancedDayContext)
+    }
+
+    private var hasConfiguredDayContext: Bool {
+        guard let setting = deviceSettings.first else { return false }
+        return setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled
+    }
+
+    private var dayContextRefreshID: String {
+        let setting = deviceSettings.first
+        return "\(canUseDayContext)-\(setting?.calendarIntegrationEnabled == true)-\(setting?.weatherIntegrationEnabled == true)"
+    }
+
     @ViewBuilder private var dayContext: some View {
-        if let setting = deviceSettings.first,
+        if canUseDayContext,
+           let setting = deviceSettings.first,
            setting.calendarIntegrationEnabled || setting.weatherIntegrationEnabled {
             Grid(horizontalSpacing: 12) {
                 GridRow(alignment: .top) {
@@ -1605,9 +1646,12 @@ struct DashboardView: View {
     }
 
     private func refreshCalendarEvents() {
-        guard let setting = deviceSettings.first,
+        guard canUseDayContext,
+              let setting = deviceSettings.first,
               setting.calendarIntegrationEnabled else {
-            calendarEvents = []; return
+            calendarEvents = []
+            if !canUseDayContext { presentedDayDetail = nil }
+            return
         }
         let provider = EventKitCalendarProvider()
         guard provider.permissionState() == .allowed else {
@@ -1620,8 +1664,14 @@ struct DashboardView: View {
     }
 
     @MainActor private func refreshWeatherIfNeeded() async {
-        guard let setting = deviceSettings.first,
-              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        guard canUseDayContext,
+              let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else {
+            weatherHourlyForecast = []
+            weatherForecast = []
+            if !canUseDayContext { presentedDayDetail = nil }
+            return
+        }
         if WeatherCachePolicy.isFresh(setting.cachedWeatherAt) { return }
         isLoadingWeather = true
         defer { isLoadingWeather = false }
@@ -1646,8 +1696,14 @@ struct DashboardView: View {
     }
 
     @MainActor private func refreshWeatherDetails() async {
-        guard let setting = deviceSettings.first,
-              setting.weatherIntegrationEnabled, !isLoadingWeather else { return }
+        guard canUseDayContext,
+              let setting = deviceSettings.first,
+              setting.weatherIntegrationEnabled, !isLoadingWeather else {
+            weatherHourlyForecast = []
+            weatherForecast = []
+            if !canUseDayContext { presentedDayDetail = nil }
+            return
+        }
         isLoadingWeather = true
         defer { isLoadingWeather = false }
         do {
@@ -2775,7 +2831,7 @@ struct AppIconPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Save") { dismiss() }
                 }
             }
             .alert("Couldn’t change the app icon", isPresented: Binding(
@@ -3158,6 +3214,9 @@ struct QuestListView: View {
             }
             .kyndynCard(tint: statusTint(status),
                         raised: status == .overdue)
+            .kyndynSiriContext(questOccurrenceEntity(
+                quest: quest, personID: personID, household: household,
+                isComplete: done))
         }
     }
 
@@ -3182,10 +3241,16 @@ struct QuestListView: View {
             if done {
                 try app.undo(quest, personID: personID, household: household,
                              completions: completions, context: context)
+                donateQuestAction(
+                    quest: quest, personID: personID, household: household,
+                    completed: false)
             } else {
                 try app.complete(quest, personID: personID,
                                  household: household,
                                  completions: completions, context: context)
+                donateQuestAction(
+                    quest: quest, personID: personID, household: household,
+                    completed: true)
                 let earned = ProgressionEngine.effectiveXP(
                     base: quest.xp,
                     overdueDays: ProgressionEngine.overdueDays(
@@ -3202,6 +3267,38 @@ struct QuestListView: View {
             if !done {
                 try? await Task.sleep(for: .milliseconds(900))
                 withAnimation { earnedFeedback = nil }
+            }
+        }
+    }
+
+    private func questOccurrenceEntity(
+        quest: Quest, personID: UUID, household: Household, isComplete: Bool
+    ) -> KyndynQuestOccurrenceEntity {
+        let day = ProgressionEngine.occurrenceKey(
+            for: quest, on: .now,
+            timeZoneIdentifier: household.timeZoneIdentifier) ?? "today"
+        let personName = people.first(where: { $0.id == personID })?.name ??
+            "Kyndyn profile"
+        return KyndynQuestOccurrenceEntity(
+            id: KyndynIntentStore.occurrenceID(
+                questID: quest.id, personID: personID, day: day),
+            title: quest.title, personName: personName, xp: quest.xp,
+            isComplete: isComplete)
+    }
+
+    private func donateQuestAction(
+        quest: Quest, personID: UUID, household: Household, completed: Bool
+    ) {
+        let entity = questOccurrenceEntity(
+            quest: quest, personID: personID, household: household,
+            isComplete: completed)
+        Task {
+            if completed {
+                try? await CompleteQuestOccurrenceIntent(
+                    occurrence: entity).donate()
+            } else {
+                try? await UndoQuestOccurrenceIntent(
+                    occurrence: entity).donate()
             }
         }
     }
@@ -4178,6 +4275,8 @@ private struct PremiumDiscoveryCard: View {
 }
 
 private struct HomePremiumDiscoveryCard: View {
+    var hasPausedDayContext = false
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles")
@@ -4188,10 +4287,14 @@ private struct HomePremiumDiscoveryCard: View {
                     cornerRadius: 12, style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Discover Kyndyn Premium")
+                Text(hasPausedDayContext
+                     ? "Weather and calendar paused"
+                     : "Discover Kyndyn Premium")
                     .font(.headline)
                     .foregroundStyle(.white)
-                Text("Try more planning and personalization free for 2 weeks")
+                Text(hasPausedDayContext
+                     ? "Renew Premium to show your saved setup again"
+                     : "Try more planning and personalization free for 2 weeks")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(2)
@@ -4212,8 +4315,12 @@ private struct HomePremiumDiscoveryCard: View {
             in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Discover Kyndyn Premium")
-        .accessibilityHint("Try Premium free for two weeks")
+        .accessibilityLabel(hasPausedDayContext
+                            ? "Weather and calendar paused"
+                            : "Discover Kyndyn Premium")
+        .accessibilityHint(hasPausedDayContext
+                           ? "Renew Premium to show your saved setup again"
+                           : "Try Premium free for two weeks")
     }
 }
 
@@ -4311,14 +4418,6 @@ private struct ParentDevicePrivacyView: View {
 struct PremiumAccessView: View {
     @Environment(StoreKitEntitlementController.self) private var storeKit
 
-    private var annual: Product? {
-        storeKit.products.first { $0.id == KyndynStoreProducts.annual }
-    }
-
-    private var monthly: Product? {
-        storeKit.products.first { $0.id == KyndynStoreProducts.monthly }
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -4344,40 +4443,71 @@ struct PremiumAccessView: View {
                          destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
                         .buttonStyle(.borderedProminent)
                         .tint(KyndynTheme.purple)
-                } else if storeKit.isLoading {
-                    ProgressView("Checking plans…")
-                        .frame(maxWidth: .infinity)
-                        .padding(30)
-                } else if annual == nil && monthly == nil {
-                    KyndynCallout(
-                        kind: .information,
-                        message: "Premium plans aren’t available in this build yet. Everything already in Kyndyn remains available.")
-                    Button("Try loading plans again") {
-                        Task { await storeKit.loadProducts() }
-                    }
-                    .buttonStyle(.bordered)
                 } else {
-                    VStack(spacing: 12) {
-                        if let annual { planCard(annual, recommended: true) }
-                        if let monthly { planCard(monthly, recommended: false) }
+                    Group {
+                        if storeKit.products.isEmpty && storeKit.isLoading {
+                            ProgressView("Loading Premium plans…")
+                                .foregroundStyle(.secondary)
+                        } else if !storeKit.products.isEmpty {
+                            VStack(spacing: 14) {
+                                ForEach(storeKit.products, id: \.id) { product in
+                                    ProductView(product) {
+                                        Image(systemName: product.id == KyndynStoreProducts.annual
+                                              ? "calendar.badge.clock"
+                                              : "calendar")
+                                            .font(.title2)
+                                            .foregroundStyle(KyndynTheme.purple)
+                                    }
+                                        .productViewStyle(.compact)
+                                        .tint(KyndynTheme.purple)
+                                        .onInAppPurchaseCompletion { completedProduct, result in
+                                            await storeKit.storePurchaseCompleted(
+                                                completedProduct, result: result)
+                                        }
+                                }
+                                Button("Restore Subscription") {
+                                    Task { await storeKit.restorePurchases() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.large)
+                                .frame(maxWidth: .infinity)
+                            }
+                        } else {
+                            VStack(spacing: 12) {
+                                Text("Premium plans aren’t available right now.")
+                                    .foregroundStyle(.secondary)
+                                Button("Try loading plans again") {
+                                    Task { await storeKit.loadProducts() }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(KyndynTheme.purple)
+                            }
+                        }
                     }
+                    .frame(minHeight: 220)
                     premiumFeatures
                 }
 
                 if let error = storeKit.errorMessage {
-                    KyndynCallout(kind: .information, message: error)
+                    PremiumStoreStatus(message: error, style: .error)
                 }
-
-                Button("Restore purchases") {
-                    Task { await storeKit.restorePurchases() }
+                if let status = storeKit.purchaseStatusMessage {
+                    PremiumStoreStatus(
+                        message: status,
+                        style: purchaseStatusStyle(for: status))
+                        .accessibilityIdentifier("premium-purchase-status")
                 }
-                .disabled(storeKit.isLoading || storeKit.isPurchasing)
 
                 Text("Apple manages your subscription. Eligible family members can share Premium when Apple Family Sharing is available.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
+                HStack(spacing: 24) {
+                    Link("Privacy Policy", destination: URL(string: "https://kyndyn.app/privacy")!)
+                    Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                }
+                .font(.footnote)
             }
             .frame(maxWidth: 680)
             .padding()
@@ -4400,6 +4530,15 @@ struct PremiumAccessView: View {
         }
     }
 
+    private func purchaseStatusStyle(for message: String) -> PremiumStoreStatus.Style {
+        if message == "Contacting Apple…"
+            || message.contains("Checking Premium access") {
+            return .progress
+        }
+        if message.contains("now active") { return .success }
+        return .neutral
+    }
+
     private var premiumFeatures: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("More with Premium")
@@ -4407,7 +4546,7 @@ struct PremiumAccessView: View {
             Label("Plan ahead with reusable family routines", systemImage: "calendar.badge.plus")
             Label("Unlock more ways to personalize Kyndyn", systemImage: "paintpalette.fill")
             Label("See more of your family’s progress", systemImage: "chart.xyaxis.line")
-            Label("Enjoy new Watch and widget features as they arrive", systemImage: "applewatch")
+            Label("See full forecasts and combine calendars", systemImage: "calendar.badge.clock")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -4415,59 +4554,55 @@ struct PremiumAccessView: View {
             cornerRadius: 20, style: .continuous))
     }
 
-    private func planCard(_ product: Product, recommended: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(recommended ? "Annual" : "Monthly")
-                        .font(.headline)
-                    Text(recommended ? "Best value" : "Flexible billing")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let trial = trialDescription(for: product) {
-                        Text(trial)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(KyndynTheme.purple)
-                    }
-                }
-                Spacer()
-                Text(product.displayPrice)
-                    .font(.title3.bold())
-                Text(recommended ? "/ year" : "/ month")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+}
+
+private struct PremiumStoreStatus: View {
+    enum Style: Equatable {
+        case progress
+        case success
+        case neutral
+        case error
+
+        var color: Color {
+            switch self {
+            case .progress: KyndynTheme.purple
+            case .success: KyndynTheme.green
+            case .neutral: .secondary
+            case .error: .red
             }
-            Button(recommended ? "Start annual plan" : "Choose monthly") {
-                Task { await storeKit.purchase(product) }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(recommended ? KyndynTheme.purple : .secondary)
-            .frame(maxWidth: .infinity)
-            .disabled(storeKit.isPurchasing)
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(
-            cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(recommended ? KyndynTheme.purple.opacity(0.65)
-                        : Color.secondary.opacity(0.18), lineWidth: 1.5)
+
+        var systemImage: String {
+            switch self {
+            case .progress: ""
+            case .success: "checkmark.circle.fill"
+            case .neutral: "info.circle"
+            case .error: "exclamationmark.circle.fill"
+            }
         }
     }
 
-    private func trialDescription(for product: Product) -> String? {
-        guard let offer = product.subscription?.introductoryOffer,
-              offer.paymentMode == .freeTrial else { return nil }
-        let period = offer.period
-        let unit: String
-        switch period.unit {
-        case .day: unit = period.value == 1 ? "day" : "days"
-        case .week: unit = period.value == 1 ? "week" : "weeks"
-        case .month: unit = period.value == 1 ? "month" : "months"
-        case .year: unit = period.value == 1 ? "year" : "years"
-        @unknown default: return "Free trial available"
+    let message: String
+    let style: Style
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if style == .progress {
+                ProgressView()
+                    .tint(style.color)
+            } else {
+                Image(systemName: style.systemImage)
+                    .foregroundStyle(style.color)
+            }
+
+            Text(message)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(style == .error ? style.color : .primary)
+                .multilineTextAlignment(.leading)
         }
-        return "Try free for \(period.value) \(unit)"
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 

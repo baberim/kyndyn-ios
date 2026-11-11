@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E80000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000001 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000001 /* kyndynApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* kyndynApp.swift */; };
 		A10000000000000000000002 /* DomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* DomainModels.swift */; };
 		A10000000000000000000003 /* ProgressionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* ProgressionEngine.swift */; };
@@ -74,6 +75,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F80000000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000001 /* kyndynApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kyndynApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* DomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModels.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* ProgressionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngine.swift; sourceTree = "<group>"; };
@@ -172,6 +174,7 @@
 				B10000000000000000000001 /* kyndynApp.swift */,
 				B10000000000000000000015 /* AppConfiguration.swift */,
 				B10000000000000000000016 /* Info.plist */,
+				F80000000000000000000001 /* PrivacyInfo.xcprivacy */,
 				B10000000000000000000002 /* DomainModels.swift */,
 				D50000000000000000000001 /* Collections.swift */,
 				F60000000000000000000001 /* QuestPlanning.swift */,
@@ -373,6 +376,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E80000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */,
 				A10000000000000000000007 /* spark.png in Resources */,
 				A10000000000000000000008 /* orbit.png in Resources */,
 				A10000000000000000000009 /* pixel.png in Resources */,
@@ -518,13 +522,14 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 39;
+				DEVELOPMENT_TEAM = 96TZPZ6H89;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = development;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.35.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -543,13 +548,14 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = kyndyn/kyndyn.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 39;
+				DEVELOPMENT_TEAM = 96TZPZ6H89;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = kyndyn/Info.plist;
 				KYNDYN_CLOUDKIT_CONTAINER_IDENTIFIER = iCloud.com.kyndynfamily.kyndyn;
 				KYNDYN_CLOUDKIT_ENVIRONMENT = production;
 				KYNDYN_CLOUD_SYNC_CONFIGURED = YES;
-				MARKETING_VERSION = 0.35.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kyndynfamily.kyndyn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

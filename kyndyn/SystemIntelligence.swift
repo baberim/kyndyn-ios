@@ -1,4 +1,5 @@
 import AppIntents
+import CoreSpotlight
 import Foundation
 import SwiftData
 
@@ -37,7 +38,13 @@ struct KyndynPersonEntity: AppEntity {
     static let defaultQuery = KyndynPersonQuery()
 
     let id: UUID
-    let name: String
+    @Property(title: "Name")
+    var name: String
+
+    init(id: UUID, name: String) {
+        self.id = id
+        self.name = name
+    }
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", subtitle: "Kyndyn profile")
@@ -67,10 +74,23 @@ struct KyndynQuestOccurrenceEntity: AppEntity {
     static let defaultQuery = KyndynQuestOccurrenceQuery()
 
     let id: String
-    let title: String
-    let personName: String
-    let xp: Int
-    let isComplete: Bool
+    @Property(title: "Quest name")
+    var title: String
+    @Property(title: "Profile name")
+    var personName: String
+    @Property(title: "XP")
+    var xp: Int
+    @Property(title: "Completed")
+    var isComplete: Bool
+
+    init(id: String, title: String, personName: String, xp: Int,
+         isComplete: Bool) {
+        self.id = id
+        self.title = title
+        self.personName = personName
+        self.xp = xp
+        self.isComplete = isComplete
+    }
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(
@@ -98,6 +118,61 @@ struct KyndynQuestOccurrenceQuery: EntityStringQuery {
         try await KyndynIntentStore.shared.waitUntilReady()
         return try await KyndynIntentStore.shared.occurrences(
             matching: string, includeCompleted: true)
+    }
+}
+
+/// A compact, on-device representation of the family's active reward.
+/// This makes current reward data available to on-device search. Siri routing
+/// still depends on the system and requires physical-device validation.
+struct KyndynFamilyRewardEntity: IndexedEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(
+        name: "Kyndyn Family Reward")
+    static let defaultQuery = KyndynFamilyRewardQuery()
+
+    let id: UUID
+    @Property(title: "Reward")
+    var title: String
+    @Property(title: "Progress in XP")
+    var progressXP: Int
+    @Property(title: "Goal in XP")
+    var targetXP: Int
+    @Property(title: "XP remaining")
+    var remainingXP: Int
+
+    init(id: UUID, title: String, progressXP: Int, targetXP: Int) {
+        self.id = id
+        self.title = title
+        self.progressXP = min(progressXP, targetXP)
+        self.targetXP = targetXP
+        self.remainingXP = max(targetXP - progressXP, 0)
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(
+            title: "Family reward: \(title)",
+            subtitle: "\(progressXP) of \(targetXP) XP · \(remainingXP) XP remaining",
+            image: .init(systemName: "gift.fill"))
+    }
+
+    var attributeSet: CSSearchableItemAttributeSet {
+        let attributes = defaultAttributeSet
+        attributes.contentDescription =
+            "The current Kyndyn family reward is \(title). The family has \(progressXP) out of \(targetXP) XP, with \(remainingXP) XP remaining."
+        attributes.keywords = [
+            "Kyndyn", "family reward", "family reward progress", title,
+            "\(progressXP) XP", "\(remainingXP) XP remaining"
+        ]
+        return attributes
+    }
+}
+
+struct KyndynFamilyRewardQuery: EntityQuery {
+    func entities(for identifiers: [UUID]) async throws
+        -> [KyndynFamilyRewardEntity] {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        guard let reward = try await KyndynIntentStore.shared.rewardEntity(),
+              identifiers.contains(reward.id) else { return [] }
+        return [reward]
     }
 }
 
@@ -148,6 +223,12 @@ struct OpenPersonDashboardIntent: AppIntent {
 
     @Parameter(title: "Profile") var person: KyndynPersonEntity
 
+    init() {}
+
+    init(person: KyndynPersonEntity) {
+        self.person = person
+    }
+
     static var parameterSummary: some ParameterSummary {
         Summary("Open \(\.$person) in Kyndyn")
     }
@@ -167,6 +248,12 @@ struct CompleteQuestOccurrenceIntent: AppIntent {
         .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Quest") var occurrence: KyndynQuestOccurrenceEntity
+
+    init() {}
+
+    init(occurrence: KyndynQuestOccurrenceEntity) {
+        self.occurrence = occurrence
+    }
 
     static var parameterSummary: some ParameterSummary {
         Summary("Complete \(\.$occurrence)")
@@ -189,6 +276,12 @@ struct UndoQuestOccurrenceIntent: AppIntent {
 
     @Parameter(title: "Quest") var occurrence: KyndynQuestOccurrenceEntity
 
+    init() {}
+
+    init(occurrence: KyndynQuestOccurrenceEntity) {
+        self.occurrence = occurrence
+    }
+
     static var parameterSummary: some ParameterSummary {
         Summary("Undo \(\.$occurrence)")
     }
@@ -198,6 +291,26 @@ struct UndoQuestOccurrenceIntent: AppIntent {
         let result = try await KyndynIntentStore.shared.undo(
             occurrenceID: occurrence.id)
         return .result(dialog: IntentDialog(stringLiteral: result))
+    }
+}
+
+// App Shortcuts remain the predictable entry points on every supported OS.
+// On iOS 27, this schema intent additionally lets Siri understand a request to
+// open a profile as the system-wide "open" action instead of matching only a
+// fixed shortcut phrase.
+@available(iOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenKyndynProfileIntent {
+    static let title: LocalizedStringResource = "Open a Kyndyn Profile"
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "Profile") var target: KyndynPersonEntity
+
+    func perform() async throws -> some IntentResult {
+        try await KyndynIntentStore.shared.waitUntilReady()
+        try await KyndynIntentStore.shared.select(personID: target.id)
+        return .result()
     }
 }
 
@@ -243,22 +356,39 @@ struct KyndynAppShortcuts: AppShortcutsProvider {
             systemImageName: "checklist")
         AppShortcut(
             intent: ShowFamilyRewardIntent(),
-            phrases: ["Show family reward progress in \(.applicationName)"],
+            phrases: [
+                "Show family reward progress in \(.applicationName)",
+                "Show our family reward in \(.applicationName)",
+                "What is our family reward progress in \(.applicationName)",
+                "What's our family reward progress in \(.applicationName)"
+            ],
             shortTitle: "Family reward",
             systemImageName: "gift.fill")
         AppShortcut(
             intent: OpenPersonDashboardIntent(),
-            phrases: ["Open a profile in \(.applicationName)"],
+            phrases: [
+                "Open a profile in \(.applicationName)",
+                "Open this profile in \(.applicationName)",
+                "Open \(\.$person) in \(.applicationName)",
+                "Open \(\.$person)'s profile in \(.applicationName)"
+            ],
             shortTitle: "Open profile",
             systemImageName: "person.crop.circle")
         AppShortcut(
             intent: CompleteQuestOccurrenceIntent(),
-            phrases: ["Complete a quest in \(.applicationName)"],
+            phrases: [
+                "Complete a quest in \(.applicationName)",
+                "Complete this quest in \(.applicationName)",
+                "Complete \(\.$occurrence) in \(.applicationName)"
+            ],
             shortTitle: "Complete quest",
             systemImageName: "checkmark.circle.fill")
         AppShortcut(
             intent: UndoQuestOccurrenceIntent(),
-            phrases: ["Undo a quest in \(.applicationName)"],
+            phrases: [
+                "Undo a quest in \(.applicationName)",
+                "Undo \(\.$occurrence) in \(.applicationName)"
+            ],
             shortTitle: "Undo quest",
             systemImageName: "arrow.uturn.backward.circle.fill")
         AppShortcut(
@@ -285,14 +415,20 @@ final class KyndynIntentStore {
     private static let pendingQuestKey = "kyndyn.pending-siri-quest.v1"
     private var context: ModelContext?
     private var appModel: AppModel?
+    private var indexingTask: Task<Void, Never>?
+    private var lastIndexedReward: String?
 
     func configure(container: ModelContainer, appModel: AppModel) {
         context = container.mainContext
         self.appModel = appModel
         consumePendingQuestIfPossible()
+        requestRewardIndexRefresh()
     }
 
     func resetForTesting() {
+        indexingTask?.cancel()
+        indexingTask = nil
+        lastIndexedReward = nil
         context = nil
         appModel = nil
         UserDefaults.standard.removeObject(forKey: Self.pendingQuestKey)
@@ -431,6 +567,60 @@ final class KyndynIntentStore {
         return "\(title): \(min(progress, target)) of \(target) XP."
     }
 
+    func rewardEntity() throws -> KyndynFamilyRewardEntity? {
+        let context = try requiredContext()
+        guard let household = try context.fetch(
+            FetchDescriptor<Household>()).first else { return nil }
+        let goals = try context.fetch(FetchDescriptor<RewardGoal>())
+        let completions = try context.fetch(FetchDescriptor<QuestCompletion>())
+        let goal = ProgressionEngine.currentRewardGoal(
+            goals, householdID: household.id)
+        let target = goal?.targetXP ?? household.rewardGoalXP
+        let progress = goal.map {
+            ProgressionEngine.rewardXP(completions, goal: $0)
+        } ?? ProgressionEngine.familyXP(completions)
+        return KyndynFamilyRewardEntity(
+            id: household.id,
+            title: goal?.title ?? household.rewardTitle,
+            progressXP: progress,
+            targetXP: target)
+    }
+
+    func requestRewardIndexRefresh() {
+        // Tests must never donate fictional household data to the device index.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
+              !ProcessInfo.processInfo.arguments.contains("-ui-testing-reset") else { return }
+        let previousTask = indexingTask
+        previousTask?.cancel()
+        indexingTask = Task {
+            // Cancellation does not necessarily stop an in-flight index API.
+            // Await it so an older write cannot overwrite the latest reward.
+            await previousTask?.value
+            do {
+                try await Task.sleep(for: .milliseconds(400))
+                try Task.checkCancellation()
+                let reward = try rewardEntity()
+                let fingerprint = reward.map {
+                    "\($0.id)|\($0.title)|\($0.progressXP)|\($0.targetXP)"
+                } ?? "empty"
+                guard fingerprint != lastIndexedReward else { return }
+                // Replace this small dedicated index so removed/replaced
+                // households cannot leave an old reward searchable.
+                try await CSSearchableIndex(name: "KyndynFamily")
+                    .deleteAllSearchableItems()
+                try Task.checkCancellation()
+                if let reward {
+                    try await CSSearchableIndex(name: "KyndynFamily")
+                        .indexAppEntities([reward])
+                }
+                lastIndexedReward = fingerprint
+            } catch {
+                // Retry at the next save/foreground event; never cache failure.
+                lastIndexedReward = nil
+            }
+        }
+    }
+
     func select(personID: UUID) throws {
         let context = try requiredContext()
         guard try people(ids: [personID]).first != nil else {
@@ -499,6 +689,7 @@ final class KyndynIntentStore {
             name: .kyndynAutomaticSyncRequested,
             object: nil,
             userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
+        requestRewardIndexRefresh()
         return "Completed \(values.quest.title) for \(values.person.name)."
     }
 
@@ -517,6 +708,7 @@ final class KyndynIntentStore {
             name: .kyndynAutomaticSyncRequested,
             object: nil,
             userInfo: ["trigger": AutomaticSyncTrigger.localMutation.rawValue])
+        requestRewardIndexRefresh()
         return "Undid \(values.quest.title) for \(values.person.name)."
     }
 
@@ -563,7 +755,7 @@ final class KyndynIntentStore {
         return (context, household, person, quest, entity)
     }
 
-    private static func occurrenceID(
+    static func occurrenceID(
         questID: UUID, personID: UUID, day: String
     ) -> String {
         "\(questID.uuidString.lowercased())|\(personID.uuidString.lowercased())|\(day)"

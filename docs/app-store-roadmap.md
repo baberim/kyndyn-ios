@@ -26,8 +26,8 @@ was in the app-cropped screenshot.
 - [ ] Submit the verified candidate to App Review. Manual release remains a
   separate step after approval.
 
-This status reflects the TestFlight candidate. The public source branch is
-not yet synchronized to build 39.
+This status reflects the TestFlight candidate. The source includes build 39
+and the test-only validation fixes made after upload.
 
 ## Completed through Build 11
 

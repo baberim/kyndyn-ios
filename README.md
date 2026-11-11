@@ -23,8 +23,8 @@ trial to eligible subscribers; monthly has no trial. Premium expands planning,
 insights, personalization, weather and calendar views. Core quests, progress,
 rewards, security, household sync and recovery stay free.
 
-See the [roadmap](docs/app-store-roadmap.md). These release notes describe the
-TestFlight candidate; the public source branch is not yet synchronized to build 39.
+See the [roadmap](docs/app-store-roadmap.md). This source includes the build 39
+candidate and subsequent test-only validation fixes.
 
 The app provides a locally usable vertical slice:
 

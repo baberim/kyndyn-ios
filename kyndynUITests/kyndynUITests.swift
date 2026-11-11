@@ -6,6 +6,19 @@ final class KyndynUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    override func tearDown() async throws {
+        await MainActor.run {
+            if let testRun, testRun.failureCount > 0 {
+                let screenshot = XCTAttachment(screenshot: XCUIApplication().screenshot())
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+                let tree = XCTAttachment(string: XCUIApplication().debugDescription)
+                tree.lifetime = .keepAlways
+                add(tree)
+            }
+        }
+    }
+
     private func launch(
         parentUnlocked: Bool = false,
         additionalArguments: [String] = []
@@ -69,7 +82,7 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Small quests. Shared progress."]
             .waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Set up my family"].exists)
-        for _ in 0..<3 { app.buttons["onboarding-next"].tap() }
+        for _ in 0..<4 { app.buttons["onboarding-next"].tap() }
         app.buttons["onboarding-next"].tap()
         XCTAssertTrue(app.buttons["Set up my family"].waitForExistence(timeout: 3))
     }
@@ -93,6 +106,12 @@ final class KyndynUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["quest-status-filter"]
             .waitForExistence(timeout: 3))
         let search = app.searchFields["Search quests"]
+        // Newer iPad navigation bars collapse searchable into a Search button.
+        if !search.exists, app.buttons["Search"].exists {
+            app.buttons["Search"].tap()
+        }
+        // iPhone's navigation-bar drawer is revealed by pulling the list down.
+        if !search.exists { app.swipeDown() }
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         search.tap(); search.typeText("bed")
         XCTAssertTrue(app.buttons["Details for Make your bed"]
@@ -153,7 +172,7 @@ final class KyndynUITests: XCTestCase {
         let siriHelp = app.buttons["settings-siri-shortcuts"]
         reveal(siriHelp, in: app)
         siriHelp.tap()
-        XCTAssertTrue(app.navigationBars["Siri & Shortcuts"]
+        XCTAssertTrue(app.navigationBars["Siri & Apple Intelligence"]
             .waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["“Show today’s Kyndyn quests”"].exists)
         let privacyCopy = app.descendants(matching: .any)[
@@ -282,6 +301,96 @@ final class KyndynUITests: XCTestCase {
             "premium-feature-locked-advancedPlanning"
         ].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["See Premium plans"].exists)
+    }
+
+    func testPremiumPlansRenderCompleteLabelsOnPhone() throws {
+        let app = launch(parentUnlocked: true)
+        tapTab("Profiles", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+
+        let premium = app.descendants(matching: .any)[
+            "parent-premium-discovery"]
+        reveal(premium, in: app)
+        premium.tap()
+
+        XCTAssertTrue(app.navigationBars["Kyndyn Premium"]
+            .waitForExistence(timeout: 5))
+        let evidence = XCTAttachment(string: app.debugDescription)
+        evidence.lifetime = .keepAlways
+        add(evidence)
+        let screen = XCTAttachment(screenshot: app.screenshot())
+        screen.lifetime = .keepAlways
+        add(screen)
+        // Native ProductView uses localized product names from the selected
+        // StoreKit environment, which differ between local and live catalogs.
+        // Inspect its primary text, not an obsolete custom button's title.
+        let annual = app.staticTexts.matching(NSPredicate(
+            format: "identifier == %@ AND (label == %@ OR label == %@)",
+            "Product View Primary Text", "Annual plan", "Kyndyn Premium Annual"))
+            .firstMatch
+        let monthly = app.staticTexts.matching(NSPredicate(
+            format: "identifier == %@ AND (label == %@ OR label == %@)",
+            "Product View Primary Text", "Monthly plan", "Kyndyn Premium Monthly"))
+            .firstMatch
+        XCTAssertTrue(annual.waitForExistence(timeout: 15))
+        XCTAssertTrue(monthly.exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "$29.99"))
+            .firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "$3.99"))
+            .firstMatch.exists)
+        XCTAssertFalse(app.buttons["Close"].exists)
+        // iOS 27 exposes SwiftUI Links as Link elements, not Buttons.
+        let privacy = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@", "Privacy Policy")).firstMatch
+        for _ in 0..<3 where !privacy.isHittable { app.swipeUp() }
+        XCTAssertTrue(privacy.isHittable)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@", "Terms of Use")).firstMatch.isHittable)
+
+        app.navigationBars["Kyndyn Premium"].buttons.firstMatch.tap()
+        XCTAssertTrue(premium.waitForExistence(timeout: 3))
+    }
+
+    func testPremiumPlansSurviveRepeatedNavigationInLandscape() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch(parentUnlocked: true)
+        tapTab("Profiles", in: app)
+        app.buttons["profile-Maya"].tap()
+        tapTab("Parent", in: app)
+        for visit in 1...3 {
+            let premium = app.descendants(matching: .any)["parent-premium-discovery"]
+            reveal(premium, in: app)
+            premium.tap()
+            XCTAssertTrue(app.navigationBars["Kyndyn Premium"].waitForExistence(timeout: 5))
+            let annual = app.staticTexts.matching(NSPredicate(
+                format: "identifier == %@ AND (label == %@ OR label == %@)",
+                "Product View Primary Text", "Annual plan", "Kyndyn Premium Annual")).firstMatch
+            XCTAssertTrue(annual.waitForExistence(timeout: 15), "Missing annual plan on visit \(visit)")
+            let monthly = app.staticTexts.matching(NSPredicate(
+                format: "identifier == %@ AND (label == %@ OR label == %@)",
+                "Product View Primary Text", "Monthly plan", "Kyndyn Premium Monthly")).firstMatch
+            XCTAssertTrue(monthly.exists, "Missing monthly plan on visit \(visit)")
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Premium landscape visit \(visit)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            // App-cropped captures can retain a portrait rectangle after rotation.
+            // Keep the complete display and window geometry for visual diagnosis.
+            let display = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            display.name = "Premium full display visit \(visit)"
+            display.lifetime = .keepAlways
+            add(display)
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "Premium landscape hierarchy visit \(visit)"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+            app.navigationBars["Kyndyn Premium"].buttons.firstMatch.tap()
+            XCTAssertTrue(premium.waitForExistence(timeout: 3))
+        }
     }
 
     func testParentCanRunPrivacySafeHouseholdSafetyCheck() throws {
