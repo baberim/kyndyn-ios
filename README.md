@@ -4,14 +4,27 @@ kyndyn is a calm, local-first family app for turning everyday responsibilities i
 
 This repository is a new native SwiftUI implementation. It is independent from the kyndyn PWA and contains no household runtime data.
 
-## Current development build — 0.35.0 (Build 35)
+## Release status — November 10, 2026
 
-Build 35 enforces the first Premium boundaries without weakening Kyndyn's free
-family essentials. Advanced quest planning, detailed family insights, expanded
-earned companion and background collections, and alternate app icons now show
-clear Premium states, while active and grace-period members can use them normally. Existing
-quests, progress, rewards, security, sync, recovery, and equipped collection
-items remain available regardless of subscription state.
+**Kyndyn 1.0 (build 39)** is on internal TestFlight and selected in App Store
+Connect. It is prepared for submission, but has not been sent to App Review.
+Manual release remains selected. The store description and reviewer notes have
+been updated for build 39.
+
+Latest recorded validation: 117 unit tests passed on iOS 27.2, all 22 iPhone
+and 22 iPad UI cases passed across separate runs, and all 23 notification tests
+and typechecking passed. Full-display captures confirmed the iPad Premium
+landscape layout. Still pending: physical-device TestFlight purchase, cancellation,
+restore and entitlement persistence; Production CloudKit sharing and sync;
+spoken Siri and lock-screen privacy; and final store media/privacy verification.
+
+Build 39 uses native StoreKit product controls. The annual plan offers a two-week
+trial to eligible subscribers; monthly has no trial. Premium expands planning,
+insights, personalization, weather and calendar views. Core quests, progress,
+rewards, security, household sync and recovery stay free.
+
+See the [roadmap](docs/app-store-roadmap.md). These release notes describe the
+TestFlight candidate; the public source branch is not yet synchronized to build 39.
 
 The app provides a locally usable vertical slice:
 
