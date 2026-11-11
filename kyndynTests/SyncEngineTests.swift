@@ -583,7 +583,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
     func testOwnerProvisioningAndDuplicateAttemptAreIdempotent() async throws {
         let (container, household, state, records) = try fixture()
         let transport = InMemoryCloudTransport()
-        let controller = CloudSyncController(transport: transport)
+        let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await controller.provisionOwner(household: household, records: records,
             state: state, context: container.mainContext)
         XCTAssertEqual(state.mode, .owner)
@@ -614,7 +614,10 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         container.mainContext.delete(state)
         container.mainContext.delete(placeholder)
         try container.mainContext.save()
-        let controller = CloudSyncController(transport: transport)
+        // Recovery tests must not wait on the simulator's notification daemon.
+        let controller = CloudSyncController(
+            transport: transport,
+            notificationScheduler: RecordingNotificationScheduler())
         let candidates = await controller.discoverRecoverableHouseholds()
         let candidate = try XCTUnwrap(candidates.first)
         XCTAssertEqual(candidate.householdName, "Fictional Recovery Family")
@@ -701,7 +704,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
             zoneName: "broken-zone", zoneOwnerName: nil,
             rootRecordName: root.recordName, shareRecordName: nil,
             scope: .privateDatabase, records: [root, person, quest])
-        let controller = CloudSyncController(transport: InMemoryCloudTransport())
+        let controller = CloudSyncController(transport: InMemoryCloudTransport(), notificationScheduler: RecordingNotificationScheduler())
 
         let recovered = await controller.recoverHousehold(
             candidate, context: container.mainContext)
@@ -716,7 +719,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
     func testRecoveryRefusesToMergeIntoExistingLocalHousehold() async throws {
         let (container, _, _, _) = try fixture()
         let transport = InMemoryCloudTransport()
-        let controller = CloudSyncController(transport: transport)
+        let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         let candidate = CloudHouseholdCandidate(
             householdID: UUID(), householdName: "Other Fictional Family",
             zoneName: "kyndyn-household-other", zoneOwnerName: nil,
@@ -734,7 +737,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         for call in 1...6 {
             let (container, household, state, records) = try fixture()
             let transport = InterruptingTransport(failureCall: call)
-            let controller = CloudSyncController(transport: transport)
+            let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
             await controller.provisionOwner(household: household, records: records,
                 state: state, context: container.mainContext)
             XCTAssertNotEqual(state.mode, .owner)
@@ -766,7 +769,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
     func testAccountChangePausesWithoutUploading() async throws {
         let (container, household, state, records) = try fixture()
         let transport = InMemoryCloudTransport(accountFingerprint: "owner-a")
-        let controller = CloudSyncController(transport: transport)
+        let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await controller.provisionOwner(household: household, records: records,
             state: state, context: container.mainContext)
         await transport.setAvailability(.available(fingerprint: "owner-b"))
@@ -785,7 +788,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         let mutation = try XCTUnwrap(
             context.fetch(FetchDescriptor<PendingSyncMutation>()).first)
         let transport = InMemoryCloudTransport()
-        let controller = CloudSyncController(transport: transport)
+        let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await transport.failNext(.offline)
         let start = Date(timeIntervalSince1970: 1_000)
         await controller.synchronize(state: state, context: context, now: start)
@@ -846,7 +849,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
     func testStaleChangeTokenFallsBackToFullZoneFetch() async throws {
         let (container, household, state, records) = try fixture()
         let transport = InMemoryCloudTransport()
-        let controller = CloudSyncController(transport: transport)
+        let controller = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await controller.provisionOwner(household: household, records: records,
             state: state, context: container.mainContext)
         await controller.synchronize(
@@ -867,7 +870,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         ownerContainer.mainContext.insert(ownerPerson)
         try ownerContainer.mainContext.save()
         let transport = InMemoryCloudTransport()
-        let ownerController = CloudSyncController(transport: transport)
+        let ownerController = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await ownerController.provisionOwner(
             household: household,
             records: records + [SyncSnapshot.person(ownerPerson)], state: ownerState,
@@ -918,7 +921,7 @@ final class ACloudProvisioningAndLifecycleTests: XCTestCase {
         participantContext.insert(participantState)
         try participantContext.save()
 
-        let participantController = CloudSyncController(transport: transport)
+        let participantController = CloudSyncController(transport: transport, notificationScheduler: RecordingNotificationScheduler())
         await participantController.synchronize(
             state: participantState, context: participantContext)
         XCTAssertEqual(stalePerson.startingXPAdjustment, 0)

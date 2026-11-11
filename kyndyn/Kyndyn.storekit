@@ -55,29 +55,15 @@
 
           ],
           "displayPrice" : "3.99",
-          "familyShareable" : false,
+          "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "AF728189",
-          "introductoryOffer" : {
-            "billingPlanType" : "BILLED_UPFRONT",
-            "internalID" : "DFBB4C56",
-            "numberOfPeriods" : 1,
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P2W"
-          },
           "introductoryOffers" : [
-            {
-              "billingPlanType" : "BILLED_UPFRONT",
-              "internalID" : "DFBB4C56",
-              "numberOfPeriods" : 1,
-              "paymentMode" : "free",
-              "subscriptionPeriod" : "P2W"
-            }
           ],
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "Flexible monthly access",
+              "displayName" : "Monthly plan",
               "locale" : "en_US"
             }
           ],
@@ -107,7 +93,7 @@
 
           ],
           "displayPrice" : "29.99",
-          "familyShareable" : false,
+          "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "0FACC3C6",
           "introductoryOffer" : {
@@ -128,8 +114,8 @@
           ],
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "2 weeks free, then $29.99 per year",
+              "displayName" : "Annual plan",
               "locale" : "en_US"
             }
           ],

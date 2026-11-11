@@ -319,7 +319,7 @@ enum StorePurchaseError: LocalizedError {
     private(set) var products: [Product] = []
     private(set) var entitlement: PremiumEntitlement
     private(set) var isLoading = false
-    private(set) var isPurchasing = false
+    private(set) var purchaseStatusMessage: String?
     var errorMessage: String?
 
     private let defaults: UserDefaults
@@ -386,44 +386,72 @@ enum StorePurchaseError: LocalizedError {
                 if $1.id == KyndynStoreProducts.annual { return false }
                 return $0.price < $1.price
             }
-            errorMessage = nil
+            if products.isEmpty {
+                errorMessage = StorePurchaseError.productUnavailable
+                    .localizedDescription
+            } else {
+                errorMessage = nil
+            }
         } catch {
             errorMessage = "Premium plans couldn’t be loaded. Your family data is unaffected."
         }
     }
 
-    func purchase(_ product: Product) async {
-        isPurchasing = true
-        defer { isPurchasing = false }
-        do {
-            switch try await product.purchase() {
-            case .success(let verification):
-                let transaction = try Self.verified(verification)
-                await transaction.finish()
-                await refreshEntitlement()
-            case .pending:
-                errorMessage = "This purchase is waiting for Apple’s approval."
-            case .userCancelled:
-                break
-            @unknown default:
-                errorMessage = "The purchase didn’t finish. Please try again."
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     func restorePurchases() async {
-        isLoading = true
-        defer { isLoading = false }
+        errorMessage = nil
+        purchaseStatusMessage = "Restoring purchases…"
         do {
             try await AppStore.sync()
             await refreshEntitlement()
-            if !entitlement.hasPremiumAccess {
-                errorMessage = "No active Kyndyn Premium purchase was found for this Apple Account."
-            }
+            purchaseStatusMessage = entitlement.hasPremiumAccess
+                ? "Kyndyn Premium is now active."
+                : "No active subscription was found for this Apple Account."
         } catch {
-            errorMessage = "Purchases couldn’t be restored. Please try again when you’re online."
+            purchaseStatusMessage = nil
+            errorMessage = "Purchases couldn’t be restored. Please try again."
+        }
+    }
+
+    func storePurchaseCompleted(
+        _ product: Product,
+        result: Result<Product.PurchaseResult, Error>
+    ) async {
+        switch result {
+        case .success(.success(let verification)):
+            do {
+                let transaction = try Self.verified(verification)
+                // The verified purchase result is authoritative. StoreKit's
+                // currentEntitlements sequence can briefly lag behind the
+                // purchase sheet on a newly completed subscription.
+                setEntitlement(PremiumEntitlement(
+                    state: .active,
+                    source: source(for: transaction),
+                    expirationDate: transaction.expirationDate))
+                await transaction.finish()
+                errorMessage = nil
+                purchaseStatusMessage = "Kyndyn Premium is now active."
+            } catch {
+                purchaseStatusMessage = nil
+                errorMessage = error.localizedDescription
+            }
+        case .success(.pending):
+            purchaseStatusMessage = "This purchase is waiting for Apple’s approval."
+        case .success(.userCancelled):
+            purchaseStatusMessage = "Purchase cancelled. You weren’t charged."
+        case .success:
+            purchaseStatusMessage = nil
+            errorMessage = "The purchase didn’t finish. Please try again."
+        case .failure(let error):
+            // A delayed transaction update remains the source of truth even if
+            // StoreKit's presentation callback itself reports a transient error.
+            await refreshEntitlement()
+            if entitlement.hasPremiumAccess {
+                errorMessage = nil
+                purchaseStatusMessage = "Kyndyn Premium is now active."
+            } else {
+                purchaseStatusMessage = nil
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -484,11 +512,14 @@ enum StorePurchaseError: LocalizedError {
             ? .appleFamilySharing : .appStorePurchase
     }
 
-    private func setEntitlement(_ value: PremiumEntitlement) {
+    func setEntitlement(_ value: PremiumEntitlement) {
         entitlement = value
         if value.hasPremiumAccess,
            let data = try? JSONEncoder().encode(value) {
             defaults.set(data, forKey: cacheKey)
+            // Entitlement state is authoritative. Never leave an older StoreKit
+            // presentation error visible after access has been granted.
+            errorMessage = nil
         } else {
             defaults.removeObject(forKey: cacheKey)
         }

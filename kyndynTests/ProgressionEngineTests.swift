@@ -59,11 +59,34 @@ final class DeviceContextPolicyTests: XCTestCase {
 }
 
 final class PremiumEntitlementPolicyTests: XCTestCase {
+    @MainActor func testVerifiedPremiumClearsOlderStoreKitError() {
+        let suiteName = "PremiumEntitlementPolicyTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = StoreKitEntitlementController(defaults: defaults)
+        controller.errorMessage = "Unable to Complete Request"
+
+        controller.setEntitlement(PremiumEntitlement(
+            state: .active,
+            source: .appStorePurchase,
+            expirationDate: Date(timeIntervalSinceNow: 86_400)))
+
+        XCTAssertTrue(controller.entitlement.hasPremiumAccess)
+        XCTAssertNil(controller.errorMessage)
+    }
+
     func testStoreProductIdentifiersAreStableAndUnique() {
-        XCTAssertEqual(KyndynStoreProducts.all.count, 2)
+        XCTAssertEqual(KyndynStoreProducts.all, [
+            "com.kyndynfamily.kyndyn.premium.annual",
+            "com.kyndynfamily.kyndyn.premium.monthly"
+        ])
         XCTAssertEqual(Set(KyndynStoreProducts.all).count, 2)
-        XCTAssertTrue(KyndynStoreProducts.monthly.hasSuffix(".monthly"))
-        XCTAssertTrue(KyndynStoreProducts.annual.hasSuffix(".annual"))
+    }
+
+    func testUnavailableProductErrorIsActionable() {
+        XCTAssertEqual(
+            StorePurchaseError.productUnavailable.localizedDescription,
+            "Premium plans aren’t available right now. Please try again later.")
     }
 
     func testOnlyActiveAndGracePeriodGrantPremiumAccess() {
@@ -200,6 +223,23 @@ final class SystemIntelligenceTests: XCTestCase {
         XCTAssertEqual(try KyndynIntentStore.shared.rewardSummary(),
                        "Fictional Movie Night: 0 of 100 XP.")
         withExtendedLifetime(container) {}
+    }
+
+    @MainActor func testRewardEntityReflectsCompletionUndoAndRemoval() throws {
+        let (container, household, _, _, _) = try fixture()
+        defer { KyndynIntentStore.shared.resetForTesting() }
+        let store = KyndynIntentStore.shared
+        XCTAssertEqual(try store.rewardEntity()?.id, household.id)
+        XCTAssertEqual(try store.rewardEntity()?.remainingXP, 100)
+        let occurrence = try XCTUnwrap(store.occurrences(includeCompleted: true).first)
+        _ = try store.complete(occurrenceID: occurrence.id)
+        XCTAssertEqual(try store.rewardEntity()?.progressXP, 10)
+        XCTAssertEqual(try store.rewardEntity()?.remainingXP, 90)
+        _ = try store.undo(occurrenceID: occurrence.id)
+        XCTAssertEqual(try store.rewardEntity()?.progressXP, 0)
+        container.mainContext.delete(household)
+        try container.mainContext.save()
+        XCTAssertNil(try store.rewardEntity())
     }
 
     @MainActor func testIntentCompletionAndExactUndoAreIdempotent() throws {
